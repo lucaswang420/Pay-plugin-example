@@ -81,6 +81,9 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
         const std::string &orderNo,
         const std::string &paymentNo,
         const std::string &amount,
+        const std::string &reason,
+        const std::string &notifyUrlOverride,
+        const std::string &fundsAccount,
         const std::string &idempotencyKey,
         const std::string &requestHash);
 

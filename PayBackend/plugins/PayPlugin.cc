@@ -1134,6 +1134,9 @@ void PayPlugin::proceedRefund(
     const std::string &orderNo,
     const std::string &paymentNo,
     const std::string &amount,
+    const std::string &reason,
+    const std::string &notifyUrlOverride,
+    const std::string &fundsAccount,
     const std::string &idempotencyKey,
     const std::string &requestHash)
 {
@@ -1149,6 +1152,9 @@ void PayPlugin::proceedRefund(
          orderNo,
          paymentNo,
          amount,
+         reason,
+         notifyUrlOverride,
+         fundsAccount,
          idempotencyKey,
          requestHash](const PayOrderModel &order) {
             const std::string orderAmount = order.getValueOfAmount();
@@ -1162,6 +1168,14 @@ void PayPlugin::proceedRefund(
                 auto resp = drogon::HttpResponse::newHttpResponse();
                 resp->setStatusCode(drogon::k400BadRequest);
                 resp->setBody("invalid amount format");
+                (*callbackPtr)(resp);
+                return;
+            }
+            if (refundFen <= 0 || refundFen > totalFen)
+            {
+                auto resp = drogon::HttpResponse::newHttpResponse();
+                resp->setStatusCode(drogon::k400BadRequest);
+                resp->setBody("invalid refund amount");
                 (*callbackPtr)(resp);
                 return;
             }
@@ -1185,6 +1199,9 @@ void PayPlugin::proceedRefund(
                  refundFen,
                  totalFen,
                  currency,
+                 reason,
+                 notifyUrlOverride,
+                 fundsAccount,
                  idempotencyKey,
                  requestHash](const PayRefundModel &) {
                     if (!wechatClient_)
@@ -1219,6 +1236,18 @@ void PayPlugin::proceedRefund(
                     Json::Value payload;
                     payload["out_trade_no"] = orderNo;
                     payload["out_refund_no"] = refundNo;
+                    if (!reason.empty())
+                    {
+                        payload["reason"] = reason;
+                    }
+                    if (!notifyUrlOverride.empty())
+                    {
+                        payload["notify_url"] = notifyUrlOverride;
+                    }
+                    if (!fundsAccount.empty())
+                    {
+                        payload["funds_account"] = fundsAccount;
+                    }
                     payload["amount"]["refund"] =
                         static_cast<Json::Int64>(refundFen);
                     payload["amount"]["total"] =
@@ -1789,6 +1818,45 @@ void PayPlugin::refund(
 
     std::string paymentNo = (*json).get("payment_no", "").asString();
     std::string refundNo = drogon::utils::getUuid();
+    std::string reason;
+    std::string notifyUrlOverride;
+    std::string fundsAccount;
+    if ((*json).isMember("reason"))
+    {
+        if (!(*json)["reason"].isString())
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("invalid reason");
+            callback(resp);
+            return;
+        }
+        reason = (*json)["reason"].asString();
+    }
+    if ((*json).isMember("notify_url"))
+    {
+        if (!(*json)["notify_url"].isString())
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("invalid notify_url");
+            callback(resp);
+            return;
+        }
+        notifyUrlOverride = (*json)["notify_url"].asString();
+    }
+    if ((*json).isMember("funds_account"))
+    {
+        if (!(*json)["funds_account"].isString())
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("invalid funds_account");
+            callback(resp);
+            return;
+        }
+        fundsAccount = (*json)["funds_account"].asString();
+    }
 
     const auto rawIdempotencyKey = resolveIdempotencyKey(req);
     const std::string idempotencyKey =
@@ -1808,6 +1876,9 @@ void PayPlugin::refund(
                               orderNo,
                               paymentNo,
                               amount,
+                              reason,
+                              notifyUrlOverride,
+                              fundsAccount,
                               idempotencyKey,
                               requestHash]() {
         proceedRefund(callbackPtr,
@@ -1815,6 +1886,9 @@ void PayPlugin::refund(
                       orderNo,
                       paymentNo,
                       amount,
+                      reason,
+                      notifyUrlOverride,
+                      fundsAccount,
                       idempotencyKey,
                       requestHash);
     };
