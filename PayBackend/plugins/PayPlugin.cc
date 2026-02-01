@@ -1982,6 +1982,16 @@ void PayPlugin::refund(
             return;
         }
         fundsAccount = (*json)["funds_account"].asString();
+        if (!fundsAccount.empty() &&
+            fundsAccount != "AVAILABLE" &&
+            fundsAccount != "UNSETTLED")
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("invalid funds_account");
+            callback(resp);
+            return;
+        }
     }
 
     const auto rawIdempotencyKey = resolveIdempotencyKey(req);

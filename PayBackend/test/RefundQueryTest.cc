@@ -1168,6 +1168,51 @@ DROGON_TEST(PayPlugin_Refund_ReasonTooLong)
     CHECK(resp->body().find("reason too long") != std::string::npos);
 }
 
+DROGON_TEST(PayPlugin_Refund_InvalidFundsAccount)
+{
+    Json::Value root;
+    CHECK(loadConfig(root));
+    CHECK(root.isMember("db_clients"));
+    CHECK(root["db_clients"].isArray());
+    CHECK(!root["db_clients"].empty());
+
+    const auto &db = root["db_clients"][0];
+    const std::string connInfo = buildPgConnInfo(db);
+    CHECK(!connInfo.empty());
+
+    auto client = drogon::orm::DbClient::newPgClient(connInfo, 1);
+    CHECK(client != nullptr);
+
+    PayPlugin plugin;
+    plugin.setTestClients(nullptr, client);
+
+    Json::Value payload;
+    payload["order_no"] = "ord_" + drogon::utils::getUuid();
+    payload["amount"] = "1.00";
+    payload["funds_account"] = "BAD_ACCOUNT";
+    const std::string body = pay::utils::toJsonString(payload);
+
+    auto req = drogon::HttpRequest::newHttpRequest();
+    req->setMethod(drogon::Post);
+    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
+    req->setBody(body);
+
+    std::promise<drogon::HttpResponsePtr> promise;
+    plugin.refund(
+        req,
+        [&promise](const drogon::HttpResponsePtr &resp) {
+            promise.set_value(resp);
+        });
+
+    auto future = promise.get_future();
+    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+    const auto resp = future.get();
+    CHECK(resp != nullptr);
+    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    CHECK(resp->body().find("invalid funds_account") != std::string::npos);
+}
+
 DROGON_TEST(PayPlugin_QueryRefund_WechatSuccess)
 {
     Json::Value root;
