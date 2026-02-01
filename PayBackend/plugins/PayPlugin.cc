@@ -1241,6 +1241,20 @@ void PayPlugin::proceedRefund(
                 return;
             }
 
+            auto proceedWithInsert = [this,
+                                      callbackPtr,
+                                      refundNo,
+                                      orderNo,
+                                      paymentNo,
+                                      amount,
+                                      refundFen,
+                                      totalFen,
+                                      currency,
+                                      reason,
+                                      notifyUrlOverride,
+                                      fundsAccount,
+                                      idempotencyKey,
+                                      requestHash]() {
             drogon::orm::Mapper<PayRefundModel> refundMapper(dbClient_);
             PayRefundModel refund;
             refund.setRefundNo(refundNo);
@@ -1451,6 +1465,49 @@ void PayPlugin::proceedRefund(
                     resp->setBody(std::string("db error: ") + e.base().what());
                     (*callbackPtr)(resp);
                 });
+            };
+
+            dbClient_->execSqlAsync(
+                "SELECT COALESCE(SUM(amount), 0) AS sum_amount "
+                "FROM pay_refund WHERE order_no = $1 "
+                "AND status IN ($2, $3, $4)",
+                [callbackPtr, refundFen, totalFen, proceedWithInsert](
+                    const drogon::orm::Result &r) {
+                    if (r.empty())
+                    {
+                        proceedWithInsert();
+                        return;
+                    }
+                    const auto sumText = r.front()["sum_amount"].as<std::string>();
+                    int64_t refundedFen = 0;
+                    if (!parseAmountToFen(sumText, refundedFen))
+                    {
+                        auto resp = drogon::HttpResponse::newHttpResponse();
+                        resp->setStatusCode(drogon::k500InternalServerError);
+                        resp->setBody("invalid refund sum");
+                        (*callbackPtr)(resp);
+                        return;
+                    }
+                    if (refundedFen + refundFen > totalFen)
+                    {
+                        auto resp = drogon::HttpResponse::newHttpResponse();
+                        resp->setStatusCode(drogon::k409Conflict);
+                        resp->setBody("refund amount exceeds paid");
+                        (*callbackPtr)(resp);
+                        return;
+                    }
+                    proceedWithInsert();
+                },
+                [callbackPtr](const drogon::orm::DrogonDbException &e) {
+                    auto resp = drogon::HttpResponse::newHttpResponse();
+                    resp->setStatusCode(drogon::k500InternalServerError);
+                    resp->setBody(std::string("db error: ") + e.base().what());
+                    (*callbackPtr)(resp);
+                },
+                orderNo,
+                "REFUND_INIT",
+                "REFUNDING",
+                "REFUND_SUCCESS");
         },
         [callbackPtr](const drogon::orm::DrogonDbException &e) {
             auto resp = drogon::HttpResponse::newHttpResponse();
