@@ -1140,6 +1140,57 @@ void PayPlugin::proceedRefund(
     const std::string &idempotencyKey,
     const std::string &requestHash)
 {
+    if (paymentNo.empty())
+    {
+        drogon::orm::Mapper<PayPaymentModel> paymentMapper(dbClient_);
+        auto payCriteria =
+            drogon::orm::Criteria(PayPaymentModel::Cols::_order_no,
+                                  drogon::orm::CompareOperator::EQ,
+                                  orderNo);
+        paymentMapper.orderBy(PayPaymentModel::Cols::_created_at,
+                              drogon::orm::SortOrder::DESC)
+            .limit(1)
+            .findBy(
+                payCriteria,
+                [this,
+                 callbackPtr,
+                 refundNo,
+                 orderNo,
+                 amount,
+                 reason,
+                 notifyUrlOverride,
+                 fundsAccount,
+                 idempotencyKey,
+                 requestHash](const std::vector<PayPaymentModel> &rows) {
+                    if (rows.empty())
+                    {
+                        auto resp = drogon::HttpResponse::newHttpResponse();
+                        resp->setStatusCode(drogon::k404NotFound);
+                        resp->setBody("payment not found");
+                        (*callbackPtr)(resp);
+                        return;
+                    }
+                    const auto paymentNo = rows.front().getValueOfPaymentNo();
+                    proceedRefund(callbackPtr,
+                                  refundNo,
+                                  orderNo,
+                                  paymentNo,
+                                  amount,
+                                  reason,
+                                  notifyUrlOverride,
+                                  fundsAccount,
+                                  idempotencyKey,
+                                  requestHash);
+                },
+                [callbackPtr](const drogon::orm::DrogonDbException &e) {
+                    auto resp = drogon::HttpResponse::newHttpResponse();
+                    resp->setStatusCode(drogon::k500InternalServerError);
+                    resp->setBody(std::string("db error: ") + e.base().what());
+                    (*callbackPtr)(resp);
+                });
+        return;
+    }
+
     drogon::orm::Mapper<PayOrderModel> orderMapper(dbClient_);
     auto criteria = drogon::orm::Criteria(PayOrderModel::Cols::_order_no,
                                           drogon::orm::CompareOperator::EQ,
