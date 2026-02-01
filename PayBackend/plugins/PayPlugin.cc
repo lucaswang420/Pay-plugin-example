@@ -1210,6 +1210,16 @@ void PayPlugin::proceedRefund(
          requestHash](const PayOrderModel &order) {
             const std::string orderAmount = order.getValueOfAmount();
             const std::string currency = order.getValueOfCurrency();
+            const std::string orderStatus = order.getValueOfStatus();
+
+            if (orderStatus != "PAID")
+            {
+                auto resp = drogon::HttpResponse::newHttpResponse();
+                resp->setStatusCode(drogon::k409Conflict);
+                resp->setBody("order not paid");
+                (*callbackPtr)(resp);
+                return;
+            }
 
             int64_t refundFen = 0;
             int64_t totalFen = 0;
