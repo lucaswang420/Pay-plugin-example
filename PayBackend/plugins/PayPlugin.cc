@@ -1950,6 +1950,14 @@ void PayPlugin::refund(
             return;
         }
         reason = (*json)["reason"].asString();
+        if (reason.size() > 80)
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("reason too long");
+            callback(resp);
+            return;
+        }
     }
     if ((*json).isMember("notify_url"))
     {
