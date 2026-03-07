@@ -1582,6 +1582,16 @@ void PayPlugin::createPayment(
             return;
         }
         notifyUrlOverride = (*json)["notify_url"].asString();
+        if (!notifyUrlOverride.empty() &&
+            notifyUrlOverride.rfind("https://", 0) != 0 &&
+            notifyUrlOverride.rfind("http://", 0) != 0)
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("invalid notify_url");
+            callback(resp);
+            return;
+        }
     }
     if ((*json).isMember("attach"))
     {
@@ -1970,6 +1980,16 @@ void PayPlugin::refund(
             return;
         }
         notifyUrlOverride = (*json)["notify_url"].asString();
+        if (!notifyUrlOverride.empty() &&
+            notifyUrlOverride.rfind("https://", 0) != 0 &&
+            notifyUrlOverride.rfind("http://", 0) != 0)
+        {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k400BadRequest);
+            resp->setBody("invalid notify_url");
+            callback(resp);
+            return;
+        }
     }
     if ((*json).isMember("funds_account"))
     {
