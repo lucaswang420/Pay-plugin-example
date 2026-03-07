@@ -1191,6 +1191,17 @@ void PayPlugin::proceedRefund(
         return;
     }
 
+    auto proceedOrderFlow = [this,
+                             callbackPtr,
+                             refundNo,
+                             orderNo,
+                             paymentNo,
+                             amount,
+                             reason,
+                             notifyUrlOverride,
+                             fundsAccount,
+                             idempotencyKey,
+                             requestHash]() {
     drogon::orm::Mapper<PayOrderModel> orderMapper(dbClient_);
     auto criteria = drogon::orm::Criteria(PayOrderModel::Cols::_order_no,
                                           drogon::orm::CompareOperator::EQ,
@@ -1513,6 +1524,35 @@ void PayPlugin::proceedRefund(
             auto resp = drogon::HttpResponse::newHttpResponse();
             resp->setStatusCode(drogon::k404NotFound);
             resp->setBody(std::string("order not found: ") + e.base().what());
+            (*callbackPtr)(resp);
+        });
+    };
+
+    drogon::orm::Mapper<PayPaymentModel> paymentValidateMapper(dbClient_);
+    auto paymentCriteria =
+        drogon::orm::Criteria(PayPaymentModel::Cols::_payment_no,
+                              drogon::orm::CompareOperator::EQ,
+                              paymentNo) &&
+        drogon::orm::Criteria(PayPaymentModel::Cols::_order_no,
+                              drogon::orm::CompareOperator::EQ,
+                              orderNo);
+    paymentValidateMapper.findOne(
+        paymentCriteria,
+        [callbackPtr, proceedOrderFlow](const PayPaymentModel &payment) {
+            if (payment.getValueOfStatus() != "SUCCESS")
+            {
+                auto resp = drogon::HttpResponse::newHttpResponse();
+                resp->setStatusCode(drogon::k409Conflict);
+                resp->setBody("payment not successful");
+                (*callbackPtr)(resp);
+                return;
+            }
+            proceedOrderFlow();
+        },
+        [callbackPtr](const drogon::orm::DrogonDbException &e) {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k404NotFound);
+            resp->setBody(std::string("payment not found: ") + e.base().what());
             (*callbackPtr)(resp);
         });
 }
