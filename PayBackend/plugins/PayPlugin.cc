@@ -1623,14 +1623,51 @@ void PayPlugin::proceedRefund(
                             body["channel_refund_no"] =
                                 r.front()["channel_refund_no"].as<std::string>();
                         }
-                        storeIdempotencySnapshot(
-                            dbClient_,
-                            idempotencyKey,
-                            requestHash,
-                            toJsonString(body),
-                            idempotencyTtlSeconds_);
-                        auto resp = drogon::HttpResponse::newHttpJsonResponse(body);
-                        (*callbackPtr)(resp);
+                        const auto respondWithSnapshot =
+                            [this,
+                             callbackPtr,
+                             idempotencyKey,
+                             requestHash](const Json::Value &snapshotBody) {
+                                storeIdempotencySnapshot(
+                                    dbClient_,
+                                    idempotencyKey,
+                                    requestHash,
+                                    toJsonString(snapshotBody),
+                                    idempotencyTtlSeconds_);
+                                auto resp = drogon::HttpResponse::newHttpJsonResponse(snapshotBody);
+                                (*callbackPtr)(resp);
+                            };
+                        const auto snapshotRefundNo = body["refund_no"].asString();
+                        dbClient_->execSqlAsync(
+                            "SELECT response_payload FROM pay_refund WHERE refund_no = $1",
+                            [respondWithSnapshot, body](const drogon::orm::Result &payloadRows) mutable {
+                                if (!payloadRows.empty() &&
+                                    !payloadRows.front()["response_payload"].isNull())
+                                {
+                                    const auto payloadText =
+                                        payloadRows.front()["response_payload"].as<std::string>();
+                                    if (!payloadText.empty())
+                                    {
+                                        Json::CharReaderBuilder builder;
+                                        std::unique_ptr<Json::CharReader> reader(
+                                            builder.newCharReader());
+                                        Json::Value payloadJson;
+                                        std::string parseErrors;
+                                        if (reader->parse(payloadText.data(),
+                                                          payloadText.data() + payloadText.size(),
+                                                          &payloadJson,
+                                                          &parseErrors))
+                                        {
+                                            body["wechat_response"] = payloadJson;
+                                        }
+                                    }
+                                }
+                                respondWithSnapshot(body);
+                            },
+                            [respondWithSnapshot, body](const drogon::orm::DrogonDbException &) {
+                                respondWithSnapshot(body);
+                            },
+                            snapshotRefundNo);
                         return;
                     }
                     proceedWithInProgressCheck();

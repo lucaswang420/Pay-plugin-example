@@ -1492,6 +1492,11 @@ DROGON_TEST(PayPlugin_Refund_IdempotentSuccessSnapshot)
     const std::string amount = "6.66";
     const std::string historyRefundNo = "refund_" + drogon::utils::getUuid();
     const std::string channelRefundNo = "wx_refund_" + drogon::utils::getUuid();
+    Json::Value historyPayloadJson;
+    historyPayloadJson["status"] = "SUCCESS";
+    historyPayloadJson["refund_id"] = channelRefundNo;
+    historyPayloadJson["from"] = "snapshot";
+    const std::string historyPayload = pay::utils::toJsonString(historyPayloadJson);
 
     using PayOrder = drogon_model::pay_test::PayOrder;
     drogon::orm::Mapper<PayOrder> orderMapper(client);
@@ -1520,14 +1525,15 @@ DROGON_TEST(PayPlugin_Refund_IdempotentSuccessSnapshot)
 
     client->execSqlSync(
         "INSERT INTO pay_refund "
-        "(refund_no, order_no, payment_no, channel_refund_no, status, amount, created_at, updated_at) "
-        "VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())",
+        "(refund_no, order_no, payment_no, channel_refund_no, status, amount, response_payload, created_at, updated_at) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())",
         historyRefundNo,
         orderNo,
         paymentNo,
         channelRefundNo,
         "REFUND_SUCCESS",
-        amount);
+        amount,
+        historyPayload);
 
     PayPlugin plugin;
     plugin.setTestClients(nullptr, client);
@@ -1563,6 +1569,9 @@ DROGON_TEST(PayPlugin_Refund_IdempotentSuccessSnapshot)
     CHECK((*respJson)["payment_no"].asString() == paymentNo);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
     CHECK((*respJson)["channel_refund_no"].asString() == channelRefundNo);
+    CHECK((*respJson)["wechat_response"]["status"].asString() == "SUCCESS");
+    CHECK((*respJson)["wechat_response"]["refund_id"].asString() ==
+          channelRefundNo);
 
     const auto countRows = client->execSqlSync(
         "SELECT COUNT(*) AS cnt FROM pay_refund WHERE order_no = $1",
