@@ -1296,6 +1296,7 @@ void PayPlugin::proceedRefund(
                  callbackPtr,
                  refundNo,
                  orderNo,
+                 paymentNo,
                  refundFen,
                  totalFen,
                  currency,
@@ -1360,6 +1361,7 @@ void PayPlugin::proceedRefund(
                          callbackPtr,
                          refundNo,
                          orderNo,
+                         paymentNo,
                          idempotencyKey,
                          requestHash](
                             const Json::Value &result,
@@ -1420,6 +1422,7 @@ void PayPlugin::proceedRefund(
                                  callbackPtr,
                                  refundNo,
                                  orderNo,
+                                 paymentNo,
                                  refundStatus,
                                  result,
                                  refundId,
@@ -1436,6 +1439,7 @@ void PayPlugin::proceedRefund(
                                          callbackPtr,
                                          refundNo,
                                          orderNo,
+                                         paymentNo,
                                          refundStatus,
                                          result,
                                          idempotencyKey,
@@ -1443,6 +1447,7 @@ void PayPlugin::proceedRefund(
                                             Json::Value body;
                                             body["refund_no"] = refundNo;
                                             body["order_no"] = orderNo;
+                                            body["payment_no"] = paymentNo;
                                             body["status"] = refundStatus;
                                             body["wechat_response"] = result;
                                             const std::string responseSnapshot =
@@ -1577,6 +1582,7 @@ void PayPlugin::proceedRefund(
                 "ORDER BY updated_at DESC LIMIT 1",
                 [this,
                  callbackPtr,
+                 paymentNo,
                  idempotencyKey,
                  requestHash,
                  proceedWithInProgressCheck](const drogon::orm::Result &r) {
@@ -1585,6 +1591,7 @@ void PayPlugin::proceedRefund(
                         Json::Value body;
                         body["refund_no"] = r.front()["refund_no"].as<std::string>();
                         body["order_no"] = r.front()["order_no"].as<std::string>();
+                        body["payment_no"] = paymentNo;
                         body["status"] = r.front()["status"].as<std::string>();
                         if (!r.front()["channel_refund_no"].isNull())
                         {

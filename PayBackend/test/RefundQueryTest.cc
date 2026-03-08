@@ -181,6 +181,18 @@ DROGON_TEST(PayPlugin_QueryRefund_NoWechatClient)
     CHECK(client != nullptr);
 
     client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_payment ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "order_no VARCHAR(64) NOT NULL,"
+        "payment_no VARCHAR(64) NOT NULL UNIQUE,"
+        "channel_trade_no VARCHAR(64),"
+        "status VARCHAR(24) NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "request_payload TEXT,"
+        "response_payload TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
         "CREATE TABLE IF NOT EXISTS pay_refund ("
         "id BIGSERIAL PRIMARY KEY,"
         "refund_no VARCHAR(64) NOT NULL UNIQUE,"
@@ -583,6 +595,18 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
         "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
         "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_payment ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "order_no VARCHAR(64) NOT NULL,"
+        "payment_no VARCHAR(64) NOT NULL UNIQUE,"
+        "channel_trade_no VARCHAR(64),"
+        "status VARCHAR(24) NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "request_payload TEXT,"
+        "response_payload TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
         "CREATE TABLE IF NOT EXISTS pay_refund ("
         "id BIGSERIAL PRIMARY KEY,"
         "refund_no VARCHAR(64) NOT NULL UNIQUE,"
@@ -612,6 +636,22 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     order.setCreatedAt(trantor::Date::now());
     order.setUpdatedAt(trantor::Date::now());
     orderMapper.insert(order);
+
+    using PayPayment = drogon_model::pay_test::PayPayment;
+    drogon::orm::Mapper<PayPayment> paymentMapper(client);
+    PayPayment payment;
+    payment.setOrderNo(orderNo);
+    payment.setPaymentNo(paymentNo);
+    payment.setStatus("SUCCESS");
+    payment.setAmount(amount);
+    payment.setCreatedAt(trantor::Date::now());
+    payment.setUpdatedAt(trantor::Date::now());
+    paymentMapper.insert(payment);
+    const auto paymentRows = client->execSqlSync(
+        "SELECT COUNT(*) AS cnt FROM pay_payment WHERE payment_no = $1",
+        paymentNo);
+    CHECK(!paymentRows.empty());
+    CHECK(paymentRows.front()["cnt"].as<int64_t>() == 1);
 
     const uint16_t port = 24089;
     std::atomic<bool> sawReason(false);
@@ -705,6 +745,7 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     CHECK(resp->statusCode() == drogon::k200OK);
     const auto respJson = resp->getJsonObject();
     CHECK(respJson != nullptr);
+    CHECK((*respJson)["payment_no"].asString() == paymentNo);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
     CHECK(sawReason.load());
     CHECK(sawNotify.load());
@@ -720,6 +761,8 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     std::filesystem::remove(keyPath, ec);
     client->execSqlSync("DELETE FROM pay_refund WHERE order_no = $1",
                         orderNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1",
+                        paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 }
 
@@ -1351,6 +1394,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotentSuccessSnapshot)
     CHECK(respJson != nullptr);
     CHECK((*respJson)["refund_no"].asString() == historyRefundNo);
     CHECK((*respJson)["order_no"].asString() == orderNo);
+    CHECK((*respJson)["payment_no"].asString() == paymentNo);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
     CHECK((*respJson)["channel_refund_no"].asString() == channelRefundNo);
 
