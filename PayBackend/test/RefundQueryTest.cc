@@ -335,6 +335,7 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatQueryError)
     CHECK(respJson != nullptr);
     CHECK((*respJson)["refund_no"].asString() == refundNo);
     CHECK((*respJson)["status"].asString() == "REFUNDING");
+    CHECK((*respJson)["updated_at"].isString());
 
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1",
                         refundNo);
@@ -1993,6 +1994,8 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatSuccess)
     CHECK(respJson != nullptr);
     CHECK((*respJson)["refund_no"].asString() == refundNo);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
+    CHECK((*respJson)["updated_at"].isString());
+    CHECK((*respJson)["updated_at"].asString().find("T") != std::string::npos);
     CHECK((*respJson)["wechat_response"]["status"].asString() == "SUCCESS");
 
     const auto updated = refundMapper.findByPrimaryKey(

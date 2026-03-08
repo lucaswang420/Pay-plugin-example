@@ -2397,6 +2397,7 @@ void PayPlugin::queryRefund(
             body["status"] = refund.getValueOfStatus();
             body["amount"] = refund.getValueOfAmount();
             body["channel_refund_no"] = refund.getValueOfChannelRefundNo();
+            body["updated_at"] = toRfc3339Utc(refund.getValueOfUpdatedAt());
 
             if (!wechatClient_)
             {
