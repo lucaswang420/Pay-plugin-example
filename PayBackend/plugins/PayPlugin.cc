@@ -1535,21 +1535,73 @@ void PayPlugin::proceedRefund(
                 "REFUND_SUCCESS");
             };
 
-            dbClient_->execSqlAsync(
-                "SELECT COUNT(*) AS cnt FROM pay_refund "
-                "WHERE order_no = $1 AND payment_no = $2 AND amount = $3 "
-                "AND status IN ($4, $5)",
-                [callbackPtr, proceedWithAmountCheck](
-                    const drogon::orm::Result &r) {
-                    if (!r.empty() && r.front()["cnt"].as<int64_t>() > 0)
-                    {
+            auto proceedWithInProgressCheck = [this,
+                                               callbackPtr,
+                                               proceedWithAmountCheck,
+                                               orderNo,
+                                               paymentNo,
+                                               amount]() {
+                dbClient_->execSqlAsync(
+                    "SELECT COUNT(*) AS cnt FROM pay_refund "
+                    "WHERE order_no = $1 AND payment_no = $2 AND amount = $3 "
+                    "AND status IN ($4, $5)",
+                    [callbackPtr, proceedWithAmountCheck](
+                        const drogon::orm::Result &r) {
+                        if (!r.empty() && r.front()["cnt"].as<int64_t>() > 0)
+                        {
+                            auto resp = drogon::HttpResponse::newHttpResponse();
+                            resp->setStatusCode(drogon::k409Conflict);
+                            resp->setBody("refund already in progress");
+                            (*callbackPtr)(resp);
+                            return;
+                        }
+                        proceedWithAmountCheck();
+                    },
+                    [callbackPtr](const drogon::orm::DrogonDbException &e) {
                         auto resp = drogon::HttpResponse::newHttpResponse();
-                        resp->setStatusCode(drogon::k409Conflict);
-                        resp->setBody("refund already in progress");
+                        resp->setStatusCode(drogon::k500InternalServerError);
+                        resp->setBody(std::string("db error: ") + e.base().what());
+                        (*callbackPtr)(resp);
+                    },
+                    orderNo,
+                    paymentNo,
+                    amount,
+                    "REFUND_INIT",
+                    "REFUNDING");
+            };
+
+            dbClient_->execSqlAsync(
+                "SELECT refund_no, order_no, status, channel_refund_no "
+                "FROM pay_refund "
+                "WHERE order_no = $1 AND payment_no = $2 AND amount = $3 AND status = $4 "
+                "ORDER BY updated_at DESC LIMIT 1",
+                [this,
+                 callbackPtr,
+                 idempotencyKey,
+                 requestHash,
+                 proceedWithInProgressCheck](const drogon::orm::Result &r) {
+                    if (!r.empty())
+                    {
+                        Json::Value body;
+                        body["refund_no"] = r.front()["refund_no"].as<std::string>();
+                        body["order_no"] = r.front()["order_no"].as<std::string>();
+                        body["status"] = r.front()["status"].as<std::string>();
+                        if (!r.front()["channel_refund_no"].isNull())
+                        {
+                            body["channel_refund_no"] =
+                                r.front()["channel_refund_no"].as<std::string>();
+                        }
+                        storeIdempotencySnapshot(
+                            dbClient_,
+                            idempotencyKey,
+                            requestHash,
+                            toJsonString(body),
+                            idempotencyTtlSeconds_);
+                        auto resp = drogon::HttpResponse::newHttpJsonResponse(body);
                         (*callbackPtr)(resp);
                         return;
                     }
-                    proceedWithAmountCheck();
+                    proceedWithInProgressCheck();
                 },
                 [callbackPtr](const drogon::orm::DrogonDbException &e) {
                     auto resp = drogon::HttpResponse::newHttpResponse();
@@ -1560,8 +1612,7 @@ void PayPlugin::proceedRefund(
                 orderNo,
                 paymentNo,
                 amount,
-                "REFUND_INIT",
-                "REFUNDING");
+                "REFUND_SUCCESS");
         },
         [callbackPtr](const drogon::orm::DrogonDbException &e) {
             auto resp = drogon::HttpResponse::newHttpResponse();
