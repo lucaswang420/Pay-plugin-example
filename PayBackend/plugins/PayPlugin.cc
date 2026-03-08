@@ -1444,6 +1444,16 @@ void PayPlugin::proceedRefund(
                                          result,
                                          idempotencyKey,
                                          requestHash](const size_t) {
+                                            dbClient_->execSqlAsync(
+                                                "UPDATE pay_refund SET response_payload = $1 "
+                                                "WHERE refund_no = $2",
+                                                [](const drogon::orm::Result &) {},
+                                                [](const drogon::orm::DrogonDbException &e) {
+                                                    LOG_WARN << "Refund response payload update error: "
+                                                             << e.base().what();
+                                                },
+                                                toJsonString(result),
+                                                refundNo);
                                             Json::Value body;
                                             body["refund_no"] = refundNo;
                                             body["order_no"] = orderNo;

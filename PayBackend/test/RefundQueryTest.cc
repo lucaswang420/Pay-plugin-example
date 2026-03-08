@@ -747,9 +747,22 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     CHECK(respJson != nullptr);
     CHECK((*respJson)["payment_no"].asString() == paymentNo);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
+    const auto refundNo = (*respJson)["refund_no"].asString();
+    CHECK(!refundNo.empty());
     CHECK(sawReason.load());
     CHECK(sawNotify.load());
     CHECK(sawFunds.load());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const auto refundRows = client->execSqlSync(
+        "SELECT response_payload FROM pay_refund WHERE refund_no = $1",
+        refundNo);
+    CHECK(!refundRows.empty());
+    CHECK(!refundRows.front()["response_payload"].isNull());
+    const auto payloadText =
+        refundRows.front()["response_payload"].as<std::string>();
+    CHECK(payloadText.find("\"refund_id\":\"wx_refund_payload\"") !=
+          std::string::npos);
+    CHECK(payloadText.find("\"status\":\"SUCCESS\"") != std::string::npos);
 
     drogon::app().quit();
     if (serverThread.joinable())
