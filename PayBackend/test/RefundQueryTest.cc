@@ -746,6 +746,7 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     const auto respJson = resp->getJsonObject();
     CHECK(respJson != nullptr);
     CHECK((*respJson)["payment_no"].asString() == paymentNo);
+    CHECK((*respJson)["amount"].asString() == amount);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
     const auto refundNo = (*respJson)["refund_no"].asString();
     CHECK(!refundNo.empty());
@@ -1567,6 +1568,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotentSuccessSnapshot)
     CHECK((*respJson)["refund_no"].asString() == historyRefundNo);
     CHECK((*respJson)["order_no"].asString() == orderNo);
     CHECK((*respJson)["payment_no"].asString() == paymentNo);
+    CHECK((*respJson)["amount"].asString() == amount);
     CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
     CHECK((*respJson)["channel_refund_no"].asString() == channelRefundNo);
     CHECK((*respJson)["wechat_response"]["status"].asString() == "SUCCESS");

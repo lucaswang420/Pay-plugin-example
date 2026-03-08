@@ -1455,6 +1455,7 @@ void PayPlugin::proceedRefund(
                                          refundNo,
                                          orderNo,
                                          paymentNo,
+                                         refund,
                                          refundStatus,
                                          result,
                                          idempotencyKey,
@@ -1473,6 +1474,7 @@ void PayPlugin::proceedRefund(
                                             body["refund_no"] = refundNo;
                                             body["order_no"] = orderNo;
                                             body["payment_no"] = paymentNo;
+                                            body["amount"] = refund.getValueOfAmount();
                                             body["status"] = refundStatus;
                                             body["wechat_response"] = result;
                                             const std::string responseSnapshot =
@@ -1608,6 +1610,7 @@ void PayPlugin::proceedRefund(
                 [this,
                  callbackPtr,
                  paymentNo,
+                 amount,
                  idempotencyKey,
                  requestHash,
                  proceedWithInProgressCheck](const drogon::orm::Result &r) {
@@ -1617,6 +1620,7 @@ void PayPlugin::proceedRefund(
                         body["refund_no"] = r.front()["refund_no"].as<std::string>();
                         body["order_no"] = r.front()["order_no"].as<std::string>();
                         body["payment_no"] = paymentNo;
+                        body["amount"] = amount;
                         body["status"] = r.front()["status"].as<std::string>();
                         if (!r.front()["channel_refund_no"].isNull())
                         {
