@@ -2101,6 +2101,12 @@ void PayPlugin::queryOrder(
                             {
                                 out["status"] = status;
                             }
+                            const auto channelRefundNo =
+                                result.get("refund_id", "").asString();
+                            if (!channelRefundNo.empty())
+                            {
+                                out["channel_refund_no"] = channelRefundNo;
+                            }
                             out["wechat_response"] = result;
                             auto resp =
                                 drogon::HttpResponse::newHttpJsonResponse(out);
