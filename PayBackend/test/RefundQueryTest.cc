@@ -897,7 +897,16 @@ DROGON_TEST(PayPlugin_Refund_WechatErrorPersistsPayload)
     const auto resp = future.get();
     CHECK(resp != nullptr);
     CHECK(resp->statusCode() == drogon::k502BadGateway);
-    CHECK(resp->body().find("wechat pay config missing") != std::string::npos);
+    const auto respJson = resp->getJsonObject();
+    CHECK(respJson != nullptr);
+    CHECK((*respJson)["order_no"].asString() == orderNo);
+    CHECK((*respJson)["payment_no"].asString() == paymentNo);
+    CHECK((*respJson)["amount"].asString() == amount);
+    CHECK((*respJson)["status"].asString() == "REFUND_FAIL");
+    CHECK((*respJson)["error"].asString().find("wechat pay config missing") !=
+          std::string::npos);
+    CHECK((*respJson)["wechat_response"]["error"].asString().find(
+              "wechat pay config missing") != std::string::npos);
 
     std::string refundStatus;
     std::string responsePayload;
@@ -926,6 +935,157 @@ DROGON_TEST(PayPlugin_Refund_WechatErrorPersistsPayload)
     }
     CHECK(refundStatus == "REFUND_FAIL");
     CHECK(responsePayload.find("wechat pay config missing") !=
+          std::string::npos);
+
+    client->execSqlSync("DELETE FROM pay_refund WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1",
+                        paymentNo);
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
+}
+
+DROGON_TEST(PayPlugin_Refund_NoWechatClient_ConsistentWriteback)
+{
+    Json::Value root;
+    CHECK(loadConfig(root));
+    CHECK(root.isMember("db_clients"));
+    CHECK(root["db_clients"].isArray());
+    CHECK(!root["db_clients"].empty());
+
+    const auto &db = root["db_clients"][0];
+    const std::string connInfo = buildPgConnInfo(db);
+    CHECK(!connInfo.empty());
+
+    auto client = drogon::orm::DbClient::newPgClient(connInfo, 1);
+    CHECK(client != nullptr);
+
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_order ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "order_no VARCHAR(64) NOT NULL UNIQUE,"
+        "user_id BIGINT NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "currency VARCHAR(16) NOT NULL,"
+        "status VARCHAR(24) NOT NULL,"
+        "channel VARCHAR(16) NOT NULL,"
+        "title VARCHAR(128) NOT NULL,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_payment ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "order_no VARCHAR(64) NOT NULL,"
+        "payment_no VARCHAR(64) NOT NULL UNIQUE,"
+        "channel_trade_no VARCHAR(64),"
+        "status VARCHAR(24) NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "request_payload TEXT,"
+        "response_payload TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_refund ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "refund_no VARCHAR(64) NOT NULL UNIQUE,"
+        "order_no VARCHAR(64) NOT NULL,"
+        "payment_no VARCHAR(64) NOT NULL,"
+        "channel_refund_no VARCHAR(64),"
+        "status VARCHAR(24) NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "response_payload TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+
+    const std::string orderNo = "ord_" + drogon::utils::getUuid();
+    const std::string paymentNo = "pay_" + drogon::utils::getUuid();
+    const std::string amount = "5.67";
+
+    using PayOrder = drogon_model::pay_test::PayOrder;
+    drogon::orm::Mapper<PayOrder> orderMapper(client);
+    PayOrder order;
+    order.setOrderNo(orderNo);
+    order.setUserId(30011);
+    order.setAmount(amount);
+    order.setCurrency("CNY");
+    order.setStatus("PAID");
+    order.setChannel("wechat");
+    order.setTitle("Refund No Wechat Client");
+    order.setCreatedAt(trantor::Date::now());
+    order.setUpdatedAt(trantor::Date::now());
+    orderMapper.insert(order);
+
+    using PayPayment = drogon_model::pay_test::PayPayment;
+    drogon::orm::Mapper<PayPayment> paymentMapper(client);
+    PayPayment payment;
+    payment.setOrderNo(orderNo);
+    payment.setPaymentNo(paymentNo);
+    payment.setStatus("SUCCESS");
+    payment.setAmount(amount);
+    payment.setCreatedAt(trantor::Date::now());
+    payment.setUpdatedAt(trantor::Date::now());
+    paymentMapper.insert(payment);
+
+    PayPlugin plugin;
+    plugin.setTestClients(nullptr, client);
+
+    Json::Value payload;
+    payload["order_no"] = orderNo;
+    payload["payment_no"] = paymentNo;
+    payload["amount"] = amount;
+    const std::string body = pay::utils::toJsonString(payload);
+
+    auto req = drogon::HttpRequest::newHttpRequest();
+    req->setMethod(drogon::Post);
+    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
+    req->setBody(body);
+
+    std::promise<drogon::HttpResponsePtr> promise;
+    plugin.refund(
+        req,
+        [&promise](const drogon::HttpResponsePtr &resp) {
+            promise.set_value(resp);
+        });
+
+    auto future = promise.get_future();
+    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+    const auto resp = future.get();
+    CHECK(resp != nullptr);
+    CHECK(resp->statusCode() == drogon::k501NotImplemented);
+    const auto respJson = resp->getJsonObject();
+    CHECK(respJson != nullptr);
+    CHECK((*respJson)["order_no"].asString() == orderNo);
+    CHECK((*respJson)["payment_no"].asString() == paymentNo);
+    CHECK((*respJson)["amount"].asString() == amount);
+    CHECK((*respJson)["status"].asString() == "REFUND_FAIL");
+    CHECK((*respJson)["error"].asString() == "wechat client not ready");
+
+    std::string refundStatus;
+    std::string responsePayload;
+    for (int i = 0; i < 20; ++i)
+    {
+        const auto rows = client->execSqlSync(
+            "SELECT status, response_payload FROM pay_refund "
+            "WHERE order_no = $1 AND payment_no = $2 "
+            "ORDER BY created_at DESC LIMIT 1",
+            orderNo,
+            paymentNo);
+        if (!rows.empty())
+        {
+            refundStatus = rows.front()["status"].as<std::string>();
+            if (!rows.front()["response_payload"].isNull())
+            {
+                responsePayload =
+                    rows.front()["response_payload"].as<std::string>();
+            }
+            if (refundStatus == "REFUND_FAIL" && !responsePayload.empty())
+            {
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    CHECK(refundStatus == "REFUND_FAIL");
+    CHECK(responsePayload.find("wechat client not ready") !=
           std::string::npos);
 
     client->execSqlSync("DELETE FROM pay_refund WHERE order_no = $1", orderNo);

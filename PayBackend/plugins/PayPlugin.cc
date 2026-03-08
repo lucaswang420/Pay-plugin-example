@@ -1297,6 +1297,7 @@ void PayPlugin::proceedRefund(
                  refundNo,
                  orderNo,
                  paymentNo,
+                 amount,
                  refundFen,
                  totalFen,
                  currency,
@@ -1307,10 +1308,27 @@ void PayPlugin::proceedRefund(
                  requestHash](const PayRefundModel &) {
                     if (!wechatClient_)
                     {
+                        const std::string errorMessage = "wechat client not ready";
+                        Json::Value errJson;
+                        errJson["error"] = errorMessage;
+                        Json::Value body;
+                        body["refund_no"] = refundNo;
+                        body["order_no"] = orderNo;
+                        body["payment_no"] = paymentNo;
+                        body["amount"] = amount;
+                        body["status"] = "REFUND_FAIL";
+                        body["error"] = errorMessage;
+                        body["wechat_response"] = errJson;
+                        const std::string responseSnapshot = toJsonString(body);
                         auto resp =
-                            drogon::HttpResponse::newHttpResponse();
+                            drogon::HttpResponse::newHttpJsonResponse(body);
                         resp->setStatusCode(drogon::k501NotImplemented);
-                        resp->setBody("wechat client not ready");
+                        storeIdempotencySnapshot(
+                            dbClient_,
+                            idempotencyKey,
+                            requestHash,
+                            responseSnapshot,
+                            idempotencyTtlSeconds_);
                         drogon::orm::Mapper<PayRefundModel> refundMapper(
                             dbClient_);
                         auto refundCriteria = drogon::orm::Criteria(
@@ -1319,14 +1337,25 @@ void PayPlugin::proceedRefund(
                             refundNo);
                         refundMapper.findOne(
                             refundCriteria,
-                            [this](PayRefundModel refund) {
+                            [this, errJson](PayRefundModel refund) {
                                 refund.setStatus("REFUND_FAIL");
                                 refund.setUpdatedAt(trantor::Date::now());
                                 drogon::orm::Mapper<PayRefundModel>
                                     refundUpdater(dbClient_);
                                 refundUpdater.update(
                                     refund,
-                                    [](const size_t) {},
+                                    [this, errJson, refund](const size_t) {
+                                        dbClient_->execSqlAsync(
+                                            "UPDATE pay_refund SET response_payload = $1 "
+                                            "WHERE refund_no = $2",
+                                            [](const drogon::orm::Result &) {},
+                                            [](const drogon::orm::DrogonDbException &e) {
+                                                LOG_WARN << "Refund not-ready payload update error: "
+                                                         << e.base().what();
+                                            },
+                                            toJsonString(errJson),
+                                            refund.getValueOfRefundNo());
+                                    },
                                     [](const drogon::orm::DrogonDbException &) {});
                             },
                             [](const drogon::orm::DrogonDbException &) {});
@@ -1362,19 +1391,36 @@ void PayPlugin::proceedRefund(
                          refundNo,
                          orderNo,
                          paymentNo,
+                         amount,
                          idempotencyKey,
                          requestHash](
                             const Json::Value &result,
                             const std::string &error) {
                             if (!error.empty())
                             {
+                                const std::string errorMessage =
+                                    "wechat error: " + error;
+                                Json::Value errJson;
+                                errJson["error"] = errorMessage;
+                                Json::Value body;
+                                body["refund_no"] = refundNo;
+                                body["order_no"] = orderNo;
+                                body["payment_no"] = paymentNo;
+                                body["amount"] = amount;
+                                body["status"] = "REFUND_FAIL";
+                                body["error"] = errorMessage;
+                                body["wechat_response"] = errJson;
+                                const std::string responseSnapshot = toJsonString(body);
                                 auto resp =
-                                    drogon::HttpResponse::newHttpResponse();
+                                    drogon::HttpResponse::newHttpJsonResponse(body);
                                 resp->setStatusCode(
                                     drogon::k502BadGateway);
-                                resp->setBody("wechat error: " + error);
-                                Json::Value errJson;
-                                errJson["error"] = error;
+                                storeIdempotencySnapshot(
+                                    dbClient_,
+                                    idempotencyKey,
+                                    requestHash,
+                                    responseSnapshot,
+                                    idempotencyTtlSeconds_);
                                 const std::string errPayload =
                                     toJsonString(errJson);
                                 drogon::orm::Mapper<PayRefundModel> refundMapper(
