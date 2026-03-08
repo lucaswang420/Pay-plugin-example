@@ -1373,6 +1373,10 @@ void PayPlugin::proceedRefund(
                                 resp->setStatusCode(
                                     drogon::k502BadGateway);
                                 resp->setBody("wechat error: " + error);
+                                Json::Value errJson;
+                                errJson["error"] = error;
+                                const std::string errPayload =
+                                    toJsonString(errJson);
                                 drogon::orm::Mapper<PayRefundModel> refundMapper(
                                     dbClient_);
                                 auto refundCriteria = drogon::orm::Criteria(
@@ -1381,14 +1385,25 @@ void PayPlugin::proceedRefund(
                                     refundNo);
                                 refundMapper.findOne(
                                     refundCriteria,
-                                    [this](PayRefundModel refund) {
+                                    [this, errPayload](PayRefundModel refund) {
                                         refund.setStatus("REFUND_FAIL");
                                         refund.setUpdatedAt(trantor::Date::now());
                                         drogon::orm::Mapper<PayRefundModel>
                                             refundUpdater(dbClient_);
                                         refundUpdater.update(
                                             refund,
-                                            [](const size_t) {},
+                                            [this, errPayload, refund](const size_t) {
+                                                dbClient_->execSqlAsync(
+                                                    "UPDATE pay_refund SET response_payload = $1 "
+                                                    "WHERE refund_no = $2",
+                                                    [](const drogon::orm::Result &) {},
+                                                    [](const drogon::orm::DrogonDbException &e) {
+                                                        LOG_WARN << "Refund error payload update error: "
+                                                                 << e.base().what();
+                                                    },
+                                                    errPayload,
+                                                    refund.getValueOfRefundNo());
+                                            },
                                             [](const drogon::orm::DrogonDbException &) {});
                                     },
                                     [](const drogon::orm::DrogonDbException &) {});
