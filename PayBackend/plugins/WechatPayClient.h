@@ -3,6 +3,10 @@
 #include <json/json.h>
 #include <functional>
 #include <string>
+#include <map>
+#include <shared_mutex>
+#include <mutex>
+#include <chrono>
 
 class WechatPayClient
 {
@@ -18,6 +22,10 @@ class WechatPayClient
                           JsonCallback &&callback);
     void refund(const Json::Value &payload, JsonCallback &&callback);
     void queryRefund(const std::string &refundNo, JsonCallback &&callback);
+
+    void downloadCertificates(JsonCallback &&callback);
+    std::string getPlatformCert(const std::string &serialNo) const;
+    void setPlatformCert(const std::string &serialNo, const std::string &certContent);
 
     std::string buildAuthorizationHeader(const std::string &method,
                                          const std::string &url,
@@ -52,4 +60,10 @@ class WechatPayClient
     std::string platformCertPath_;
     std::string apiBase_;
     std::string notifyUrl_;
+
+    std::map<std::string, std::string> platformCerts_;
+    mutable std::shared_mutex certsMutex_;
+    int certDownloadMinIntervalSeconds_{300};
+    mutable std::mutex certDownloadMutex_;
+    std::chrono::steady_clock::time_point lastCertDownloadAt_{};
 };

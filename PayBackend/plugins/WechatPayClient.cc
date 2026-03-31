@@ -104,16 +104,14 @@ bool signMessage(const std::string &message,
     return true;
 }
 
-bool verifyMessage(const std::string &message,
-                   const std::string &signatureB64,
-                   const std::string &certPath,
-                   std::string &error)
+bool verifyMessageWithCert(const std::string &message,
+                           const std::string &signatureB64,
+                           const std::string &certContent,
+                           std::string &error)
 {
-    std::string certError;
-    std::string certContent = readFile(certPath, certError);
-    if (!certError.empty())
+    if (certContent.empty())
     {
-        error = certError;
+        error = "empty certificate content";
         return false;
     }
 
@@ -129,7 +127,7 @@ bool verifyMessage(const std::string &message,
     BIO_free(bio);
     if (!cert)
     {
-        error = "failed to load platform cert";
+        error = "failed to load platform cert from content";
         return false;
     }
 
@@ -378,6 +376,12 @@ WechatPayClient::WechatPayClient(const Json::Value &config) : config_(config)
     platformCertPath_ = config.get("platform_cert_path", "").asString();
     apiBase_ = config.get("api_base", "https://api.mch.weixin.qq.com").asString();
     notifyUrl_ = config.get("notify_url", "").asString();
+    certDownloadMinIntervalSeconds_ =
+        config.get("cert_download_min_interval_seconds", 300).asInt();
+    if (certDownloadMinIntervalSeconds_ < 0)
+    {
+        certDownloadMinIntervalSeconds_ = 0;
+    }
 }
 
 void WechatPayClient::createTransactionNative(const Json::Value &payload,
@@ -423,6 +427,94 @@ void WechatPayClient::createTransactionNative(const Json::Value &payload,
 
     sendWechatRequest(apiBase_, "POST", path, body, auth,
                       std::move(callback));
+}
+
+void WechatPayClient::downloadCertificates(JsonCallback &&callback)
+{
+    if (certDownloadMinIntervalSeconds_ > 0)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lock(certDownloadMutex_);
+        if (lastCertDownloadAt_.time_since_epoch().count() != 0)
+        {
+            const auto elapsed =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    now - lastCertDownloadAt_)
+                    .count();
+            if (elapsed < certDownloadMinIntervalSeconds_)
+            {
+                Json::Value result;
+                if (callback)
+                {
+                    callback(result, "certificate download throttled");
+                }
+                return;
+            }
+        }
+        lastCertDownloadAt_ = now;
+    }
+
+    const std::string path = "/v3/certificates";
+    const std::string body;
+    const std::string timestamp = std::to_string(std::time(nullptr));
+    const std::string nonce = drogon::utils::getUuid();
+    std::string error;
+    std::string auth = buildAuthorizationHeader(
+        "GET", path, body, timestamp, nonce, error);
+    if (!error.empty())
+    {
+        Json::Value result;
+        if (callback) callback(result, error);
+        return;
+    }
+
+    auto cb = std::make_shared<JsonCallback>(std::move(callback));
+    sendWechatRequest(apiBase_, "GET", path, body, auth,
+        [this, cb](const Json::Value &result, const std::string &err) {
+            if (!err.empty())
+            {
+                if (*cb) (*cb)(result, err);
+                return;
+            }
+            if (!result.isMember("data") || !result["data"].isArray())
+            {
+                if (*cb) (*cb)(result, "invalid certificate response format");
+                return;
+            }
+            for (const auto &certNode : result["data"])
+            {
+                std::string serialNo = certNode.get("serial_no", "").asString();
+                auto encNode = certNode["encrypt_certificate"];
+                if (serialNo.empty() || encNode.isNull()) continue;
+                std::string ciphertext = encNode.get("ciphertext", "").asString();
+                std::string nonceStr = encNode.get("nonce", "").asString();
+                std::string associatedData = encNode.get("associated_data", "").asString();
+                std::string plaintext;
+                std::string decryptErr;
+                if (decryptResource(ciphertext, nonceStr, associatedData, plaintext, decryptErr))
+                {
+                    setPlatformCert(serialNo, plaintext);
+                }
+            }
+            if (*cb) (*cb)(result, "");
+        });
+}
+
+std::string WechatPayClient::getPlatformCert(const std::string &serialNo) const
+{
+    std::shared_lock<std::shared_mutex> lock(certsMutex_);
+    auto it = platformCerts_.find(serialNo);
+    if (it != platformCerts_.end())
+    {
+        return it->second;
+    }
+    return "";
+}
+
+void WechatPayClient::setPlatformCert(const std::string &serialNo, const std::string &certContent)
+{
+    std::unique_lock<std::shared_mutex> lock(certsMutex_);
+    platformCerts_[serialNo] = certContent;
 }
 
 void WechatPayClient::queryTransaction(const std::string &orderNo,
@@ -553,20 +645,36 @@ bool WechatPayClient::verifyCallback(const std::string &timestamp,
                                      const std::string &serialNo,
                                      std::string &error) const
 {
-    if (platformCertPath_.empty())
+    std::string certContent;
+    if (!serialNo.empty())
     {
-        error = "platform_cert_path is not configured";
-        return false;
+        certContent = getPlatformCert(serialNo);
     }
-    if (!serialNo_.empty() && serialNo_ != serialNo)
+
+    if (certContent.empty())
     {
-        error = "serial number mismatch";
-        return false;
+        if (platformCertPath_.empty())
+        {
+            error = "platform_cert_path is not configured";
+            return false;
+        }
+        if (!serialNo_.empty() && serialNo_ != serialNo)
+        {
+            error = "serial number mismatch with static config";
+            return false;
+        }
+        std::string readErr;
+        certContent = readFile(platformCertPath_, readErr);
+        if (!readErr.empty())
+        {
+            error = "failed to read static cert: " + readErr;
+            return false;
+        }
     }
 
     std::string message =
         timestamp + "\n" + nonce + "\n" + body + "\n";
-    return verifyMessage(message, signature, platformCertPath_, error);
+    return verifyMessageWithCert(message, signature, certContent, error);
 }
 
 bool WechatPayClient::decryptResource(const std::string &ciphertext,

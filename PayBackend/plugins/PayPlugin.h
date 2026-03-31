@@ -43,6 +43,11 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
         const drogon::HttpRequestPtr &req,
         std::function<void(const drogon::HttpResponsePtr &)> &&callback);
 
+    void handleWechatCallbackAfterVerify(
+        const drogon::HttpRequestPtr &req,
+        std::function<void(const drogon::HttpResponsePtr &)> callback,
+        const std::string &body);
+
     void setTestClients(
         const std::shared_ptr<WechatPayClient> &wechatClient,
         const std::shared_ptr<drogon::orm::DbClient> &dbClient,
@@ -50,6 +55,7 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
         bool useRedisIdempotency = false);
 
   private:
+    void startWechatCertRefreshTimer();
     void startReconcileTimer();
     void syncOrderStatusFromWechat(
         const std::string &orderNo,
@@ -97,4 +103,6 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
     int reconcileIntervalSeconds_{300};
     int reconcileBatchSize_{50};
     trantor::TimerId reconcileTimerId_;
+    int certRefreshIntervalSeconds_{43200};
+    trantor::TimerId certRefreshTimerId_;
 };

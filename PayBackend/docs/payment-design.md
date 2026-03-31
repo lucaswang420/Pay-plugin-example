@@ -27,6 +27,8 @@
 - wechat_pay.api_v3_key: 32-byte API v3 key
 - wechat_pay.private_key_path: merchant private key (PEM)
 - wechat_pay.platform_cert_path: platform certificate (PEM)
+- wechat_pay.cert_download_min_interval_seconds: throttle for cert downloads
+- wechat_pay.cert_refresh_interval_seconds: periodic cert refresh interval
 - wechat_pay.notify_url: callback URL, e.g. https://your.domain/pay/notify/wechat
 - wechat_pay.api_base: defaults to https://api.mch.weixin.qq.com
 - wechat_pay.timeout_ms: request timeout
@@ -36,6 +38,7 @@
 - platform_cert_path: WeChat platform certificate (PEM)
 - serial_no: must match platform certificate serial used to verify signatures
 - api_v3_key: exactly 32 bytes, used for AES-GCM decrypt
+- certificates auto-download on startup, on unknown serial, and periodically
 
 ## Idempotency
 - create/refund support Idempotency-Key header

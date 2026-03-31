@@ -166,6 +166,8 @@
                 "api_v3_key": "YOUR_API_V3_KEY",
                 "private_key_path": "./certs/apiclient_key.pem",
                 "platform_cert_path": "./certs/wechatpay_platform.pem",
+                "cert_download_min_interval_seconds": 300,
+                "cert_refresh_interval_seconds": 43200,
                 "notify_url": "https://example.com/pay/notify/wechat",
                 "api_base": "https://api.mch.weixin.qq.com",
                 "timeout_ms": 5000

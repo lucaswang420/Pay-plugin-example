@@ -294,6 +294,20 @@ void PayPlugin::initAndStart(const Json::Value &config)
     if (config.isMember("wechat_pay"))
     {
         wechatClient_ = std::make_shared<WechatPayClient>(config["wechat_pay"]);
+        certRefreshIntervalSeconds_ =
+            config["wechat_pay"].get("cert_refresh_interval_seconds", 43200)
+                .asInt();
+        if (certRefreshIntervalSeconds_ < 0)
+        {
+            certRefreshIntervalSeconds_ = 0;
+        }
+        wechatClient_->downloadCertificates([](const Json::Value &, const std::string &err) {
+            if (!err.empty()) {
+                LOG_ERROR << "Failed to download wechat certificates on startup: " << err;
+            } else {
+                LOG_INFO << "Successfully downloaded wechat certificates on startup";
+            }
+        });
     }
     if (config.isMember("postgres"))
     {
@@ -335,6 +349,7 @@ void PayPlugin::initAndStart(const Json::Value &config)
     reconcileBatchSize_ = config.get("reconcile_batch_size", 50).asInt();
 
     startReconcileTimer();
+    startWechatCertRefreshTimer();
 }
 
 void PayPlugin::shutdown()
@@ -346,6 +361,7 @@ void PayPlugin::shutdown()
     if (loop)
     {
         loop->invalidateTimer(reconcileTimerId_);
+        loop->invalidateTimer(certRefreshTimerId_);
     }
 }
 
@@ -445,6 +461,38 @@ void PayPlugin::startReconcileTimer()
                 "REFUND_INIT",
                 "REFUNDING",
                 reconcileBatchSize_);
+        });
+}
+
+void PayPlugin::startWechatCertRefreshTimer()
+{
+    if (!wechatClient_ || certRefreshIntervalSeconds_ <= 0)
+    {
+        return;
+    }
+    auto loop = drogon::app().getLoop();
+    if (!loop)
+    {
+        return;
+    }
+    certRefreshTimerId_ = loop->runEvery(
+        certRefreshIntervalSeconds_,
+        [this]() {
+            if (!wechatClient_)
+            {
+                return;
+            }
+            wechatClient_->downloadCertificates(
+                [](const Json::Value &, const std::string &err) {
+                    if (!err.empty())
+                    {
+                        LOG_WARN << "Wechat certificate refresh failed: " << err;
+                    }
+                    else
+                    {
+                        LOG_INFO << "Wechat certificates refreshed";
+                    }
+                });
         });
 }
 
@@ -2629,10 +2677,70 @@ void PayPlugin::handleWechatCallback(
     }
 
     std::string verifyError;
-    if (!wechatClient_->verifyCallback(timestamp, nonce, body, signature, serial,
-                                       verifyError))
+    if (!wechatClient_->verifyCallback(timestamp, nonce, body, signature, serial, verifyError))
     {
+        if (wechatClient_->getPlatformCert(serial).empty()) 
+        {
+            LOG_INFO << "Certificate serial " << serial << " not found, triggering async download";
+            auto cbPtr = std::make_shared<std::function<void(const drogon::HttpResponsePtr &)>>(std::move(callback));
+            auto wechatClientPtr = wechatClient_;
+            wechatClientPtr->downloadCertificates([this, wechatClientPtr, timestamp, nonce, body, signature, serial, req, cbPtr](const Json::Value &, const std::string &err) {
+                if (!err.empty()) 
+                {
+                    LOG_ERROR << "Failed to dynamically download WeChat certificates: " << err;
+                    Json::Value r;
+                    r["code"] = "FAIL";
+                    r["message"] = "signature verify failed and cert download failed: " + err;
+                    auto rsp = drogon::HttpResponse::newHttpJsonResponse(r);
+                    rsp->setStatusCode(drogon::k401Unauthorized);
+                    (*cbPtr)(rsp);
+                    return;
+                }
+                std::string retryVerifyError;
+                if (!wechatClientPtr->verifyCallback(timestamp, nonce, body, signature, serial, retryVerifyError))
+                {
+                    Json::Value r;
+                    r["code"] = "FAIL";
+                    r["message"] = retryVerifyError;
+                    auto rsp = drogon::HttpResponse::newHttpJsonResponse(r);
+                    rsp->setStatusCode(drogon::k401Unauthorized);
+                    (*cbPtr)(rsp);
+                    return;
+                }
+                this->handleWechatCallbackAfterVerify(req, std::move(*cbPtr), body);
+            });
+            return;
+        }
+
         respond(drogon::k401Unauthorized, verifyError);
+        return;
+    }
+
+    handleWechatCallbackAfterVerify(req, std::move(callback), body);
+}
+
+void PayPlugin::handleWechatCallbackAfterVerify(
+    const drogon::HttpRequestPtr &req,
+    std::function<void(const drogon::HttpResponsePtr &)> callback,
+    const std::string &body)
+{
+    const auto signature = req->getHeader("Wechatpay-Signature");
+    const auto serial = req->getHeader("Wechatpay-Serial");
+
+    auto cbPtr = std::make_shared<std::function<void(const drogon::HttpResponsePtr &)>>(std::move(callback));
+    auto respond = [cbPtr](drogon::HttpStatusCode code,
+                           const std::string &message) {
+        Json::Value reply;
+        reply["code"] = code == drogon::k200OK ? "SUCCESS" : "FAIL";
+        reply["message"] = message;
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(reply);
+        resp->setStatusCode(code);
+        if (*cbPtr) (*cbPtr)(resp);
+    };
+
+    if (!dbClient_)
+    {
+        respond(drogon::k500InternalServerError, "db client not ready");
         return;
     }
 
@@ -2763,9 +2871,7 @@ void PayPlugin::handleWechatCallback(
             idempotencyKey = refundNo + ":" + refundStatusRaw;
         }
 
-        auto callbackPtr =
-            std::make_shared<std::function<void(const drogon::HttpResponsePtr &)>>(
-                std::move(callback));
+        auto callbackPtr = cbPtr;
 
         auto proceedRefundDb = [this,
                                 callbackPtr,
@@ -3154,9 +3260,7 @@ void PayPlugin::handleWechatCallback(
         idempotencyKey = orderNo + ":" + tradeState;
     }
 
-    auto callbackPtr =
-        std::make_shared<std::function<void(const drogon::HttpResponsePtr &)>>(
-            std::move(callback));
+    auto callbackPtr = cbPtr;
 
     auto proceedWithDb = [this,
                           callbackPtr,
