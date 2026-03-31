@@ -1261,6 +1261,183 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnNoWechatClientError)
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 }
 
+DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnWechatError)
+{
+    Json::Value root;
+    CHECK(loadConfig(root));
+    CHECK(root.isMember("db_clients"));
+    CHECK(root["db_clients"].isArray());
+    CHECK(!root["db_clients"].empty());
+
+    const auto &db = root["db_clients"][0];
+    const std::string connInfo = buildPgConnInfo(db);
+    CHECK(!connInfo.empty());
+
+    auto client = drogon::orm::DbClient::newPgClient(connInfo, 1);
+    CHECK(client != nullptr);
+
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_order ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "order_no VARCHAR(64) NOT NULL UNIQUE,"
+        "user_id BIGINT NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "currency VARCHAR(16) NOT NULL,"
+        "status VARCHAR(24) NOT NULL,"
+        "channel VARCHAR(16) NOT NULL,"
+        "title VARCHAR(128) NOT NULL,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_payment ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "order_no VARCHAR(64) NOT NULL,"
+        "payment_no VARCHAR(64) NOT NULL UNIQUE,"
+        "channel_trade_no VARCHAR(64),"
+        "status VARCHAR(24) NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "request_payload TEXT,"
+        "response_payload TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_refund ("
+        "id BIGSERIAL PRIMARY KEY,"
+        "refund_no VARCHAR(64) NOT NULL UNIQUE,"
+        "order_no VARCHAR(64) NOT NULL,"
+        "payment_no VARCHAR(64) NOT NULL,"
+        "channel_refund_no VARCHAR(64),"
+        "status VARCHAR(24) NOT NULL,"
+        "amount DECIMAL(18,2) NOT NULL,"
+        "response_payload TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    client->execSqlSync(
+        "CREATE TABLE IF NOT EXISTS pay_idempotency ("
+        "idempotency_key VARCHAR(64) PRIMARY KEY,"
+        "request_hash TEXT NOT NULL,"
+        "response_snapshot TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "expires_at TIMESTAMPTZ NOT NULL)");
+
+    const std::string orderNo = "ord_" + drogon::utils::getUuid();
+    const std::string paymentNo = "pay_" + drogon::utils::getUuid();
+    const std::string amount = "7.65";
+    const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
+
+    using PayOrder = drogon_model::pay_test::PayOrder;
+    drogon::orm::Mapper<PayOrder> orderMapper(client);
+    PayOrder order;
+    order.setOrderNo(orderNo);
+    order.setUserId(30013);
+    order.setAmount(amount);
+    order.setCurrency("CNY");
+    order.setStatus("PAID");
+    order.setChannel("wechat");
+    order.setTitle("Refund Idempotency Wechat Error");
+    order.setCreatedAt(trantor::Date::now());
+    order.setUpdatedAt(trantor::Date::now());
+    orderMapper.insert(order);
+
+    using PayPayment = drogon_model::pay_test::PayPayment;
+    drogon::orm::Mapper<PayPayment> paymentMapper(client);
+    PayPayment payment;
+    payment.setOrderNo(orderNo);
+    payment.setPaymentNo(paymentNo);
+    payment.setStatus("SUCCESS");
+    payment.setAmount(amount);
+    payment.setCreatedAt(trantor::Date::now());
+    payment.setUpdatedAt(trantor::Date::now());
+    paymentMapper.insert(payment);
+
+    Json::Value wechatConfig;
+    wechatConfig["api_base"] = "https://api.mch.weixin.qq.com";
+    wechatConfig["mch_id"] = "";
+    wechatConfig["serial_no"] = "";
+    wechatConfig["private_key_path"] = "";
+    wechatConfig["api_v3_key"] = "0123456789abcdef0123456789abcdef";
+    auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
+
+    PayPlugin plugin;
+    plugin.setTestClients(wechatClient, client);
+
+    Json::Value payload;
+    payload["order_no"] = orderNo;
+    payload["payment_no"] = paymentNo;
+    payload["amount"] = amount;
+    const std::string body = pay::utils::toJsonString(payload);
+
+    auto makeReq = [&]() {
+        auto req = drogon::HttpRequest::newHttpRequest();
+        req->setMethod(drogon::Post);
+        req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
+        req->setBody(body);
+        req->addHeader("Idempotency-Key", idempotencyKey);
+        return req;
+    };
+
+    std::promise<drogon::HttpResponsePtr> promise1;
+    plugin.refund(
+        makeReq(),
+        [&promise1](const drogon::HttpResponsePtr &resp) {
+            promise1.set_value(resp);
+        });
+    auto future1 = promise1.get_future();
+    CHECK(future1.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+    const auto resp1 = future1.get();
+    CHECK(resp1 != nullptr);
+    CHECK(resp1->statusCode() == drogon::k502BadGateway);
+    const auto json1 = resp1->getJsonObject();
+    CHECK(json1 != nullptr);
+    CHECK((*json1)["status"].asString() == "REFUND_FAIL");
+    CHECK((*json1)["error"].asString().find("wechat pay config missing") !=
+          std::string::npos);
+
+    std::promise<drogon::HttpResponsePtr> promise2;
+    plugin.refund(
+        makeReq(),
+        [&promise2](const drogon::HttpResponsePtr &resp) {
+            promise2.set_value(resp);
+        });
+    auto future2 = promise2.get_future();
+    CHECK(future2.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+    const auto resp2 = future2.get();
+    CHECK(resp2 != nullptr);
+    CHECK(resp2->statusCode() == drogon::k200OK);
+    const auto json2 = resp2->getJsonObject();
+    CHECK(json2 != nullptr);
+    CHECK((*json2)["status"].asString() == "REFUND_FAIL");
+    CHECK((*json2)["error"].asString().find("wechat pay config missing") !=
+          std::string::npos);
+    CHECK((*json2)["order_no"].asString() == orderNo);
+    CHECK((*json2)["payment_no"].asString() == paymentNo);
+
+    const auto refundCountRows = client->execSqlSync(
+        "SELECT COUNT(*) AS cnt FROM pay_refund WHERE order_no = $1 AND payment_no = $2",
+        orderNo,
+        paymentNo);
+    CHECK(!refundCountRows.empty());
+    CHECK(refundCountRows.front()["cnt"].as<int64_t>() == 1);
+
+    const auto idempRows = client->execSqlSync(
+        "SELECT response_snapshot FROM pay_idempotency WHERE idempotency_key = $1",
+        "refund:" + idempotencyKey);
+    CHECK(!idempRows.empty());
+    CHECK(!idempRows.front()["response_snapshot"].isNull());
+    const auto snapshotText =
+        idempRows.front()["response_snapshot"].as<std::string>();
+    CHECK(snapshotText.find("wechat pay config missing") != std::string::npos);
+
+    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1",
+                        "refund:" + idempotencyKey);
+    client->execSqlSync("DELETE FROM pay_refund WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1",
+                        paymentNo);
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
+}
+
 DROGON_TEST(PayPlugin_Refund_DefaultPaymentNo)
 {
     Json::Value root;
