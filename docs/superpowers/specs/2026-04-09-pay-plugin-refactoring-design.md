@@ -439,7 +439,7 @@ PaymentService(
 **职责：**
 - 读取配置文件
 - 创建和初始化 Services
-- 将 Services 注册到 Drogon 应用上下文
+- 提供 Service 访问接口
 - 启动后台定时任务（对账、证书刷新）
 - 清理资源
 
@@ -450,12 +450,18 @@ public:
     void initAndStart(const Json::Value &config) override;
     void shutdown() override;
 
+    // Service 访问接口（供 Controller 使用）
+    std::shared_ptr<PaymentService> paymentService() { return paymentService_; }
+    std::shared_ptr<RefundService> refundService() { return refundService_; }
+    std::shared_ptr<CallbackService> callbackService() { return callbackService_; }
+    std::shared_ptr<IdempotencyService> idempotencyService() { return idempotencyService_; }
+
 private:
-    // Services（不对外暴露，只用于注册）
+    // Services（存储在 Plugin 中）
     std::shared_ptr<PaymentService> paymentService_;
     std::shared_ptr<RefundService> refundService_;
     std::shared_ptr<CallbackService> callbackService_;
-    std::shared_ptr<ReconciliationService> reconciliationService_;
+    std::unique_ptr<ReconciliationService> reconciliationService_;
     std::shared_ptr<IdempotencyService> idempotencyService_;
 
     // 基础设施
@@ -481,30 +487,27 @@ void PayPlugin::initAndStart(const Json::Value &config) {
     // 2. 创建 WechatPayClient
     wechatClient_ = std::make_shared<WechatPayClient>(config["wechat"]);
 
-    // 3. 创建 IdempotencyService（基础服务）
+    // 3. 创建 IdempotencyService（基础服务，无依赖）
     idempotencyService_ = std::make_shared<IdempotencyService>(
         dbClient_, redisClient_, config["idempotency"].get("ttl", 604800).asInt64()
     );
 
-    // 4. 创建业务 Services
+    // 4. 创建业务 Services（依赖 IdempotencyService）
     paymentService_ = std::make_shared<PaymentService>(
         wechatClient_, dbClient_, redisClient_, idempotencyService_
     );
-    app().registerSharedMethod(paymentService_, "payment-service");
 
     refundService_ = std::make_shared<RefundService>(
         wechatClient_, dbClient_, idempotencyService_
     );
-    app().registerSharedMethod(refundService_, "refund-service");
 
     callbackService_ = std::make_shared<CallbackService>(
         wechatClient_, dbClient_
     );
-    app().registerSharedMethod(callbackService_, "callback-service");
 
-    // 5. 创建并启动对账服务
-    reconciliationService_ = std::make_shared<ReconciliationService>(
-        paymentService_, refundService_, dbClient_
+    // 5. 创建并启动对账服务（依赖 PaymentService 和 RefundService）
+    reconciliationService_ = std::make_unique<ReconciliationService>(
+        paymentService_, refundService_, dbClient_, config
     );
     reconciliationService_->startReconcileTimer();
 
@@ -514,7 +517,9 @@ void PayPlugin::initAndStart(const Json::Value &config) {
 
 void PayPlugin::shutdown() {
     // 停止定时器
-    reconciliationService_->stopReconcileTimer();
+    if (reconciliationService_) {
+        reconciliationService_->stopReconcileTimer();
+    }
     // 清理其他资源
 }
 ```
@@ -541,8 +546,9 @@ void PayController::createPayment(
     int64_t userId = req->attributes()->get<int64_t>("user_id");
     std::string idempotencyKey = req->getHeader("X-Idempotency-Key");
 
-    // 2. 从 Drogon 应用上下文获取 Service（依赖注入）
-    auto paymentService = app().getSharedMethod<PaymentService>("payment-service");
+    // 2. 从 Plugin 获取 Service（依赖注入）
+    auto plugin = app().getPlugin<PayPlugin>();
+    auto paymentService = plugin->paymentService();
 
     // 3. 调用 Service 业务逻辑
     paymentService->createPayment(
@@ -1102,6 +1108,7 @@ jobs:
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
+| Service 访问方式 | Plugin 提供访问接口 | Drogon 框架标准模式，符合 Plugin 设计初衷 |
 | 支付提供商抽象 | 不添加（保持微信专用） | 开发/演示阶段，优先进度，未来可重构 |
 | 幂等性服务 | 独立 IdempotencyService | 复用性高，职责单一 |
 | 事务管理 | Service 内部管理 | 简化设计，边界清晰 |
