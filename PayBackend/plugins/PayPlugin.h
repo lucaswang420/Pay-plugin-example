@@ -12,6 +12,13 @@
 #include <trantor/utils/Date.h>
 #include "WechatPayClient.h"
 
+// Forward declarations
+class PaymentService;
+class RefundService;
+class CallbackService;
+class ReconciliationService;
+class IdempotencyService;
+
 class PayPlugin : public drogon::Plugin<PayPlugin>
 {
   public:
@@ -19,90 +26,27 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
     void initAndStart(const Json::Value &config) override;
     void shutdown() override;
 
-    void createPayment(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> &&callback);
-
-    void queryOrder(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> &&callback);
-
-    void refund(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> &&callback);
-
-    void queryRefund(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> &&callback);
-
-    void reconcileSummary(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> &&callback);
-
-    void handleWechatCallback(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> &&callback);
-
-    void handleWechatCallbackAfterVerify(
-        const drogon::HttpRequestPtr &req,
-        std::function<void(const drogon::HttpResponsePtr &)> callback,
-        const std::string &body);
-
-    void setTestClients(
-        const std::shared_ptr<WechatPayClient> &wechatClient,
-        const std::shared_ptr<drogon::orm::DbClient> &dbClient,
-        const drogon::nosql::RedisClientPtr &redisClient = nullptr,
-        bool useRedisIdempotency = false);
+    // Service accessors
+    std::shared_ptr<PaymentService> paymentService();
+    std::shared_ptr<RefundService> refundService();
+    std::shared_ptr<CallbackService> callbackService();
+    std::shared_ptr<IdempotencyService> idempotencyService();
 
   private:
-    void startWechatCertRefreshTimer();
-    void startReconcileTimer();
-    void syncOrderStatusFromWechat(
-        const std::string &orderNo,
-        const Json::Value &result,
-        std::function<void(const std::string &orderStatus)> &&done);
-    void syncRefundStatusFromWechat(
-        const std::string &refundNo,
-        const Json::Value &result,
-        std::function<void(const std::string &refundStatus)> &&done);
-    void proceedCreatePayment(
-        const std::shared_ptr<std::function<void(const drogon::HttpResponsePtr &)>> &callbackPtr,
-        const std::string &orderNo,
-        const std::string &paymentNo,
-        const std::string &amount,
-        const std::string &currency,
-        const std::string &title,
-        const std::string &notifyUrlOverride,
-        const std::string &attach,
-        const Json::Value &sceneInfo,
-        bool hasSceneInfo,
-        const std::shared_ptr<trantor::Date> &expireAt,
-        int64_t totalFen,
-        int64_t userIdValue,
-        const std::string &idempotencyKey,
-        const std::string &requestHash);
-    void proceedRefund(
-        const std::shared_ptr<std::function<void(const drogon::HttpResponsePtr &)>> &callbackPtr,
-        const std::string &refundNo,
-        const std::string &orderNo,
-        const std::string &paymentNo,
-        const std::string &amount,
-        const std::string &reason,
-        const std::string &notifyUrlOverride,
-        const std::string &fundsAccount,
-        const std::string &idempotencyKey,
-        const std::string &requestHash);
+    // Services
+    std::shared_ptr<PaymentService> paymentService_;
+    std::shared_ptr<RefundService> refundService_;
+    std::shared_ptr<CallbackService> callbackService_;
+    std::unique_ptr<ReconciliationService> reconciliationService_;
+    std::shared_ptr<IdempotencyService> idempotencyService_;
 
-    Json::Value pluginConfig_;
+    // Infrastructure
     std::shared_ptr<WechatPayClient> wechatClient_;
     std::shared_ptr<drogon::orm::DbClient> dbClient_;
     drogon::nosql::RedisClientPtr redisClient_;
-    bool useRedisIdempotency_{false};
-    int64_t idempotencyTtlSeconds_{604800};
-    bool reconcileEnabled_{true};
-    int reconcileIntervalSeconds_{300};
-    int reconcileBatchSize_{50};
-    trantor::TimerId reconcileTimerId_;
-    int certRefreshIntervalSeconds_{43200};
+
+    // Timers
     trantor::TimerId certRefreshTimerId_;
+
+    void startCertRefreshTimer();
 };
