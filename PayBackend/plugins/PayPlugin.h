@@ -11,12 +11,12 @@
 #include <trantor/net/EventLoop.h>
 #include <trantor/utils/Date.h>
 #include "WechatPayClient.h"
+#include "../services/ReconciliationService.h"
 
 // Forward declarations
 class PaymentService;
 class RefundService;
 class CallbackService;
-class ReconciliationService;
 class IdempotencyService;
 
 class PayPlugin : public drogon::Plugin<PayPlugin>
