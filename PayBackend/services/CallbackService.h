@@ -20,6 +20,7 @@ public:
         const std::string& body,
         const std::string& signature,
         const std::string& timestamp,
+        const std::string& nonce,
         const std::string& serialNo,
         CallbackResult&& callback
     );
@@ -28,6 +29,7 @@ public:
         const std::string& body,
         const std::string& signature,
         const std::string& timestamp,
+        const std::string& nonce,
         const std::string& serialNo,
         CallbackResult&& callback
     );
@@ -37,6 +39,7 @@ private:
         const std::string& body,
         const std::string& signature,
         const std::string& timestamp,
+        const std::string& nonce,
         const std::string& serialNo
     );
 

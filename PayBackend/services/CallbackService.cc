@@ -65,6 +65,7 @@ void CallbackService::handlePaymentCallback(
     const std::string& body,
     const std::string& signature,
     const std::string& timestamp,
+    const std::string& nonce,
     const std::string& serialNo,
     CallbackResult&& callback) {
 
@@ -81,7 +82,7 @@ void CallbackService::handlePaymentCallback(
     };
 
     // Verify signature first
-    if (!verifySignature(body, signature, timestamp, serialNo))
+    if (!verifySignature(body, signature, timestamp, nonce, serialNo))
     {
         Json::Value error;
         error["code"] = "FAIL";
@@ -566,6 +567,7 @@ void CallbackService::handleRefundCallback(
     const std::string& body,
     const std::string& signature,
     const std::string& timestamp,
+    const std::string& nonce,
     const std::string& serialNo,
     CallbackResult&& callback) {
 
@@ -582,7 +584,7 @@ void CallbackService::handleRefundCallback(
     };
 
     // Verify signature first
-    if (!verifySignature(body, signature, timestamp, serialNo))
+    if (!verifySignature(body, signature, timestamp, nonce, serialNo))
     {
         Json::Value error;
         error["code"] = "FAIL";
@@ -1051,6 +1053,7 @@ bool CallbackService::verifySignature(
     const std::string& body,
     const std::string& signature,
     const std::string& timestamp,
+    const std::string& nonce,
     const std::string& serialNo) {
 
     if (!wechatClient_)
@@ -1060,10 +1063,6 @@ bool CallbackService::verifySignature(
     }
 
     std::string verifyError;
-    // Note: verifyCallback needs nonce, but we don't have it in the signature
-    // For now, we'll use a placeholder - in production you'd need to extract it from headers
-    std::string nonce = "";
-
     if (!wechatClient_->verifyCallback(timestamp, nonce, body, signature, serialNo, verifyError))
     {
         LOG_WARN << "Signature verification failed: " << verifyError;
