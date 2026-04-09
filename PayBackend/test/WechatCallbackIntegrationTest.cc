@@ -346,6 +346,7 @@ DROGON_TEST(PayPlugin_WechatCallback_DbClientNotReady)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
@@ -495,6 +496,7 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -700,6 +702,7 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -880,6 +883,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     const std::string refundId = "rf_" + drogon::utils::getUuid();
@@ -1099,6 +1103,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -1313,6 +1318,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -1527,6 +1533,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -1741,6 +1748,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -1955,6 +1963,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -2169,6 +2178,7 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -2371,6 +2381,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidSignature)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -2559,6 +2570,7 @@ DROGON_TEST(PayPlugin_WechatCallback_DecryptFailure)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -2736,6 +2748,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingSignatureHeaders)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value notify;
@@ -2820,6 +2833,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingResource)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value notify;
@@ -2897,6 +2911,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidJson)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     const std::string body = "{";
@@ -2971,6 +2986,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceFields)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value notify;
@@ -3053,6 +3069,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingEventType)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     const std::string plainText = "{}";
@@ -3142,6 +3159,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundEventType)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -3241,6 +3259,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTradeState)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -3340,6 +3359,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingTransactionId)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -3438,6 +3458,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAssociatedData)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -3537,6 +3558,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTransactionAssociatedData)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -3635,6 +3657,7 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedResourceType)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value notify;
@@ -3716,6 +3739,7 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedAlgorithm)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value notify;
@@ -3798,6 +3822,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceJson)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     const std::string plainText = "{";
@@ -3887,6 +3912,7 @@ DROGON_TEST(PayPlugin_WechatCallback_SerialMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value notify;
@@ -4045,6 +4071,7 @@ DROGON_TEST(PayPlugin_WechatCallback_AppIdMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -4265,6 +4292,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MchIdMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -4454,6 +4482,7 @@ DROGON_TEST(PayPlugin_WechatCallback_AmountMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -4645,6 +4674,7 @@ DROGON_TEST(PayPlugin_WechatCallback_CurrencyMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -4858,6 +4888,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundSuccess)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     const std::string refundId = "rf_" + drogon::utils::getUuid();
@@ -5099,6 +5130,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundAmountMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -5301,6 +5333,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundCurrencyMismatch)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -5491,6 +5524,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundNotFound)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -5687,6 +5721,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundMissingFields)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -5800,6 +5835,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingRefundId)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -6006,6 +6042,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -6223,6 +6260,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundStatus)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;
@@ -6425,6 +6463,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAmount)
     wechatConfig["serial_no"] = "SERIAL_TEST";
     wechatConfig["app_id"] = "wx_app";
     wechatConfig["mch_id"] = "mch_123";
+    wechatConfig["api_base"] = "http://127.0.0.1:9";
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     Json::Value plain;

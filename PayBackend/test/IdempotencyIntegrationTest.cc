@@ -11,8 +11,10 @@
 #include "../models/PayRefund.h"
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <string>
 #include <vector>
+#include <chrono>
 
 namespace
 {
@@ -146,6 +148,32 @@ DROGON_TEST(PayIdempotency_RedisSetNx)
     auto client = drogon::nosql::RedisClient::newRedisClient(
         addr, 1, password, db, username);
     CHECK(client != nullptr);
+
+    // Guard against hanging when redis is not reachable.
+    auto pingPromise = std::make_shared<std::promise<bool>>();
+    auto pingFuture = pingPromise->get_future();
+    client->execCommandAsync(
+        [pingPromise](const drogon::nosql::RedisResult &r) {
+            try
+            {
+                pingPromise->set_value(r.asString() == "PONG");
+            }
+            catch (...)
+            {
+                pingPromise->set_value(false);
+            }
+        },
+        [pingPromise](const drogon::nosql::RedisException &) {
+            pingPromise->set_value(false);
+        },
+        "PING");
+
+    if (pingFuture.wait_for(std::chrono::seconds(2)) !=
+            std::future_status::ready ||
+        !pingFuture.get())
+    {
+        return;
+    }
 
     const std::string key = "pay:test:idemp:" + drogon::utils::getUuid();
 

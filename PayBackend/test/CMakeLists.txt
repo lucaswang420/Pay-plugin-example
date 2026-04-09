@@ -52,4 +52,9 @@ if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /FI"${CMAKE_CURRENT_SOURCE_DIR}/../models/orm_compat.h")
 endif()
 
-add_test(NAME PayBackendTests COMMAND ${PROJECT_NAME})
+add_test(
+    NAME PayBackendTests
+    COMMAND powershell -ExecutionPolicy Bypass -File
+            "${CMAKE_CURRENT_SOURCE_DIR}/run_all_tests.ps1"
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+)

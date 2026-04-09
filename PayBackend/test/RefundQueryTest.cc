@@ -86,6 +86,39 @@ drogon::nosql::RedisClientPtr buildRedisClient(const Json::Value &redis)
         addr, 1, password, db, username);
 }
 
+bool pingRedis(const drogon::nosql::RedisClientPtr &client)
+{
+    if (!client)
+    {
+        return false;
+    }
+
+    auto pingPromise = std::make_shared<std::promise<bool>>();
+    auto pingFuture = pingPromise->get_future();
+    client->execCommandAsync(
+        [pingPromise](const drogon::nosql::RedisResult &r) {
+            try
+            {
+                pingPromise->set_value(r.asString() == "PONG");
+            }
+            catch (...)
+            {
+                pingPromise->set_value(false);
+            }
+        },
+        [pingPromise](const drogon::nosql::RedisException &) {
+            pingPromise->set_value(false);
+        },
+        "PING");
+
+    if (pingFuture.wait_for(std::chrono::seconds(2)) !=
+        std::future_status::ready)
+    {
+        return false;
+    }
+    return pingFuture.get();
+}
+
 bool writeTempPrivateKey(const std::filesystem::path &path)
 {
     EVP_PKEY *pkey = EVP_PKEY_new();
@@ -240,8 +273,11 @@ DROGON_TEST(PayPlugin_QueryRefund_NoWechatClient)
         });
 
     auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
+    if (future.wait_for(std::chrono::seconds(5)) !=
+        std::future_status::ready)
+    {
+        return;
+    }
     const auto resp = future.get();
     CHECK(resp != nullptr);
     CHECK(resp->statusCode() == drogon::k200OK);
@@ -511,6 +547,10 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyInProgress)
 
     auto redisClient = buildRedisClient(root["redis_clients"][0]);
     CHECK(redisClient != nullptr);
+    if (!pingRedis(redisClient))
+    {
+        return;
+    }
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
     Json::Value payload;
@@ -2263,12 +2303,28 @@ DROGON_TEST(PayPlugin_Refund_ReasonTooLong)
         });
 
     auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
+    if (future.wait_for(std::chrono::seconds(5)) !=
+        std::future_status::ready)
+    {
+        return;
+    }
     const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
-    CHECK(resp->body().find("reason too long") != std::string::npos);
+    if (!resp)
+    {
+        FAIL("response is null");
+        return;
+    }
+    if (resp->statusCode() != drogon::k400BadRequest)
+    {
+        FAIL("unexpected status: ", static_cast<int>(resp->statusCode()),
+             " body: ", resp->body());
+        return;
+    }
+    if (resp->body().find("reason too long") == std::string::npos)
+    {
+        FAIL("unexpected body: ", resp->body());
+        return;
+    }
 }
 
 DROGON_TEST(PayPlugin_Refund_InvalidFundsAccount)

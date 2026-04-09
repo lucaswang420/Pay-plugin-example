@@ -559,138 +559,190 @@ void PayPlugin::syncOrderStatusFromWechat(
                 }
                 auto payment = rows.front();
                 const auto paymentNo = payment.getValueOfPaymentNo();
-                if (payment.getValueOfStatus() == "SUCCESS")
-                {
-                    drogon::orm::Mapper<PayOrderModel> orderMapper(dbClient_);
-                    auto orderCriteria =
-                        drogon::orm::Criteria(
-                            PayOrderModel::Cols::_order_no,
-                            drogon::orm::CompareOperator::EQ,
-                            orderNo);
-                    orderMapper.findOne(
-                        orderCriteria,
-                        [this,
-                         orderStatus,
-                         paymentNo,
-                         done](PayOrderModel order) {
-                            if (order.getValueOfStatus() != "PAID")
-                            {
-                                const auto userId = order.getValueOfUserId();
-                                const auto orderAmount = order.getValueOfAmount();
-                                const auto orderNo = order.getValueOfOrderNo();
-                                order.setStatus(orderStatus);
-                                order.setUpdatedAt(trantor::Date::now());
-                                drogon::orm::Mapper<PayOrderModel>
-                                    orderUpdater(dbClient_);
-                                orderUpdater.update(
-                                    order,
-                                    [this,
-                                     orderStatus,
-                                     userId,
-                                     orderNo,
-                                     paymentNo,
-                                     orderAmount](const size_t) {
-                                        if (orderStatus == "PAID")
-                                        {
-                                            insertLedgerEntry(
-                                                dbClient_,
-                                                userId,
-                                                orderNo,
-                                                paymentNo,
-                                                "PAYMENT",
-                                                orderAmount);
-                                        }
-                                    },
-                                    [](const drogon::orm::DrogonDbException &) {});
-                            }
-                            if (done)
-                            {
-                                done(orderStatus);
-                            }
-                        },
-                        [done, orderStatus](const drogon::orm::DrogonDbException &) {
-                            if (done)
-                            {
-                                done(orderStatus);
-                            }
-                        });
-                    return;
-                }
-                payment.setStatus(paymentStatus);
-                payment.setChannelTradeNo(transactionId);
-                payment.setResponsePayload(responsePayload);
-                payment.setUpdatedAt(trantor::Date::now());
-                drogon::orm::Mapper<PayPaymentModel> paymentUpdater(dbClient_);
-                paymentUpdater.update(
-                    payment,
-                    [this, orderNo, orderStatus, paymentNo, done](const size_t) {
-                        drogon::orm::Mapper<PayOrderModel> orderMapper(
-                            dbClient_);
-                        auto orderCriteria =
-                            drogon::orm::Criteria(
-                                PayOrderModel::Cols::_order_no,
-                                drogon::orm::CompareOperator::EQ,
-                                orderNo);
-                        orderMapper.findOne(
-                            orderCriteria,
-                            [this,
-                             orderStatus,
-                             paymentNo,
-                             done](PayOrderModel order) {
-                                if (order.getValueOfStatus() == "PAID")
+                dbClient_->newTransactionAsync(
+                    [this,
+                     orderNo,
+                     orderStatus,
+                     paymentStatus,
+                     transactionId,
+                     responsePayload,
+                     payment,
+                     paymentNo,
+                     done](const std::shared_ptr<drogon::orm::Transaction> &transPtr) mutable {
+                        auto rollbackDone =
+                            [done, orderStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                LOG_ERROR << "Reconcile transaction error: "
+                                          << e.base().what();
+                                transPtr->rollback();
+                                if (done)
                                 {
+                                    done(orderStatus);
+                                }
+                            };
+
+                        auto transDb =
+                            std::static_pointer_cast<drogon::orm::DbClient>(transPtr);
+
+                        if (payment.getValueOfStatus() == "SUCCESS")
+                        {
+                            drogon::orm::Mapper<PayOrderModel> orderMapper(transPtr);
+                            auto orderCriteria =
+                                drogon::orm::Criteria(
+                                    PayOrderModel::Cols::_order_no,
+                                    drogon::orm::CompareOperator::EQ,
+                                    orderNo);
+                            orderMapper.findOne(
+                                orderCriteria,
+                                [this,
+                                 orderStatus,
+                                 paymentNo,
+                                 done,
+                                 transPtr,
+                                 transDb](PayOrderModel order) {
+                                    if (order.getValueOfStatus() != "PAID")
+                                    {
+                                        const auto userId = order.getValueOfUserId();
+                                        const auto orderAmount = order.getValueOfAmount();
+                                        const auto orderNo = order.getValueOfOrderNo();
+                                        order.setStatus(orderStatus);
+                                        order.setUpdatedAt(trantor::Date::now());
+                                        drogon::orm::Mapper<PayOrderModel>
+                                            orderUpdater(transPtr);
+                                        orderUpdater.update(
+                                            order,
+                                            [orderStatus,
+                                             userId,
+                                             orderNo,
+                                             paymentNo,
+                                             orderAmount,
+                                             transPtr,
+                                             transDb](const size_t) {
+                                                if (orderStatus == "PAID")
+                                                {
+                                                    insertLedgerEntry(
+                                                        transDb,
+                                                        userId,
+                                                        orderNo,
+                                                        paymentNo,
+                                                        "PAYMENT",
+                                                        orderAmount);
+                                                }
+                                            },
+                                            [done, orderStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                LOG_ERROR << "Reconcile order update error: "
+                                                          << e.base().what();
+                                                transPtr->rollback();
+                                                if (done)
+                                                {
+                                                    done(orderStatus);
+                                                }
+                                            });
+                                    }
+                                    else
+                                    {
+                                    }
                                     if (done)
                                     {
                                         done(orderStatus);
                                     }
-                                    return;
-                                }
-                                const auto userId = order.getValueOfUserId();
-                                const auto orderAmount = order.getValueOfAmount();
-                                const auto orderNo = order.getValueOfOrderNo();
-                                order.setStatus(orderStatus);
-                                order.setUpdatedAt(trantor::Date::now());
-                                drogon::orm::Mapper<PayOrderModel>
-                                    orderUpdater(dbClient_);
-                                orderUpdater.update(
-                                    order,
-                                    [this,
-                                     done,
-                                     orderStatus,
-                                     userId,
-                                     orderNo,
+                                },
+                                [done, orderStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                    LOG_ERROR << "Reconcile order select error: "
+                                              << e.base().what();
+                                    transPtr->rollback();
+                                    if (done)
+                                    {
+                                        done(orderStatus);
+                                    }
+                                });
+                            return;
+                        }
+
+                        payment.setStatus(paymentStatus);
+                        payment.setChannelTradeNo(transactionId);
+                        payment.setResponsePayload(responsePayload);
+                        payment.setUpdatedAt(trantor::Date::now());
+                        drogon::orm::Mapper<PayPaymentModel> paymentUpdater(transPtr);
+                        paymentUpdater.update(
+                            payment,
+                            [this, orderNo, orderStatus, paymentNo, done, transPtr, transDb](const size_t) {
+                                drogon::orm::Mapper<PayOrderModel> orderMapper(
+                                    transPtr);
+                                auto orderCriteria =
+                                    drogon::orm::Criteria(
+                                        PayOrderModel::Cols::_order_no,
+                                        drogon::orm::CompareOperator::EQ,
+                                        orderNo);
+                                orderMapper.findOne(
+                                    orderCriteria,
+                                    [orderStatus,
                                      paymentNo,
-                                     orderAmount](const size_t) {
-                                        if (orderStatus == "PAID")
+                                     done,
+                                     transPtr,
+                                     transDb](PayOrderModel order) {
+                                        if (order.getValueOfStatus() == "PAID")
                                         {
-                                            insertLedgerEntry(
-                                                dbClient_,
-                                                userId,
-                                                orderNo,
-                                                paymentNo,
-                                                "PAYMENT",
-                                                orderAmount);
+                                            if (done)
+                                            {
+                                                done(orderStatus);
+                                            }
+                                            return;
                                         }
+                                        const auto userId = order.getValueOfUserId();
+                                        const auto orderAmount = order.getValueOfAmount();
+                                        const auto orderNo = order.getValueOfOrderNo();
+                                        order.setStatus(orderStatus);
+                                        order.setUpdatedAt(trantor::Date::now());
+                                        drogon::orm::Mapper<PayOrderModel>
+                                            orderUpdater(transPtr);
+                                        orderUpdater.update(
+                                            order,
+                                            [done,
+                                             orderStatus,
+                                             userId,
+                                             orderNo,
+                                             paymentNo,
+                                             orderAmount,
+                                             transPtr,
+                                             transDb](const size_t) {
+                                                if (orderStatus == "PAID")
+                                                {
+                                                    insertLedgerEntry(
+                                                        transDb,
+                                                        userId,
+                                                        orderNo,
+                                                        paymentNo,
+                                                        "PAYMENT",
+                                                        orderAmount);
+                                                }
+                                                if (done)
+                                                {
+                                                    done(orderStatus);
+                                                }
+                                            },
+                                            [done, orderStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                LOG_ERROR
+                                                    << "Reconcile order update error: "
+                                                    << e.base().what();
+                                                transPtr->rollback();
+                                                if (done)
+                                                {
+                                                    done(orderStatus);
+                                                }
+                                            });
+                                    },
+                                    [done, orderStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                        LOG_ERROR
+                                            << "Reconcile order select error: "
+                                            << e.base().what();
+                                        transPtr->rollback();
                                         if (done)
                                         {
                                             done(orderStatus);
                                         }
-                                    },
-                                    [](const drogon::orm::DrogonDbException &e) {
-                                        LOG_ERROR
-                                            << "Reconcile order update error: "
-                                            << e.base().what();
                                     });
                             },
-                            [](const drogon::orm::DrogonDbException &e) {
-                                LOG_ERROR
-                                    << "Reconcile order select error: "
-                                    << e.base().what();
-                            });
-                    },
-                    [](const drogon::orm::DrogonDbException &e) {
-                        LOG_ERROR << "Reconcile payment update error: "
-                                  << e.base().what();
+                            rollbackDone);
                     });
             },
             [](const drogon::orm::DrogonDbException &e) {
@@ -758,64 +810,103 @@ void PayPlugin::syncRefundStatusFromWechat(
             const auto orderNo = refund.getValueOfOrderNo();
             const auto paymentNo = refund.getValueOfPaymentNo();
             const auto refundAmount = refund.getValueOfAmount();
-            refund.setStatus(refundStatus);
-            refund.setChannelRefundNo(refundId);
-            refund.setUpdatedAt(trantor::Date::now());
 
-            drogon::orm::Mapper<PayRefundModel> refundUpdater(dbClient_);
-            refundUpdater.update(
-                refund,
+            dbClient_->newTransactionAsync(
                 [this,
-                 done,
                  refundStatus,
+                 refundId,
+                 refundNo,
+                 result,
+                 done,
+                 refund,
                  orderNo,
                  paymentNo,
-                 refundAmount,
-                 refundNo,
-                 result](const size_t) {
-                    const std::string responsePayload = toJsonString(result);
-                    dbClient_->execSqlAsync(
-                        "UPDATE pay_refund SET response_payload = $1 "
-                        "WHERE refund_no = $2",
-                        [](const drogon::orm::Result &) {},
-                        [](const drogon::orm::DrogonDbException &) {},
-                        responsePayload,
-                        refundNo);
-                    if (done)
-                    {
-                        done(refundStatus);
-                    }
-                    if (refundStatus == "REFUND_SUCCESS")
-                    {
-                        drogon::orm::Mapper<PayOrderModel> orderMapper(
-                            dbClient_);
-                        auto orderCriteria =
-                            drogon::orm::Criteria(
-                                PayOrderModel::Cols::_order_no,
-                                drogon::orm::CompareOperator::EQ,
-                                orderNo);
-                        orderMapper.findOne(
-                            orderCriteria,
-                            [this, orderNo, paymentNo, refundAmount](
-                                const PayOrderModel &order) {
-                                insertLedgerEntry(
-                                    dbClient_,
-                                    order.getValueOfUserId(),
-                                    orderNo,
-                                    paymentNo,
-                                    "REFUND",
-                                    refundAmount);
-                            },
-                            [](const drogon::orm::DrogonDbException &e) {
-                                LOG_ERROR
-                                    << "Refund ledger order lookup error: "
-                                    << e.base().what();
-                            });
-                    }
-                },
-                [](const drogon::orm::DrogonDbException &e) {
-                    LOG_ERROR << "Reconcile refund update error: "
-                              << e.base().what();
+                 refundAmount](const std::shared_ptr<drogon::orm::Transaction> &transPtr) mutable {
+                    auto rollbackDone =
+                        [done, refundStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                            LOG_ERROR << "Reconcile refund update error: "
+                                      << e.base().what();
+                            transPtr->rollback();
+                            if (done)
+                            {
+                                done(refundStatus);
+                            }
+                        };
+
+                    auto transDb =
+                        std::static_pointer_cast<drogon::orm::DbClient>(transPtr);
+
+                    refund.setStatus(refundStatus);
+                    refund.setChannelRefundNo(refundId);
+                    refund.setUpdatedAt(trantor::Date::now());
+
+                    drogon::orm::Mapper<PayRefundModel> refundUpdater(transPtr);
+                    refundUpdater.update(
+                        refund,
+                        [this,
+                         done,
+                         refundStatus,
+                         orderNo,
+                         paymentNo,
+                         refundAmount,
+                         refundNo,
+                         result,
+                         transPtr,
+                         transDb](const size_t) {
+                            const std::string responsePayload = toJsonString(result);
+                            transPtr->execSqlAsync(
+                                "UPDATE pay_refund SET response_payload = $1 "
+                                "WHERE refund_no = $2",
+                                [](const drogon::orm::Result &) {},
+                                [done, refundStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                    LOG_ERROR << "Reconcile refund payload update error: "
+                                              << e.base().what();
+                                    transPtr->rollback();
+                                    if (done)
+                                    {
+                                        done(refundStatus);
+                                    }
+                                },
+                                responsePayload,
+                                refundNo);
+                            if (refundStatus == "REFUND_SUCCESS")
+                            {
+                                drogon::orm::Mapper<PayOrderModel> orderMapper(
+                                    transPtr);
+                                auto orderCriteria =
+                                    drogon::orm::Criteria(
+                                        PayOrderModel::Cols::_order_no,
+                                        drogon::orm::CompareOperator::EQ,
+                                        orderNo);
+                                orderMapper.findOne(
+                                    orderCriteria,
+                                    [orderNo, paymentNo, refundAmount, transDb](
+                                        const PayOrderModel &order) {
+                                        insertLedgerEntry(
+                                            transDb,
+                                            order.getValueOfUserId(),
+                                            orderNo,
+                                            paymentNo,
+                                            "REFUND",
+                                            refundAmount);
+                                    },
+                                    [done, refundStatus, transPtr](const drogon::orm::DrogonDbException &e) {
+                                        LOG_ERROR
+                                            << "Refund ledger order lookup error: "
+                                            << e.base().what();
+                                        transPtr->rollback();
+                                        if (done)
+                                        {
+                                            done(refundStatus);
+                                        }
+                                    });
+                            }
+                            if (done)
+                            {
+                                done(refundStatus);
+                            }
+                        },
+                        rollbackDone);
                 });
         },
         [](const drogon::orm::DrogonDbException &e) {
@@ -3067,10 +3158,7 @@ void PayPlugin::handleWechatCallbackAfterVerify(
                                             refund.setChannelRefundNo(refundId);
                                             refund.setUpdatedAt(trantor::Date::now());
 
-                                            drogon::orm::Mapper<PayRefundModel>
-                                                refundUpdater(dbClient_);
-                                            refundUpdater.update(
-                                                refund,
+                                            dbClient_->newTransactionAsync(
                                                 [this,
                                                  callbackPtr,
                                                  refundStatus,
@@ -3082,57 +3170,11 @@ void PayPlugin::handleWechatCallbackAfterVerify(
                                                  serial,
                                                  body,
                                                  refundNo,
-                                                 plaintext](const size_t) {
-                                                    dbClient_->execSqlAsync(
-                                                        "UPDATE pay_refund "
-                                                        "SET response_payload = $1 "
-                                                        "WHERE refund_no = $2",
-                                                        [](const drogon::orm::Result &) {},
-                                                        [](const drogon::orm::DrogonDbException &) {},
-                                                        plaintext,
-                                                        refundNo);
-                                                    if (refundStatus ==
-                                                        "REFUND_SUCCESS")
-                                                    {
-                                                        insertLedgerEntry(
-                                                            dbClient_,
-                                                            order.getValueOfUserId(),
-                                                            orderNo,
-                                                            paymentNo,
-                                                            "REFUND",
-                                                            refundAmount);
-                                                    }
-                                                    PayCallbackModel callbackRow;
-                                                    callbackRow.setPaymentNo(
-                                                        paymentNo);
-                                                    callbackRow.setRawBody(
-                                                        body);
-                                                    callbackRow.setSignature(
-                                                        signature);
-                                                    callbackRow.setSerialNo(
-                                                        serial);
-                                                    callbackRow.setVerified(true);
-                                                    callbackRow.setProcessed(true);
-                                                    callbackRow.setReceivedAt(
-                                                        trantor::Date::now());
-
-                                                    drogon::orm::Mapper<PayCallbackModel>
-                                                        callbackMapper(dbClient_);
-                                                    callbackMapper.insert(
-                                                        callbackRow,
-                                                        [callbackPtr](const PayCallbackModel &) {
-                                                            Json::Value ok;
-                                                            ok["code"] = "SUCCESS";
-                                                            ok["message"] = "OK";
-                                                            auto resp =
-                                                                drogon::HttpResponse::
-                                                                    newHttpJsonResponse(
-                                                                        ok);
-                                                            (*callbackPtr)(resp);
-                                                        },
-                                                        [callbackPtr](
-                                                            const drogon::orm::
-                                                                DrogonDbException &e) {
+                                                 plaintext,
+                                                 refund](const std::shared_ptr<drogon::orm::Transaction> &transPtr) mutable {
+                                                    auto respondDbError =
+                                                        [callbackPtr, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                            transPtr->rollback();
                                                             auto resp =
                                                                 drogon::HttpResponse::
                                                                     newHttpResponse();
@@ -3142,19 +3184,101 @@ void PayPlugin::handleWechatCallbackAfterVerify(
                                                                 std::string("db error: ") +
                                                                 e.base().what());
                                                             (*callbackPtr)(resp);
-                                                        });
-                                                },
-                                                [callbackPtr](
-                                                    const drogon::orm::DrogonDbException &e) {
-                                                    auto resp =
-                                                        drogon::HttpResponse::
-                                                            newHttpResponse();
-                                                    resp->setStatusCode(
-                                                        drogon::k500InternalServerError);
-                                                    resp->setBody(
-                                                        std::string("db error: ") +
-                                                        e.base().what());
-                                                    (*callbackPtr)(resp);
+                                                        };
+
+                                                    drogon::orm::Mapper<PayRefundModel>
+                                                        refundUpdater(transPtr);
+                                                    refundUpdater.update(
+                                                        refund,
+                                                        [this,
+                                                         callbackPtr,
+                                                         refundStatus,
+                                                         refundAmount,
+                                                         orderNo,
+                                                         paymentNo,
+                                                         order,
+                                                         signature,
+                                                         serial,
+                                                         body,
+                                                         refundNo,
+                                                         plaintext,
+                                                         transPtr](const size_t) {
+                                                            transPtr->execSqlAsync(
+                                                                "UPDATE pay_refund "
+                                                                "SET response_payload = $1 "
+                                                                "WHERE refund_no = $2",
+                                                                [](const drogon::orm::Result &) {},
+                                                                [callbackPtr, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                                    transPtr->rollback();
+                                                                    auto resp =
+                                                                        drogon::HttpResponse::newHttpResponse();
+                                                                    resp->setStatusCode(
+                                                                        drogon::k500InternalServerError);
+                                                                    resp->setBody(
+                                                                        std::string("db error: ") +
+                                                                        e.base().what());
+                                                                    (*callbackPtr)(resp);
+                                                                },
+                                                                plaintext,
+                                                                refundNo);
+                                                            if (refundStatus ==
+                                                                "REFUND_SUCCESS")
+                                                            {
+                                                                auto transDb =
+                                                                    std::static_pointer_cast<
+                                                                        drogon::orm::DbClient>(transPtr);
+                                                                insertLedgerEntry(
+                                                                    transDb,
+                                                                    order.getValueOfUserId(),
+                                                                    orderNo,
+                                                                    paymentNo,
+                                                                    "REFUND",
+                                                                    refundAmount);
+                                                            }
+                                                            PayCallbackModel callbackRow;
+                                                            callbackRow.setPaymentNo(
+                                                                paymentNo);
+                                                            callbackRow.setRawBody(
+                                                                body);
+                                                            callbackRow.setSignature(
+                                                                signature);
+                                                            callbackRow.setSerialNo(
+                                                                serial);
+                                                            callbackRow.setVerified(true);
+                                                            callbackRow.setProcessed(true);
+                                                            callbackRow.setReceivedAt(
+                                                                trantor::Date::now());
+
+                                                            drogon::orm::Mapper<PayCallbackModel>
+                                                                callbackMapper(transPtr);
+                                                            callbackMapper.insert(
+                                                                callbackRow,
+                                                                [callbackPtr, transPtr](const PayCallbackModel &) {
+                                                                    Json::Value ok;
+                                                                    ok["code"] = "SUCCESS";
+                                                                    ok["message"] = "OK";
+                                                                    auto resp =
+                                                                        drogon::HttpResponse::
+                                                                            newHttpJsonResponse(
+                                                                                ok);
+                                                                    (*callbackPtr)(resp);
+                                                                },
+                                                                [callbackPtr, transPtr](
+                                                                    const drogon::orm::
+                                                                        DrogonDbException &e) {
+                                                                    transPtr->rollback();
+                                                                    auto resp =
+                                                                        drogon::HttpResponse::
+                                                                            newHttpResponse();
+                                                                    resp->setStatusCode(
+                                                                        drogon::k500InternalServerError);
+                                                                    resp->setBody(
+                                                                        std::string("db error: ") +
+                                                                        e.base().what());
+                                                                    (*callbackPtr)(resp);
+                                                                });
+                                                        },
+                                                        respondDbError);
                                                 });
                                         },
                                         [callbackPtr](const drogon::orm::DrogonDbException &e) {
@@ -3320,9 +3444,7 @@ void PayPlugin::handleWechatCallbackAfterVerify(
                     static_cast<int64_t>(7) * 24 * 60 * 60 * 1000000);
                 idemp.setExpiresAt(expiresAt);
 
-                drogon::orm::Mapper<PayIdempotencyModel> idempInsert(dbClient_);
-                idempInsert.insert(
-                    idemp,
+                dbClient_->newTransactionAsync(
                     [this,
                      callbackPtr,
                      orderNo,
@@ -3332,379 +3454,238 @@ void PayPlugin::handleWechatCallbackAfterVerify(
                      body,
                      signature,
                      serial,
-                     plainJson](const PayIdempotencyModel &) {
-                        drogon::orm::Mapper<PayPaymentModel> paymentMapper(
-                            dbClient_);
-                        auto paymentCriteria =
-                            drogon::orm::Criteria(
-                                PayPaymentModel::Cols::_order_no,
-                                drogon::orm::CompareOperator::EQ,
-                                orderNo);
-                        paymentMapper.orderBy(PayPaymentModel::Cols::_created_at,
-                                              drogon::orm::SortOrder::DESC)
-                            .limit(1)
-                            .findBy(
-                                paymentCriteria,
-                                [this,
-                                 callbackPtr,
-                                 orderNo,
-                                 transactionId,
-                                 tradeState,
-                                 plaintext,
-                                 body,
-                                 signature,
-                                 serial,
-                                 plainJson](const std::vector<PayPaymentModel> &rows) {
-                                    if (rows.empty())
-                                    {
-                                        auto resp =
-                                            drogon::HttpResponse::newHttpResponse();
-                                        resp->setStatusCode(drogon::k404NotFound);
-                                        resp->setBody("payment not found");
-                                        (*callbackPtr)(resp);
-                                        return;
-                                    }
+                     plainJson,
+                     idemp](const std::shared_ptr<drogon::orm::Transaction> &transPtr) mutable {
+                        if (!transPtr)
+                        {
+                            auto resp = drogon::HttpResponse::newHttpResponse();
+                            resp->setStatusCode(drogon::k500InternalServerError);
+                            resp->setBody("db transaction unavailable");
+                            (*callbackPtr)(resp);
+                            return;
+                        }
+                        auto respondDbError =
+                            [callbackPtr, transPtr](const drogon::orm::DrogonDbException &e) {
+                                transPtr->rollback();
+                                auto resp = drogon::HttpResponse::newHttpResponse();
+                                resp->setStatusCode(drogon::k500InternalServerError);
+                                resp->setBody(std::string("db error: ") + e.base().what());
+                                (*callbackPtr)(resp);
+                            };
 
-                                    const auto payment = rows.front();
-                                    const std::string paymentNo =
-                                        payment.getValueOfPaymentNo();
-                                    const std::string orderAmount =
-                                        payment.getValueOfAmount();
-
-                                    drogon::orm::Mapper<PayOrderModel> orderMapper(
-                                        dbClient_);
-                                    auto orderCriteria =
-                                        drogon::orm::Criteria(
-                                            PayOrderModel::Cols::_order_no,
-                                            drogon::orm::CompareOperator::EQ,
-                                            orderNo);
-                                    orderMapper.findOne(
-                                        orderCriteria,
+                        drogon::orm::Mapper<PayIdempotencyModel> idempInsert(transPtr);
+                        idempInsert.insert(
+                            idemp,
+                            [this,
+                             callbackPtr,
+                             orderNo,
+                             transactionId,
+                             tradeState,
+                             plaintext,
+                             body,
+                             signature,
+                             serial,
+                             plainJson,
+                             transPtr,
+                             respondDbError](const PayIdempotencyModel &) {
+                                drogon::orm::Mapper<PayPaymentModel> paymentMapper(transPtr);
+                                auto paymentCriteria =
+                                    drogon::orm::Criteria(
+                                        PayPaymentModel::Cols::_order_no,
+                                        drogon::orm::CompareOperator::EQ,
+                                        orderNo);
+                                paymentMapper.orderBy(PayPaymentModel::Cols::_created_at,
+                                                      drogon::orm::SortOrder::DESC)
+                                    .limit(1)
+                                    .findBy(
+                                        paymentCriteria,
                                         [this,
                                          callbackPtr,
                                          orderNo,
-                                         paymentNo,
-                                         orderAmount,
                                          transactionId,
                                          tradeState,
                                          plaintext,
                                          body,
                                          signature,
                                          serial,
-                                         plainJson](const PayOrderModel &order) {
-                                            const std::string orderCurrency =
-                                                order.getValueOfCurrency();
-                                            const auto &amountJson =
-                                                plainJson["amount"];
-                                            const std::string notifyCurrency =
-                                                amountJson.get("currency", "")
-                                                    .asString();
-                                            const int64_t notifyTotalFen =
-                                                amountJson.get("total", 0)
-                                                    .asInt64();
-                                            int64_t orderTotalFen = 0;
-                                            if (!parseAmountToFen(
-                                                    orderAmount, orderTotalFen) ||
-                                                notifyTotalFen <= 0)
+                                         plainJson,
+                                         transPtr,
+                                         respondDbError](const std::vector<PayPaymentModel> &rows) {
+                                            if (rows.empty())
                                             {
-                                                auto resp =
-                                                    drogon::HttpResponse::
-                                                        newHttpResponse();
-                                                resp->setStatusCode(
-                                                    drogon::k400BadRequest);
-                                                resp->setBody(
-                                                    "invalid amount in callback");
-                                                (*callbackPtr)(resp);
-                                                return;
-                                            }
-                                            if (!notifyCurrency.empty() &&
-                                                notifyCurrency != orderCurrency)
-                                            {
-                                                auto resp =
-                                                    drogon::HttpResponse::newHttpResponse();
-                                                resp->setStatusCode(
-                                                    drogon::k400BadRequest);
-                                                resp->setBody(
-                                                    "currency mismatch");
-                                                (*callbackPtr)(resp);
-                                                return;
-                                            }
-                                            if (notifyTotalFen != orderTotalFen)
-                                            {
-                                                auto resp =
-                                                    drogon::HttpResponse::newHttpResponse();
-                                                resp->setStatusCode(
-                                                    drogon::k400BadRequest);
-                                                resp->setBody("amount mismatch");
+                                                transPtr->rollback();
+                                                auto resp = drogon::HttpResponse::newHttpResponse();
+                                                resp->setStatusCode(drogon::k404NotFound);
+                                                resp->setBody("payment not found");
                                                 (*callbackPtr)(resp);
                                                 return;
                                             }
 
-                                            PayCallbackModel callbackRow;
-                                            callbackRow.setPaymentNo(paymentNo);
-                                            callbackRow.setRawBody(body);
-                                            callbackRow.setSignature(signature);
-                                            callbackRow.setSerialNo(serial);
-                                            callbackRow.setVerified(true);
-                                            callbackRow.setProcessed(false);
-                                            callbackRow.setReceivedAt(trantor::Date::now());
+                                            auto payment = rows.front();
+                                            const std::string paymentNo =
+                                                payment.getValueOfPaymentNo();
+                                            const std::string orderAmount =
+                                                payment.getValueOfAmount();
 
-                                            drogon::orm::Mapper<PayCallbackModel>
-                                                callbackMapper(dbClient_);
-                                            callbackMapper.insert(
-                                                callbackRow,
+                                            drogon::orm::Mapper<PayOrderModel> orderMapper(transPtr);
+                                            auto orderCriteria =
+                                                drogon::orm::Criteria(
+                                                    PayOrderModel::Cols::_order_no,
+                                                    drogon::orm::CompareOperator::EQ,
+                                                    orderNo);
+                                            orderMapper.findOne(
+                                                orderCriteria,
                                                 [this,
                                                  callbackPtr,
                                                  orderNo,
                                                  paymentNo,
+                                                 orderAmount,
                                                  transactionId,
                                                  tradeState,
-                                                 plaintext](const PayCallbackModel &) {
+                                                 plaintext,
+                                                 body,
+                                                 signature,
+                                                 serial,
+                                                 plainJson,
+                                                 transPtr,
+                                                 respondDbError,
+                                                 payment](PayOrderModel order) mutable {
+                                                    const std::string orderCurrency =
+                                                        order.getValueOfCurrency();
+                                                    const auto &amountJson =
+                                                        plainJson["amount"];
+                                                    const std::string notifyCurrency =
+                                                        amountJson.get("currency", "")
+                                                            .asString();
+                                                    const int64_t notifyTotalFen =
+                                                        amountJson.get("total", 0)
+                                                            .asInt64();
+                                                    int64_t orderTotalFen = 0;
+                                                    if (!parseAmountToFen(
+                                                            orderAmount, orderTotalFen) ||
+                                                        notifyTotalFen <= 0)
+                                                    {
+                                                        transPtr->rollback();
+                                                        auto resp = drogon::HttpResponse::newHttpResponse();
+                                                        resp->setStatusCode(drogon::k400BadRequest);
+                                                        resp->setBody("invalid amount in callback");
+                                                        (*callbackPtr)(resp);
+                                                        return;
+                                                    }
+                                                    if (!notifyCurrency.empty() &&
+                                                        notifyCurrency != orderCurrency)
+                                                    {
+                                                        transPtr->rollback();
+                                                        auto resp = drogon::HttpResponse::newHttpResponse();
+                                                        resp->setStatusCode(drogon::k400BadRequest);
+                                                        resp->setBody("currency mismatch");
+                                                        (*callbackPtr)(resp);
+                                                        return;
+                                                    }
+                                                    if (notifyTotalFen != orderTotalFen)
+                                                    {
+                                                        transPtr->rollback();
+                                                        auto resp = drogon::HttpResponse::newHttpResponse();
+                                                        resp->setStatusCode(drogon::k400BadRequest);
+                                                        resp->setBody("amount mismatch");
+                                                        (*callbackPtr)(resp);
+                                                        return;
+                                                    }
+
                                                     std::string orderStatus;
                                                     std::string paymentStatus;
                                                     mapTradeState(tradeState,
                                                                   orderStatus,
                                                                   paymentStatus);
 
-                                    drogon::orm::Mapper<PayPaymentModel>
-                                        paymentMapper(dbClient_);
-                                    auto payCriteria = drogon::orm::Criteria(
-                                        PayPaymentModel::Cols::_payment_no,
-                                        drogon::orm::CompareOperator::EQ,
-                                        paymentNo);
-                                    paymentMapper.findOne(
-                                        payCriteria,
-                                        [this,
-                                         callbackPtr,
-                                         orderNo,
-                                         paymentNo,
-                                         orderStatus,
-                                         paymentStatus,
-                                         transactionId,
-                                         plaintext](PayPaymentModel payment) {
-                                            payment.setStatus(paymentStatus);
-                                            payment.setChannelTradeNo(
-                                                transactionId);
-                                            payment.setResponsePayload(
-                                                plaintext);
-                                            payment.setUpdatedAt(
-                                                trantor::Date::now());
-                                            drogon::orm::Mapper<PayPaymentModel>
-                                                paymentUpdater(dbClient_);
-                                            paymentUpdater.update(
-                                                payment,
-                                                [this,
-                                                 callbackPtr,
-                                                 orderNo,
-                                                 paymentNo,
-                                                 orderStatus](const size_t) {
-                                                    drogon::orm::Mapper<
-                                                        PayOrderModel>
-                                                        orderMapper(dbClient_);
-                                                    auto orderCriteria =
-                                                        drogon::orm::Criteria(
-                                                            PayOrderModel::Cols::
-                                                                _order_no,
-                                                            drogon::orm::
-                                                                CompareOperator::EQ,
-                                                            orderNo);
-                                                    orderMapper.findOne(
-                                                        orderCriteria,
+                                                    PayCallbackModel callbackRow;
+                                                    callbackRow.setPaymentNo(paymentNo);
+                                                    callbackRow.setRawBody(body);
+                                                    callbackRow.setSignature(signature);
+                                                    callbackRow.setSerialNo(serial);
+                                                    callbackRow.setVerified(true);
+                                                    callbackRow.setProcessed(true);
+                                                    callbackRow.setReceivedAt(trantor::Date::now());
+
+                                                    drogon::orm::Mapper<PayCallbackModel>
+                                                        callbackMapper(transPtr);
+                                                    callbackMapper.insert(
+                                                        callbackRow,
                                                         [this,
                                                          callbackPtr,
+                                                         orderNo,
                                                          paymentNo,
-                                                         orderStatus](PayOrderModel order) {
-                                                            const auto userId =
-                                                                order.getValueOfUserId();
-                                                            const auto orderAmount =
-                                                                order.getValueOfAmount();
-                                                            const auto orderNo =
-                                                                order.getValueOfOrderNo();
-                                                            order.setStatus(
-                                                                orderStatus);
-                                                            order.setUpdatedAt(
-                                                                trantor::Date::now());
-                                                            drogon::orm::Mapper<
-                                                                PayOrderModel>
-                                                                orderUpdater(
-                                                                    dbClient_);
-                                                            orderUpdater.update(
-                                                                order,
+                                                         orderStatus,
+                                                         paymentStatus,
+                                                         transactionId,
+                                                         plaintext,
+                                                         transPtr,
+                                                         respondDbError,
+                                                         payment,
+                                                         order](const PayCallbackModel &) mutable {
+                                                            auto transDb =
+                                                                std::static_pointer_cast<drogon::orm::DbClient>(transPtr);
+
+                                                            payment.setStatus(paymentStatus);
+                                                            payment.setChannelTradeNo(transactionId);
+                                                            payment.setResponsePayload(plaintext);
+                                                            payment.setUpdatedAt(trantor::Date::now());
+                                                            drogon::orm::Mapper<PayPaymentModel>
+                                                                paymentUpdater(transPtr);
+                                                            paymentUpdater.update(
+                                                                payment,
                                                                 [this,
                                                                  callbackPtr,
+                                                                 orderNo,
                                                                  paymentNo,
                                                                  orderStatus,
-                                                                 userId,
-                                                                 orderAmount,
-                                                                 orderNo](const size_t) {
-                                                                    if (orderStatus ==
-                                                                        "PAID")
-                                                                    {
-                                                                        insertLedgerEntry(
-                                                                            dbClient_,
-                                                                            userId,
-                                                                            orderNo,
-                                                                            paymentNo,
-                                                                            "PAYMENT",
-                                                                            orderAmount);
-                                                                    }
-                                                                    drogon::orm::
-                                                                        Mapper<
-                                                                            PayCallbackModel>
-                                                                            callbackMapper(
-                                                                                dbClient_);
-                                                                    auto cbCriteria =
-                                                                        drogon::orm::Criteria(
-                                                                            PayCallbackModel::Cols::
-                                                                                _payment_no,
-                                                                            drogon::orm::
-                                                                                CompareOperator::EQ,
-                                                                            paymentNo) &&
-                                                                        drogon::orm::Criteria(
-                                                                            PayCallbackModel::Cols::
-                                                                                _processed,
-                                                                            drogon::orm::
-                                                                                CompareOperator::EQ,
-                                                                            false);
-                                                                    callbackMapper.findOne(
-                                                                        cbCriteria,
-                                                                        [this, callbackPtr](PayCallbackModel cb) {
-                                                                            cb.setProcessed(true);
-                                                                            drogon::orm::Mapper<
-                                                                                PayCallbackModel>
-                                                                                callbackUpdater(
-                                                                                    dbClient_);
-                                                                            callbackUpdater.update(
-                                                                                cb,
-                                                                                [callbackPtr](const size_t) {
-                                                                                    Json::Value ok;
-                                                                                    ok["code"] =
-                                                                                        "SUCCESS";
-                                                                                    ok["message"] =
-                                                                                        "OK";
-                                                                                    auto resp =
-                                                                                        drogon::HttpResponse::
-                                                                                            newHttpJsonResponse(
-                                                                                                ok);
-                                                                                    (*callbackPtr)(resp);
-                                                                                },
-                                                                                [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                                                                    auto resp =
-                                                                                        drogon::HttpResponse::
-                                                                                            newHttpResponse();
-                                                                                    resp->setStatusCode(
-                                                                                        drogon::k500InternalServerError);
-                                                                                    resp->setBody(
-                                                                                        std::string(
-                                                                                            "db error: ") +
-                                                                                        e.base().what());
-                                                                                    (*callbackPtr)(resp);
-                                                });
-                                        },
-                                        [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                            auto resp =
-                                                drogon::HttpResponse::newHttpResponse();
-                                            resp->setStatusCode(
-                                                drogon::k500InternalServerError);
-                                            resp->setBody(
-                                                std::string("db error: ") +
-                                                e.base().what());
-                                            (*callbackPtr)(resp);
-                                        });
-                                                                        },
-                                                                        [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                                                            auto resp =
-                                                                                drogon::HttpResponse::
-                                                                                    newHttpResponse();
-                                                                            resp->setStatusCode(
-                                                                                drogon::k500InternalServerError);
-                                                                            resp->setBody(
-                                                                                std::string(
-                                                                                    "db error: ") +
-                                                                                e.base().what());
+                                                                 transPtr,
+                                                                 transDb,
+                                                                 order,
+                                                                 respondDbError](const size_t) mutable {
+                                                                    order.setStatus(orderStatus);
+                                                                    order.setUpdatedAt(trantor::Date::now());
+                                                                    drogon::orm::Mapper<PayOrderModel>
+                                                                        orderUpdater(transPtr);
+                                                                    orderUpdater.update(
+                                                                        order,
+                                                                        [callbackPtr,
+                                                                         orderStatus,
+                                                                         paymentNo,
+                                                                         transDb,
+                                                                         orderNo,
+                                                                         order,
+                                                                         respondDbError](const size_t) {
+                                                                            if (orderStatus == "PAID")
+                                                                            {
+                                                                                insertLedgerEntry(
+                                                                                    transDb,
+                                                                                    order.getValueOfUserId(),
+                                                                                    orderNo,
+                                                                                    paymentNo,
+                                                                                    "PAYMENT",
+                                                                                    order.getValueOfAmount());
+                                                                            }
+                                                                            Json::Value ok;
+                                                                            ok["code"] = "SUCCESS";
+                                                                            ok["message"] = "OK";
+                                                                            auto resp = drogon::HttpResponse::newHttpJsonResponse(ok);
                                                                             (*callbackPtr)(resp);
-                                                                        });
+                                                                        },
+                                                                        respondDbError);
                                                                 },
-                                                                [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                                                    auto resp =
-                                                                        drogon::HttpResponse::
-                                                                            newHttpResponse();
-                                                                    resp->setStatusCode(
-                                                                        drogon::k500InternalServerError);
-                                                                    resp->setBody(
-                                                                        std::string(
-                                                                            "db error: ") +
-                                                                        e.base().what());
-                                                                    (*callbackPtr)(resp);
-                                                                });
+                                                                respondDbError);
                                                         },
-                                                        [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                                            auto resp =
-                                                                drogon::HttpResponse::
-                                                                    newHttpResponse();
-                                                            resp->setStatusCode(
-                                                                drogon::k500InternalServerError);
-                                                            resp->setBody(
-                                                                std::string(
-                                                                    "db error: ") +
-                                                                e.base().what());
-                                                            (*callbackPtr)(resp);
-                                                        });
+                                                        respondDbError);
                                                 },
-                                                [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                                    auto resp =
-                                                        drogon::HttpResponse::
-                                                            newHttpResponse();
-                                                    resp->setStatusCode(
-                                                        drogon::k500InternalServerError);
-                                                    resp->setBody(
-                                                        std::string("db error: ") +
-                                                        e.base().what());
-                                                    (*callbackPtr)(resp);
-                                                });
+                                                respondDbError);
                                         },
-                                        [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                            auto resp =
-                                                drogon::HttpResponse::newHttpResponse();
-                                            resp->setStatusCode(
-                                                drogon::k500InternalServerError);
-                                            resp->setBody(
-                                                std::string("db error: ") +
-                                                e.base().what());
-                                            (*callbackPtr)(resp);
-                                        });
-                                },
-                                [callbackPtr](
-                                    const drogon::orm::DrogonDbException &e) {
-                                    auto resp =
-                                        drogon::HttpResponse::newHttpResponse();
-                                    resp->setStatusCode(
-                                        drogon::k500InternalServerError);
-                                    resp->setBody(std::string("db error: ") +
-                                                  e.base().what());
-                                    (*callbackPtr)(resp);
-                                });
+                                        respondDbError);
                             },
-                            [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                                auto resp =
-                                    drogon::HttpResponse::newHttpResponse();
-                                resp->setStatusCode(
-                                    drogon::k500InternalServerError);
-                                resp->setBody(std::string("db error: ") +
-                                              e.base().what());
-                                (*callbackPtr)(resp);
-                            });
-                    },
-                    [callbackPtr](const drogon::orm::DrogonDbException &e) {
-                        auto resp = drogon::HttpResponse::newHttpResponse();
-                        resp->setStatusCode(drogon::k500InternalServerError);
-                        resp->setBody(std::string("db error: ") +
-                                      e.base().what());
-                        (*callbackPtr)(resp);
+                            respondDbError);
                     });
             });
     };
-
     if (useRedisIdempotency_ && redisClient_)
     {
         std::string redisKey = "pay:callback:" + idempotencyKey;
