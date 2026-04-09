@@ -1,0 +1,71 @@
+-- Pay Plugin Database Schema
+-- Initial table creation
+
+CREATE TABLE IF NOT EXISTS pay_order (
+    id BIGSERIAL PRIMARY KEY,
+    order_no VARCHAR(64) UNIQUE NOT NULL,
+    user_id BIGINT NOT NULL,
+    amount BIGINT NOT NULL,
+    currency VARCHAR(8) NOT NULL DEFAULT 'CNY',
+    description TEXT,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    expire_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pay_payment (
+    id BIGSERIAL PRIMARY KEY,
+    payment_no VARCHAR(64) UNIQUE NOT NULL,
+    order_no VARCHAR(64) NOT NULL REFERENCES pay_order(order_no),
+    prepay_id VARCHAR(128),
+    amount BIGINT NOT NULL,
+    currency VARCHAR(8) NOT NULL DEFAULT 'CNY',
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pay_refund (
+    id BIGSERIAL PRIMARY KEY,
+    refund_no VARCHAR(64) UNIQUE NOT NULL,
+    order_no VARCHAR(64) NOT NULL REFERENCES pay_order(order_no),
+    payment_no VARCHAR(64) NOT NULL REFERENCES pay_payment(payment_no),
+    amount BIGINT NOT NULL,
+    currency VARCHAR(8) NOT NULL DEFAULT 'CNY',
+    reason VARCHAR(512),
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    refund_id VARCHAR(128),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pay_callback (
+    id BIGSERIAL PRIMARY KEY,
+    order_no VARCHAR(64),
+    refund_no VARCHAR(64),
+    callback_type VARCHAR(16) NOT NULL,
+    body TEXT NOT NULL,
+    processed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pay_idempotency (
+    id BIGSERIAL PRIMARY KEY,
+    key VARCHAR(128) UNIQUE NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
+    request TEXT,
+    response TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pay_ledger (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    order_no VARCHAR(64) NOT NULL,
+    payment_no VARCHAR(64),
+    entry_type VARCHAR(32) NOT NULL,
+    amount VARCHAR(32) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
