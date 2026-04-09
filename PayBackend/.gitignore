@@ -560,6 +560,16 @@ FodyWeavers.xsd
 
 build/
 
+# Conan generated files
+CMakePresets.json
+conan_toolchain.cmake
+conanbuild.bat
+conanbuildenv*.bat
+conanrun.bat
+conanrunenv*.bat
+deactivate_conanbuild.bat
+deactivate_conanrun.bat
+
 # End of https://www.toptal.com/developers/gitignore/api/intellij+all,visualstudio,visualstudiocode,cmake,c,c++
 
 # Pay Plugin - Temporary upload directories
