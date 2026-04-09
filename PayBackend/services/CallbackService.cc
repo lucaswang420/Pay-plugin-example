@@ -5,7 +5,7 @@ using namespace drogon;
 
 CallbackService::CallbackService(
     std::shared_ptr<WechatPayClient> wechatClient,
-    std::shared_ptr<DbClient> dbClient)
+    std::shared_ptr<drogon::orm::DbClient> dbClient)
     : wechatClient_(wechatClient), dbClient_(dbClient) {
 }
 
