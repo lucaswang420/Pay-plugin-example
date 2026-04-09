@@ -3,6 +3,7 @@
 #include <drogon/orm/DbClient.h>
 #include "PaymentService.h"
 #include "RefundService.h"
+#include "../plugins/WechatPayClient.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -13,6 +14,7 @@ public:
     ReconciliationService(
         std::shared_ptr<PaymentService> paymentService,
         std::shared_ptr<RefundService> refundService,
+        std::shared_ptr<WechatPayClient> wechatClient,
         std::shared_ptr<drogon::orm::DbClient> dbClient
     );
 
@@ -29,6 +31,7 @@ private:
 
     std::shared_ptr<PaymentService> paymentService_;
     std::shared_ptr<RefundService> refundService_;
+    std::shared_ptr<WechatPayClient> wechatClient_;
     std::shared_ptr<drogon::orm::DbClient> dbClient_;
     trantor::TimerId reconcileTimerId_;
     int reconcileIntervalSeconds_;
