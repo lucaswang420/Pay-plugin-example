@@ -47,7 +47,7 @@ void PaymentService::createPayment(
             req["amount"] = request.amount;
             return req;
         }(),
-        [this, request, idempotencyKey, callback](bool canProceed, const Json::Value& cachedResult) {
+        [this, request, idempotencyKey, callback](bool canProceed, const Json::Value& cachedResult) mutable {
             if (!canProceed) {
                 // Idempotency conflict
                 Json::Value error;
@@ -65,9 +65,16 @@ void PaymentService::createPayment(
 
             // Proceed with payment creation
             std::string paymentNo = generatePaymentNo();
-            int64_t totalFen = pay::utils::parseAmountToFen(request.amount);
+            int64_t totalFen = 0;
+            if (!pay::utils::parseAmountToFen(request.amount, totalFen)) {
+                Json::Value error;
+                error["code"] = 1001;
+                error["message"] = "Invalid amount format";
+                callback(error, std::make_error_code(std::errc::invalid_argument));
+                return;
+            }
 
-            proceedCreatePayment(request, paymentNo, totalFen, callback);
+            proceedCreatePayment(request, paymentNo, totalFen, std::move(callback));
         }
     );
 }
@@ -129,7 +136,8 @@ std::string PaymentService::generatePaymentNo() {
     std::uniform_int_distribution<> dis(0, 99999999);
 
     std::ostringstream oss;
-    oss << "PAY" << std::put_time(std::localtime(std::time(nullptr)), "%Y%m%d%H%M%S");
+    time_t now = std::time(nullptr);
+    oss << "PAY" << std::put_time(std::localtime(&now), "%Y%m%d%H%M%S");
     oss << std::setfill('0') << std::setw(8) << dis(gen);
 
     return oss.str();
