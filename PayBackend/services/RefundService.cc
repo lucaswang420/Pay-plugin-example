@@ -10,7 +10,7 @@ using namespace drogon;
 
 RefundService::RefundService(
     std::shared_ptr<WechatPayClient> wechatClient,
-    std::shared_ptr<DbClient> dbClient,
+    std::shared_ptr<drogon::orm::DbClient> dbClient,
     std::shared_ptr<IdempotencyService> idempotencyService)
     : wechatClient_(wechatClient), dbClient_(dbClient),
       idempotencyService_(idempotencyService) {

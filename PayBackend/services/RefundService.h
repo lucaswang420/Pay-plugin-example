@@ -3,7 +3,7 @@
 #include <drogon/orm/DbClient.h>
 #include <drogon/nosql/RedisClient.h>
 #include "IdempotencyService.h"
-#include "WechatPayClient.h"
+#include "../plugins/WechatPayClient.h"
 #include <json/json.h>
 #include <functional>
 #include <memory>
