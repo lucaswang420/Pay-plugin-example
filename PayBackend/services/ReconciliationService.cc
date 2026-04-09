@@ -6,21 +6,13 @@ using namespace drogon;
 ReconciliationService::ReconciliationService(
     std::shared_ptr<PaymentService> paymentService,
     std::shared_ptr<RefundService> refundService,
-    std::shared_ptr<drogon::orm::DbClient> dbClient,
-    const Json::Value& config)
+    std::shared_ptr<drogon::orm::DbClient> dbClient)
     : paymentService_(paymentService), refundService_(refundService),
-      dbClient_(dbClient), reconcileTimerId_(0) {
-
-    reconcileIntervalSeconds_ = config.get("reconcile_interval", 300).asInt();
-    reconcileBatchSize_ = config.get("reconcile_batch_size", 50).asInt();
-    reconcileEnabled_ = config.get("reconcile_enabled", true).asBool();
+      dbClient_(dbClient), reconcileTimerId_(0),
+      reconcileIntervalSeconds_(300), reconcileBatchSize_(50) {
 }
 
 void ReconciliationService::startReconcileTimer() {
-    if (!reconcileEnabled_) {
-        return;
-    }
-
     reconcileTimerId_ = drogon::app().getLoop()->runEvery(
         std::chrono::seconds(reconcileIntervalSeconds_),
         [this]() {

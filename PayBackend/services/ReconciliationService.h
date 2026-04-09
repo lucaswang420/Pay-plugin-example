@@ -3,7 +3,6 @@
 #include <drogon/orm/DbClient.h>
 #include "PaymentService.h"
 #include "RefundService.h"
-#include <json/json.h>
 #include <functional>
 #include <memory>
 #include <string>
@@ -14,8 +13,7 @@ public:
     ReconciliationService(
         std::shared_ptr<PaymentService> paymentService,
         std::shared_ptr<RefundService> refundService,
-        std::shared_ptr<drogon::orm::DbClient> dbClient,
-        const Json::Value& config
+        std::shared_ptr<drogon::orm::DbClient> dbClient
     );
 
     void startReconcileTimer();
@@ -35,5 +33,4 @@ private:
     trantor::TimerId reconcileTimerId_;
     int reconcileIntervalSeconds_;
     int reconcileBatchSize_;
-    bool reconcileEnabled_;
 };
