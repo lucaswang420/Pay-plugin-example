@@ -43,6 +43,7 @@ public:
 
     void syncOrderStatusFromWechat(
         const std::string& orderNo,
+        const Json::Value& wechatResult,
         std::function<void(const std::string& status)>&& callback
     );
 
