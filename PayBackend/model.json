@@ -1,4 +1,7 @@
 {
+    "_comment": "Drogon ORM model generation configuration for Pay Plugin",
+    "_note": "Models have already been generated and are in use by the service layer",
+    "_regenerate": "To regenerate models, run: scripts/generate_models.bat (Windows) or drogon_ctl create model models (Linux/Mac)",
     "rdbms": "postgresql",
     "host": "127.0.0.1",
     "port": 5432,
