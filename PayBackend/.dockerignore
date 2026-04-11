@@ -1,0 +1,64 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# IDE files
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+test/
+*_test.cc
+*_test.h
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Configuration files with secrets
+config.json
+*.pem
+*.key
+*.crt
+
+# Dependencies
+conan/
+.conan/
+
+# Coverage reports
+coverage/
+*.gcda
+*.gcno
