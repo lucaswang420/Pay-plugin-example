@@ -575,3 +575,9 @@ deactivate_conanrun.bat
 # Pay Plugin - Temporary upload directories
 uploads/tmp/[0-9A-F]
 uploads/tmp/[0-9A-F][0-9A-F]
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+config.json
