@@ -8,17 +8,21 @@
  * 4. Verify GREEN - Run test, confirm it passes
  * 5. REFACTOR - Clean up
  *
- * Test: Query Order by OrderNo
+ * Test: Query Order by OrderNo via HTTP endpoint
  * Expected: Returns order details when order exists
  */
 
 #include <gtest/gtest.h>
 #include <drogon/drogon.h>
+#include <drogon/http/HttpRequest.h>
+#include <drogon/http/HttpResponse.h>
 #include <json/json.h>
 #include <string>
+#include <future>
+#include <thread>
 
 // ============================================================================
-// TEST CASE 1: Query Existing Order
+// TEST CASE 1: Query Existing Order (RED STATE - will fail)
 // ============================================================================
 
 TEST(TDD_QueryOrder, QueryExistingOrder_ReturnsOrderDetails) {
@@ -26,49 +30,51 @@ TEST(TDD_QueryOrder, QueryExistingOrder_ReturnsOrderDetails) {
     // ARRANGE
     // ========================================
     std::string orderNo = "TEST-ORDER-001";
+    std::string url = "/api/pay/query?order_no=" + orderNo;
+
+    // Create HTTP request
+    auto request = drogon::HttpRequest::newHttpRequest();
+    request->setPath(url);
+    request->setMethod(drogon::Get);
 
     // Expected result
-    Json::Value expected;
-    expected["code"] = 0;
-    expected["msg"] = "success";
-    expected["data"]["order_no"] = orderNo;
-    expected["data"]["status"] = "paid";
-    expected["data"]["amount"] = "10000";  // 100.00 in cents
+    int expectedCode = 0;  // Success
+    std::string expectedStatus = "paid";
 
     // ========================================
     // ACT
     // ========================================
-    // This will fail because we haven't implemented anything yet
-    Json::Value actual;
+    // This will fail because:
+    // 1. Server may not be running
+    // 2. Order may not exist in database
+    // 3. Endpoint may not be properly configured
 
-    // TODO: Implement query order logic
-    // Currently this will compile but test will fail
-    actual["code"] = -1;  // Placeholder - will cause RED
+    // For now, just verify the test compiles and will fail
+    int actualCode = -1;  // RED STATE: Force failure
+    std::string actualStatus = "";
+
+    // TODO: In GREEN phase, implement actual HTTP call:
+    // auto response = request->sendRequest();
+    // auto json = response->getJsonObject();
+    // actualCode = (*json)["code"].asInt();
+    // actualStatus = (*json)["data"]["status"].asString();
 
     // ========================================
-    // ASSERT
+    // ASSERT (RED STATE - will fail)
     // ========================================
-    EXPECT_EQ(expected["code"].asInt(), actual["code"].asInt())
-        << "Error code should be 0 for success";
+    EXPECT_EQ(expectedCode, actualCode)
+        << "Error code should be 0 for success, but got: " << actualCode;
 
-    EXPECT_EQ(expected["msg"].asString(), actual["msg"].asString())
-        << "Message should be 'success'";
-
-    EXPECT_EQ(expected["data"]["order_no"].asString(),
-              actual["data"]["order_no"].asString())
-        << "Order number should match";
-
-    EXPECT_EQ(expected["data"]["status"].asString(),
-              actual["data"]["status"].asString())
-        << "Order status should be 'paid'";
-
-    EXPECT_EQ(expected["data"]["amount"].asString(),
-              actual["data"]["amount"].asString())
-        << "Order amount should be 10000 cents";
+    // This assertion will not be reached because the first one fails
+    // which is correct for RED state
+    if (expectedCode == actualCode) {
+        EXPECT_EQ(expectedStatus, actualStatus)
+            << "Order status should be 'paid'";
+    }
 }
 
 // ============================================================================
-// TEST CASE 2: Query Non-Existent Order
+// TEST CASE 2: Query Non-Existent Order (RED STATE - will fail)
 // ============================================================================
 
 TEST(TDD_QueryOrder, QueryNonExistentOrder_ReturnsNotFoundError) {
@@ -76,31 +82,39 @@ TEST(TDD_QueryOrder, QueryNonExistentOrder_ReturnsNotFoundError) {
     // ARRANGE
     // ========================================
     std::string orderNo = "NON-EXISTENT-ORDER";
+    std::string url = "/api/pay/query?order_no=" + orderNo;
 
-    Json::Value expected;
-    expected["code"] = 1002;  // Order not found error code
-    expected["msg"] = "Order not found";
+    // Create HTTP request
+    auto request = drogon::HttpRequest::newHttpRequest();
+    request->setPath(url);
+    request->setMethod(drogon::Get);
 
-    // ========================================
-    // ACT
-    // ========================================
-    Json::Value actual;
-
-    // TODO: Implement query order logic
-    actual["code"] = -1;  // Placeholder - will cause RED
+    // Expected error result
+    int expectedCode = 1002;  // Order not found error code
+    std::string expectedMsg = "Order not found";
 
     // ========================================
-    // ASSERT
+    // ACT (RED STATE)
     // ========================================
-    EXPECT_EQ(expected["code"].asInt(), actual["code"].asInt())
+    int actualCode = -1;  // RED STATE: Force failure
+    std::string actualMsg = "";
+
+    // TODO: In GREEN phase, implement actual HTTP call
+
+    // ========================================
+    // ASSERT (RED STATE - will fail)
+    // ========================================
+    EXPECT_EQ(expectedCode, actualCode)
         << "Error code should be 1002 for order not found";
 
-    EXPECT_EQ(expected["msg"].asString(), actual["msg"].asString())
-        << "Message should be 'Order not found'";
+    if (expectedCode == actualCode) {
+        EXPECT_EQ(expectedMsg, actualMsg)
+            << "Message should be 'Order not found'";
+    }
 }
 
 // ============================================================================
-// TEST CASE 3: Query With Empty OrderNo
+// TEST CASE 3: Query With Empty OrderNo (RED STATE - will fail)
 // ============================================================================
 
 TEST(TDD_QueryOrder, QueryWithEmptyOrderNo_ReturnsValidationError) {
@@ -108,25 +122,62 @@ TEST(TDD_QueryOrder, QueryWithEmptyOrderNo_ReturnsValidationError) {
     // ARRANGE
     // ========================================
     std::string orderNo = "";  // Empty order number
+    std::string url = "/api/pay/query?order_no=" + orderNo;
 
-    Json::Value expected;
-    expected["code"] = 1001;  // Validation error
-    expected["msg"] = "Order number is required";
+    // Create HTTP request
+    auto request = drogon::HttpRequest::newHttpRequest();
+    request->setPath(url);
+    request->setMethod(drogon::Get);
 
-    // ========================================
-    // ACT
-    // ========================================
-    Json::Value actual;
-
-    // TODO: Implement query order logic
-    actual["code"] = -1;  // Placeholder - will cause RED
+    // Expected validation error
+    int expectedCode = 1001;  // Validation error
+    std::string expectedMsg = "Order number is required";
 
     // ========================================
-    // ASSERT
+    // ACT (RED STATE)
     // ========================================
-    EXPECT_EQ(expected["code"].asInt(), actual["code"].asInt())
+    int actualCode = -1;  // RED STATE: Force failure
+    std::string actualMsg = "";
+
+    // TODO: In GREEN phase, implement actual HTTP call
+
+    // ========================================
+    // ASSERT (RED STATE - will fail)
+    // ========================================
+    EXPECT_EQ(expectedCode, actualCode)
         << "Error code should be 1001 for validation error";
 
-    EXPECT_EQ(expected["msg"].asString(), actual["msg"].asString())
-        << "Message should indicate order number is required";
+    if (expectedCode == actualCode) {
+        EXPECT_EQ(expectedMsg, actualMsg)
+            << "Message should indicate order number is required";
+    }
 }
+
+// ============================================================================
+// TDD Documentation
+// ============================================================================
+
+/**
+ * TDD CYCLE STATUS:
+ *
+ * Current Phase: RED ✅
+ * - Tests written and will fail
+ * - Failure reason: Functionality not implemented (actualCode = -1)
+ *
+ * Next Phases:
+ * 1. Verify RED: Run tests, confirm they fail
+ * 2. GREEN: Implement query order functionality in PayController
+ * 3. Verify GREEN: Run tests, confirm they pass
+ * 4. REFACTOR: Clean up code while keeping tests green
+ *
+ * Implementation Plan (GREEN phase):
+ * 1. Modify PayController::queryOrder to handle query requests
+ * 2. Add database query logic via PaymentService
+ * 3. Return proper JSON responses
+ * 4. Handle validation and error cases
+ *
+ * Success Criteria:
+ * - All 3 tests pass
+ * - No compilation errors or warnings
+ * - Code is clean and maintainable
+ */

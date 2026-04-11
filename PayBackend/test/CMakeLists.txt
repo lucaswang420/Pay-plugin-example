@@ -21,6 +21,7 @@ set(TEST_SRC
     WechatCallbackIntegrationTest.cc
     RefundQueryTest.cc
     ReconcileSummaryTest.cc
+    TDD_QueryOrderTest.cc  # NEW: TDD test template
 )
 
 add_executable(
