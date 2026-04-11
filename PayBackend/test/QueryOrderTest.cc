@@ -1111,3 +1111,72 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatClosed)
                         paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 }
+
+// ============================================================================
+// TDD TEST CASE - Query Order (New Test Following TDD Principles)
+// ============================================================================
+
+/**
+ * TDD Cycle Documentation:
+ * 
+ * RED State (Current):
+ * - This test will fail because PaymentService::queryOrder is not yet implemented
+ * - Or the implementation doesn't match the expected interface
+ * 
+ * GREEN State (Next):
+ * - Implement PaymentService::queryOrder to make this test pass
+ * - Write minimal code to pass the test
+ * 
+ * REFACTOR State (After GREEN):
+ * - Clean up the code while keeping the test green
+ * - Remove duplication, improve names, extract helpers
+ */
+
+TEST(QueryOrderTest, TDD_QueryExistingOrder_ReturnsOrderDetails) {
+    // ========================================
+    // ARRANGE
+    // ========================================
+    std::string orderNo = "TDD-TEST-ORDER-001";
+    
+    // Expected result when order exists
+    int expectedCode = 0;  // Success
+    std::string expectedStatus = "PAYING";  // Default status for new order
+    
+    // ========================================
+    // ACT (RED STATE - will fail)
+    // ========================================
+    
+    // TODO: Implement PaymentService query
+    // For now, this will fail because we haven't implemented
+    // the service call yet
+    
+    int actualCode = -1;  // RED STATE: Force failure
+    std::string actualStatus = "";
+    
+    // In GREEN phase, this will be:
+    // auto plugin = drogon::app().getPlugin<PayPlugin>();
+    // auto paymentService = plugin->paymentService();
+    // paymentService->queryOrder(orderNo, 
+    //     [&actualCode, &actualStatus](const Json::Value& result, const std::error_code& error) {
+    //         if (!error) {
+    //             actualCode = result["code"].asInt();
+    //             actualStatus = result["data"]["status"].asString();
+    //         } else {
+    //             actualCode = -1;
+    //         }
+    //     });
+    
+    // ========================================
+    // ASSERT (RED STATE - will fail)
+    // ========================================
+    EXPECT_EQ(expectedCode, actualCode) 
+        << "Error code should be 0 for success, but got: " << actualCode;
+    
+    // This won't be reached due to the first failure, which is correct for RED state
+    if (expectedCode == actualCode) {
+        EXPECT_EQ(expectedStatus, actualStatus)
+            << "Order status should be PAYING";
+    }
+    
+    // TEST WILL FAIL HERE - THIS IS CORRECT FOR RED STATE ✅
+}

@@ -22,6 +22,7 @@ set(TEST_SRC
     RefundQueryTest.cc
     ReconcileSummaryTest.cc
     TDD_QueryOrderTest.cc  # NEW: TDD test template
+    TDD_SimpleTest.cc  # NEW: Simple TDD test (self-contained)
 )
 
 add_executable(
