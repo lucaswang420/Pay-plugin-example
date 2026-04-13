@@ -1,0 +1,66 @@
+# Build directories
+PayBackend/build/
+PayBackend/cmake-build-*/
+PayBackend/out/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Worktrees
+.worktrees/
+
+# Backup and temporary files
+*.backup
+*.backup2
+*.bak
+*.tmp
+*.old
+*.before_*
+*.after_*
+
+# Test artifacts
+PayBackend/test/*.backup
+PayBackend/test/*.backup2
+PayBackend/test/*.before_*
+PayBackend/test/test_*.sh
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+env/
+venv/
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Coverage reports
+coverage/
+*.coverage
+*.gcov
+*.gcda
+*.gcno
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# Archives (keep structure but ignore content)
+# PayBackend/docs/archive/

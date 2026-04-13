@@ -47,7 +47,7 @@ cd build
 
 REM Install dependencies and configure
 echo Installing dependencies...
-conan install .. --build=missing -s build_type=%BUILD_TYPE%
+conan install .. --build=missing -s build_type=%BUILD_TYPE% --output-folder . 
 if %errorlevel% neq 0 (
     echo Error: Conan install failed
     cd /d "%~dp0.."
