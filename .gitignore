@@ -62,5 +62,33 @@ coverage/
 *.sql.gz
 *.dump
 
+# 🔒 SECURITY: Certificates and keys (CRITICAL)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+certs/
+secrets/
+.secrets/
+
+# WeChat Pay specific
+wechatpay_*.pem
+apiclient_*.pem
+platform_*.pem
+mock_*.pem
+placeholder_*.pem
+
+# Private keys and certificates
+*.private_key
+*.private_key.pem
+*.public_key.pem
+*.cert.pem
+*.certificate.pem
+
+# OpenSSL configuration
+openssl.cnf
+*.rnd
+
 # Archives (keep structure but ignore content)
 # PayBackend/docs/archive/
