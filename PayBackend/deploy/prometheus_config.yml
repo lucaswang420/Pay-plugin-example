@@ -1,0 +1,52 @@
+# Prometheus Configuration for Pay Plugin Server
+# Version: 1.0.0
+# Updated: 2026-04-13
+
+global:
+  # How frequently to scrape targets
+  scrape_interval: 15s
+
+  # How frequently to evaluate rules
+  evaluation_interval: 15s
+
+  # The timeout for scrape requests
+  scrape_timeout: 10s
+
+  # External labels
+  external_labels:
+    cluster: 'payserver-prod'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+
+# Load and evaluate rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # PayServer metrics
+  - job_name: 'payserver'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'localhost:5566'
+        labels:
+          service: 'payserver'
+          instance: 'payserver-1'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Alertmanager monitoring (optional)
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['localhost:9093']

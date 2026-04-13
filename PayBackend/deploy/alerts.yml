@@ -1,0 +1,197 @@
+# Alert Rules for Pay Plugin Server
+# Version: 1.0.0
+# Updated: 2026-04-13
+
+groups:
+  - name: payserver_performance
+    interval: 30s
+    rules:
+      # High P95 response time
+      - alert: HighResponseTimeP95
+        expr: histogram_quantile(0.95, http_request_duration_seconds_bucket) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High P95 response time detected"
+          description: "P95 response time is {{ $value }}s (threshold: 0.2s) for {{ $labels.instance }}"
+
+      # High P99 response time
+      - alert: HighResponseTimeP99
+        expr: histogram_quantile(0.99, http_request_duration_seconds_bucket) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "High P99 response time detected"
+          description: "P99 response time is {{ $value }}s (threshold: 0.5s) for {{ $labels.instance }}"
+
+  - name: payserver_errors
+    interval: 30s
+    rules:
+      # High HTTP 5xx error rate
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%) for {{ $labels.instance }}"
+
+      # High HTTP 4xx error rate
+      - alert: HighClientErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"4.."}[5m])) /
+          sum(rate(http_requests_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "High client error rate detected"
+          description: "Client error rate (4xx) is {{ $value | humanizePercentage }} (threshold: 10%)"
+
+  - name: payserver_availability
+    interval: 30s
+    rules:
+      # Service down
+      - alert: ServiceDown
+        expr: up{job="payserver"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "PayServer is down"
+          description: "PayServer {{ $labels.instance }} has been down for more than 1 minute"
+
+      # Low request rate (potential service degradation)
+      - alert: LowRequestRate
+        expr: sum(rate(http_requests_total[5m])) < 1
+        for: 10m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Low request rate detected"
+          description: "Request rate is {{ $value }} req/s (expected > 1 req/s)"
+
+  - name: payserver_database
+    interval: 30s
+    rules:
+      # Database connection pool exhausted
+      - alert: DatabasePoolExhausted
+        expr: db_connections_active / db_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connection usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      # Database connection pool critical
+      - alert: DatabasePoolCritical
+        expr: db_connections_active / db_connections_max > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Database connection pool critically low"
+          description: "Database connection usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      # High database query latency
+      - alert: HighDatabaseQueryLatency
+        expr: histogram_quantile(0.95, db_query_duration_seconds_bucket) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High database query latency"
+          description: "P95 database query latency is {{ $value }}s (threshold: 0.1s)"
+
+  - name: payserver_redis
+    interval: 30s
+    rules:
+      # Redis connection pool exhausted
+      - alert: RedisPoolExhausted
+        expr: redis_connections_active / redis_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Redis connection pool nearly exhausted"
+          description: "Redis connection usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      # Redis connection pool critical
+      - alert: RedisPoolCritical
+        expr: redis_connections_active / redis_connections_max > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Redis connection pool critically low"
+          description: "Redis connection usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      # High Redis command latency
+      - alert: HighRedisCommandLatency
+        expr: histogram_quantile(0.95, redis_command_duration_seconds_bucket) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High Redis command latency"
+          description: "P95 Redis command latency is {{ $value }}s (threshold: 0.05s)"
+
+  - name: payserver_business
+    interval: 30s
+    rules:
+      # Low payment success rate
+      - alert: LowPaymentSuccessRate
+        expr: |
+          sum(rate(payment_success_total[5m])) /
+          sum(rate(payment_attempts_total[5m])) < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Low payment success rate detected"
+          description: "Payment success rate is {{ $value | humanizePercentage }} (threshold: 95%)"
+
+      # Critical payment success rate
+      - alert: CriticalPaymentSuccessRate
+        expr: |
+          sum(rate(payment_success_total[5m])) /
+          sum(rate(payment_attempts_total[5m])) < 0.90
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Critical payment success rate"
+          description: "Payment success rate is {{ $value | humanizePercentage }} (threshold: 90%)"
+
+      # Low refund success rate
+      - alert: LowRefundSuccessRate
+        expr: |
+          sum(rate(refund_success_total[5m])) /
+          sum(rate(refund_attempts_total[5m])) < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Low refund success rate detected"
+          description: "Refund success rate is {{ $value | humanizePercentage }} (threshold: 95%)"

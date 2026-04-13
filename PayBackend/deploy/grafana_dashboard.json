@@ -1,0 +1,291 @@
+{
+  "dashboard": {
+    "title": "Pay Plugin Server Monitoring",
+    "description": "Comprehensive monitoring dashboard for Pay Plugin Server",
+    "tags": ["payserver", "payment", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (QPS)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[1m]))",
+            "legendFormat": "Total QPS",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "min": 0,
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+            "legendFormat": "5xx Error Rate %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Service Availability",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "up{job=\"payserver\"}",
+            "legendFormat": "UP",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"value": "1", "text": "UP"},
+              {"value": "0", "text": "DOWN"}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Response Time Percentiles",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, http_request_duration_seconds_bucket)",
+            "legendFormat": "P50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, http_request_duration_seconds_bucket)",
+            "legendFormat": "P95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, http_request_duration_seconds_bucket)",
+            "legendFormat": "P99",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0,
+            "decimals": 3
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Database Connections",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "db_connections_active",
+            "legendFormat": "Active",
+            "refId": "A"
+          },
+          {
+            "expr": "db_connections_idle",
+            "legendFormat": "Idle",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 32
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Redis Connections",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "redis_connections_active",
+            "legendFormat": "Active",
+            "refId": "A"
+          },
+          {
+            "expr": "redis_connections_idle",
+            "legendFormat": "Idle",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 32
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Payment Success Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(payment_success_total[5m])) / sum(rate(payment_attempts_total[5m])) * 100",
+            "legendFormat": "Success Rate %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Refund Success Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(refund_success_total[5m])) / sum(rate(refund_attempts_total[5m])) * 100",
+            "legendFormat": "Success Rate %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Request Distribution by Endpoint",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (endpoint) (rate(http_requests_total[5m]))",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Request Distribution by Status",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (status) (rate(http_requests_total[5m]))",
+            "legendFormat": "{{status}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Database Query Latency (P95)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 40, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, db_query_duration_seconds_bucket)",
+            "legendFormat": "P95 Query Latency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0,
+            "decimals": 3
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Redis Command Latency (P95)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 40, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, redis_command_duration_seconds_bucket)",
+            "legendFormat": "P95 Command Latency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0,
+            "decimals": 3
+          }
+        }
+      }
+    ]
+  }
+}
