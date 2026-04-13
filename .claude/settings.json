@@ -169,7 +169,8 @@
       "Bash(ls -la PayBackend/controllers/*.h)",
       "Bash(ls -la PayBackend/filters/RateLimiter*)",
       "Bash(bash scripts/check_config.sh)",
-      "Bash(bash PayBackend/scripts/check_config.sh)"
+      "Bash(bash PayBackend/scripts/check_config.sh)",
+      "Bash(ls -la PayBackend/services/*.h)"
     ],
     "additionalDirectories": [
       "D:\\work\\development\\Repos\\backend\\drogon-plugin\\Pay-plugin-example\\PayBackend\\docs"
