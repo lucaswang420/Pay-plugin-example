@@ -1,0 +1,27 @@
+{
+  "skill_name": "drogon-service-api-migration",
+  "description": "Test cases for Drogon Service API migration skill",
+  "evals": [
+    {
+      "id": 1,
+      "name": "simple-payment-migration",
+      "prompt": "I have this old test code that uses the plugin.createPayment() method. Can you migrate it to use the new PaymentService API with the async callback pattern?",
+      "expected_output": "The test should be converted to use CreatePaymentRequest structure, PaymentService->createPayment() method, and Promise/Future pattern for async handling. The test logic should remain the same, only the API calls change.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "refund-api-migration",
+      "prompt": "Here's a RefundQueryTest that still uses the old plugin.refund(req, callback) pattern. I need you to update it to use RefundService with CreateRefundRequest. Make sure to handle the std::error_code properly.",
+      "expected_output": "Should migrate to RefundService->createRefund() with CreateRefundRequest structure. Must include std::promise for both Json::Value result and std::error_code, check error before accessing result.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "callback-service-migration",
+      "prompt": "This WechatCallbackIntegrationTest still uses plugin.handleWechatCallback(req, callback). Can you convert it to CallbackService->handlePaymentCallback() with the proper signature parameters?",
+      "expected_output": "Should migrate to CallbackService->handlePaymentCallback() with direct parameters: body, signature, timestamp, nonce, serial. The HttpRequest object should be used to extract these parameters, not passed directly.",
+      "files": []
+    }
+  ]
+}
