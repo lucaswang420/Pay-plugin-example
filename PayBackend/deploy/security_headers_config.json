@@ -1,0 +1,41 @@
+{
+  "security": {
+    "enabled": true,
+    "headers": {
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "X-XSS-Protection": "1; mode=block",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "Content-Security-Policy": "default-src 'none'; script-src 'self'",
+      "Referrer-Policy": "no-referrer",
+      "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+    },
+    "rate_limiting": {
+      "enabled": true,
+      "global": {
+        "requests_per_second": 1000,
+        "burst": 100
+      },
+      "per_ip": {
+        "requests_per_second": 100,
+        "burst": 20
+      },
+      "per_api_key": {
+        "requests_per_second": 500,
+        "burst": 50
+      }
+    },
+    "csrf": {
+      "enabled": false,
+      "token_name": "csrf_token"
+    },
+    "cors": {
+      "enabled": false,
+      "allowed_origins": [],
+      "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
+      "allowed_headers": ["Content-Type", "X-Api-Key"],
+      "exposed_headers": [],
+      "max_age": 3600
+    }
+  }
+}
