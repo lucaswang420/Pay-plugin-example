@@ -162,26 +162,35 @@ DROGON_TEST(PayPlugin_ReconcileSummary)
     PayPlugin plugin;
     plugin.setTestClients(nullptr, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
+    // Use today's date for the reconciliation summary
+    auto now = trantor::Date::now();
+    std::string date = now.toCustomFormattedString("%Y-%m-%d", false);
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.reconcileSummary(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto paymentService = plugin.paymentService();
+    paymentService->reconcileSummary(
+        date,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["paying_orders"].asInt() == basePaying + 2);
-    CHECK((*respJson)["refunding_refunds"].asInt() == baseRefunding + 2);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    const auto data = result["data"];
+    CHECK(data["paying_orders"].asInt() == basePaying + 2);
+    CHECK(data["refunding_refunds"].asInt() == baseRefunding + 2);
 
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1",
                         refundInit.getValueOfRefundNo());
