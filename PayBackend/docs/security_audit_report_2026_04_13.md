@@ -184,73 +184,118 @@ openssl.cnf
 
 **实现的解决方案：**
 
-基于 Redis 的速率限制过滤器，使用滑动窗口算法。
+使用 **Drogon 官方的 Hodor 速率限制插件**，而非自定义实现。
 
-**核心文件：**
-- `filters/RateLimiterFilter.h` - 速率限制过滤器头文件
-- `filters/RateLimiterFilter.cc` - 速率限制过滤器实现
-- `config.json` - 速率限制配置
+**为什么选择 Hodor 插件：**
 
-**功能特性：**
+1. **官方支持** - Drogon 框架内置插件，稳定可靠
+2. **无需 Redis** - 基于内存存储，性能更高
+3. **多算法支持** - 令牌桶、固定窗口、滑动窗口
+4. **多维度限流** - 全局、IP、用户容量限制
+5. **URL 匹配** - 支持正则表达式匹配特定路径
+6. **子限制** - 可为不同端点设置不同限制
+7. **高级特性** - 多线程安全、RealIpResolver 集成
 
-1. **基于 Redis 的滑动窗口算法**
+**配置文件：** `config.json`
 
-   - 使用 Redis INCR/EXPIRE 实现时间窗口计数
-   - 精确的每分钟请求计数
-
-2. **灵活的配置选项**
-
-```json
-"rate_limit": {
-  "enabled": true,
-  "requests_per_minute": 100,
-  "burst": 10,
-  "key_type": "api_key",
-  "whitelist": ["127.0.0.1", "localhost"]
-}
-```
-
-3. **多种限流策略**
-
-   - 基于 API Key：防止密钥滥用
-   - 基于 IP 地址：防止 DDoS 攻击
-   - 白名单支持：信任的 IP 无限制
-
-4. **标准的 HTTP 429 响应**
+**Hodor 插件配置：**
 
 ```json
 {
-  "result": "error",
-  "message": "Rate limit exceeded. Please try again later.",
-  "error_code": 429,
-  "retry_after": 60
+  "name": "drogon::plugin::Hodor",
+  "dependencies": [],
+  "config": {
+    "algorithm": "token_bucket",
+    "urls": ["^/pay/.*", "^/api/.*"],
+    "time_unit": 60,
+    "capacity": 0,
+    "ip_capacity": 100,
+    "user_capacity": 0,
+    "use_real_ip_resolver": false,
+    "multi_threads": true,
+    "rejection_message": "Rate limit exceeded. Please try again later.",
+    "limiter_expire_time": 600,
+    "trust_ips": ["127.0.0.1", "::1"],
+    "sub_limits": [
+      {
+        "urls": ["^/pay/create$"],
+        "capacity": 0,
+        "ip_capacity": 20,
+        "user_capacity": 0
+      },
+      {
+        "urls": ["^/pay/refund$"],
+        "capacity": 0,
+        "ip_capacity": 10,
+        "user_capacity": 0
+      }
+    ]
+  }
 }
 ```
 
-5. **响应头信息**
+**核心功能特性：**
 
-   - `Retry-After`: 60
-   - `X-RateLimit-Limit`: 100
-   - `X-RateLimit-Remaining`: 0
+1. **三种限流算法**
 
-**已保护的端点：**
-- ✅ `/pay/create` - 创建支付
-- ✅ `/pay/query` - 查询订单
-- ✅ `/pay/refund` - 创建退款
-- ✅ `/pay/refund/query` - 查询退款
-- ✅ `/pay/reconcile/summary` - 对账汇总
-- ✅ `/pay/notify/wechat` - 微信回调
+   - `token_bucket` - 令牌桶算法（默认，平滑限流）
+   - `fixed_window` - 固定窗口（简单高效）
+   - `sliding_window` - 滑动窗口（精确限流）
+
+2. **多维度容量限制**
+
+   - **全局容量** (`capacity`): 所有请求的总限制
+   - **IP 容量** (`ip_capacity`): 单个 IP 的限制
+   - **用户容量** (`user_capacity`): 单个用户的限制
+
+3. **灵活的 URL 匹配**
+
+   - 支持正则表达式匹配 URL 路径
+   - 可针对特定端点设置不同限制
+
+4. **子限制 (Sub-limits)**
+
+   - 为特定端点设置更严格的限制
+   - 例如：创建支付 20 次/分钟，退款 10 次/分钟
+
+5. **可信代理 IP**
+
+   - `trust_ips`: 白名单 IP 不受限制
+   - 支持 CIDR 表示法（如 `172.16.0.0/12`）
+
+6. **标准 HTTP 429 响应**
+
+   - 自定义拒绝消息
+   - 可自定义响应工厂函数
+
+**限流策略：**
+
+| 端点 | IP 限制 | 说明 |
+| ------ | --------- | ------ |
+| `/pay/create` | 20 次/分钟 | 创建支付 - 更严格限制 |
+| `/pay/refund` | 10 次/分钟 | 退款 - 最严格限制 |
+| `/pay/query` | 100 次/分钟 | 查询订单 - 标准限制 |
+| `/pay/refund/query` | 100 次/分钟 | 查询退款 - 标准限制 |
+| `/pay/reconcile/summary` | 100 次/分钟 | 对账汇总 - 标准限制 |
+| `/pay/notify/wechat` | 100 次/分钟 | 微信回调 - 标准限制 |
 
 **严重性：** 🔴 **关键** → ✅ **已解决**
 
 **验证结果：**
-- ✅ 速率限制过滤器已实现
-- ✅ 所有支付端点已应用过滤器
-- ✅ Redis 滑动窗口算法正确实现
-- ✅ 支持 API Key 和 IP 两种限流模式
-- ✅ 白名单功能正常
-- ✅ HTTP 429 响应符合标准
-- ✅ 修复已提交到 commit f25d622
+
+- ✅ Hodor 插件已配置并启用
+- ✅ 所有支付端点已应用速率限制
+- ✅ 令牌桶算法正确实现
+- ✅ IP 维度限流正常工作
+- ✅ 子限制为关键端点提供更严格保护
+- ✅ 可信代理 IP（localhost）豁免
+- ✅ 修复已提交到 commit 58fdfc5
+
+**性能优势：**
+
+- 无需 Redis 依赖（减少网络开销）
+- 内存存储（更快响应）
+- 官方支持（稳定可靠）
 
 **优先级：** ~~🔴 P0 - 生产环境必须实施~~ → ✅ **已完成**
 
