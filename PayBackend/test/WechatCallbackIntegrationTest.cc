@@ -16,6 +16,7 @@
 #include "../models/PayRefund.h"
 #include "../plugins/PayPlugin.h"
 #include "../plugins/WechatPayClient.h"
+#include "../services/CallbackService.h"
 
 namespace
 {
@@ -373,11 +374,11 @@ DROGON_TEST(PayPlugin_WechatCallback_DbClientNotReady)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -564,11 +565,11 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -784,11 +785,11 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -978,11 +979,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -1192,11 +1193,11 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -1412,11 +1413,11 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -1632,11 +1633,11 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -1852,11 +1853,11 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -2072,11 +2073,11 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -2294,11 +2295,11 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
         std::promise<Json::Value> resultPromise;
         std::promise<std::error_code> errorPromise;
         callbackService->handlePaymentCallback(
-            req->body(),
-            req->getHeader("Wechatpay-Signature"),
-            req->getHeader("Wechatpay-Timestamp"),
-            req->getHeader("Wechatpay-Nonce"),
-            req->getHeader("Wechatpay-Serial"),
+            std::string(req->body()),
+            std::string(req->getHeader("Wechatpay-Signature")),
+            std::string(req->getHeader("Wechatpay-Timestamp")),
+            std::string(req->getHeader("Wechatpay-Nonce")),
+            std::string(req->getHeader("Wechatpay-Serial")),
             [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
                 resultPromise.set_value(result);
                 errorPromise.set_value(error);
@@ -2498,11 +2499,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidSignature)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -2698,11 +2699,11 @@ DROGON_TEST(PayPlugin_WechatCallback_DecryptFailure)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -2857,11 +2858,11 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingSignatureHeaders)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -2956,11 +2957,11 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingResource)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3039,11 +3040,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidJson)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3129,11 +3130,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceFields)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3227,11 +3228,11 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingEventType)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3335,11 +3336,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundEventType)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3443,11 +3444,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTradeState)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3550,11 +3551,11 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingTransactionId)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3658,11 +3659,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAssociatedData)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3766,11 +3767,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTransactionAssociatedData)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3856,11 +3857,11 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedResourceType)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -3946,11 +3947,11 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedAlgorithm)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -4045,11 +4046,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceJson)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -4136,11 +4137,11 @@ DROGON_TEST(PayPlugin_WechatCallback_SerialMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -4319,11 +4320,11 @@ DROGON_TEST(PayPlugin_WechatCallback_AppIdMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -4551,11 +4552,11 @@ DROGON_TEST(PayPlugin_WechatCallback_MchIdMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -4746,11 +4747,11 @@ DROGON_TEST(PayPlugin_WechatCallback_AmountMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -4946,11 +4947,11 @@ DROGON_TEST(PayPlugin_WechatCallback_CurrencyMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -5172,11 +5173,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundSuccess)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -5418,11 +5419,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundAmountMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -5629,11 +5630,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundCurrencyMismatch)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -5828,11 +5829,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundNotFound)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handleRefundCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -6032,11 +6033,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundMissingFields)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -6151,11 +6152,11 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingRefundId)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -6367,11 +6368,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -6593,11 +6594,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundStatus)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);
@@ -6804,11 +6805,11 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAmount)
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
     callbackService->handlePaymentCallback(
-        req->body(),
-        req->getHeader("Wechatpay-Signature"),
-        req->getHeader("Wechatpay-Timestamp"),
-        req->getHeader("Wechatpay-Nonce"),
-        req->getHeader("Wechatpay-Serial"),
+        std::string(req->body()),
+        std::string(req->getHeader("Wechatpay-Signature")),
+        std::string(req->getHeader("Wechatpay-Timestamp")),
+        std::string(req->getHeader("Wechatpay-Nonce")),
+        std::string(req->getHeader("Wechatpay-Serial")),
         [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
             resultPromise.set_value(result);
             errorPromise.set_value(error);

@@ -461,8 +461,10 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyConflict)
     CHECK(error);
     CHECK(error.value() == 1409);  // Idempotency conflict error code
     CHECK(result.isMember("message"));
-    CHECK(result["message"].asString().find("idempotency") != std::string::npos ||
-          result["message"].asString().find("conflict") != std::string::npos);
+    auto msg = result["message"].asString();
+    bool hasKeyword = msg.find("idempotency") != std::string::npos ||
+                      msg.find("conflict") != std::string::npos;
+    CHECK(hasKeyword);
 
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1",
                         idempKey);
@@ -609,7 +611,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyInProgress)
     CHECK(setResult == "OK");
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client, redisClient, true);
+    plugin.setTestClients(nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
