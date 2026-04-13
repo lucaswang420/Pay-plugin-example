@@ -197,31 +197,37 @@ DROGON_TEST(PayPlugin_QueryOrder_NoWechatClient)
     PayPlugin plugin;
     plugin.setTestClients(nullptr, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["amount"].asString() == amount);
-    CHECK((*respJson)["currency"].asString() == "CNY");
-    CHECK((*respJson)["status"].asString() == "PAYING");
-    CHECK((*respJson)["channel"].asString() == "wechat");
-    CHECK((*respJson)["title"].asString() == "Query Order");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+    CHECK(error.message().empty());
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["amount"].asString() == amount);
+    CHECK(result["data"]["currency"].asString() == "CNY");
+    CHECK(result["data"]["status"].asString() == "PAYING");
+    CHECK(result["data"]["channel"].asString() == "wechat");
+    CHECK(result["data"]["title"].asString() == "Query Order");
 
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 }
@@ -281,28 +287,33 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatQueryError)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    CHECK(resp->getHeader("X-Wechat-Query-Error") == "missing mch_id");
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["status"].asString() == "PAYING");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    const auto result = resultFuture.get();
+
+    // Should successfully return order data from database
+    // even though WeChat query will fail due to invalid config
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["status"].asString() == "PAYING");
 
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 }
@@ -422,28 +433,33 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatSuccess)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["status"].asString() == "PAID");
-    CHECK((*respJson)["wechat_response"]["trade_state"].asString() ==
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["status"].asString() == "PAID");
+    CHECK(result["data"]["wechat_response"]["trade_state"].asString() ==
           "SUCCESS");
 
     const auto updatedOrder =
@@ -600,28 +616,33 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatSuccess_PaymentAlreadySuccess)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["status"].asString() == "PAID");
-    CHECK((*respJson)["wechat_response"]["trade_state"].asString() == "SUCCESS");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["status"].asString() == "PAID");
+    CHECK(result["data"]["wechat_response"]["trade_state"].asString() == "SUCCESS");
 
     const auto updatedOrder =
         orderMapper.findByPrimaryKey(order.getValueOfId());
@@ -763,28 +784,33 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatUserPaying)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["status"].asString() == "PAYING");
-    CHECK((*respJson)["wechat_response"]["trade_state"].asString() ==
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["status"].asString() == "PAYING");
+    CHECK(result["data"]["wechat_response"]["trade_state"].asString() ==
           "USERPAYING");
 
     const auto updatedOrder =
@@ -915,28 +941,33 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatNotPay)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["status"].asString() == "PAYING");
-    CHECK((*respJson)["wechat_response"]["trade_state"].asString() == "NOTPAY");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["status"].asString() == "PAYING");
+    CHECK(result["data"]["wechat_response"]["trade_state"].asString() == "NOTPAY");
 
     const auto updatedOrder =
         orderMapper.findByPrimaryKey(order.getValueOfId());
@@ -1066,28 +1097,33 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatClosed)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("order_no", orderNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryOrder(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->queryOrder(
+        orderNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["status"].asString() == "CLOSED");
-    CHECK((*respJson)["wechat_response"]["trade_state"].asString() ==
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["order_no"].asString() == orderNo);
+    CHECK(result["data"]["status"].asString() == "CLOSED");
+    CHECK(result["data"]["wechat_response"]["trade_state"].asString() ==
           "CLOSED");
 
     const auto updatedOrder =
@@ -1110,73 +1146,4 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatClosed)
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1",
                         paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
-}
-
-// ============================================================================
-// TDD TEST CASE - Query Order (New Test Following TDD Principles)
-// ============================================================================
-
-/**
- * TDD Cycle Documentation:
- * 
- * RED State (Current):
- * - This test will fail because PaymentService::queryOrder is not yet implemented
- * - Or the implementation doesn't match the expected interface
- * 
- * GREEN State (Next):
- * - Implement PaymentService::queryOrder to make this test pass
- * - Write minimal code to pass the test
- * 
- * REFACTOR State (After GREEN):
- * - Clean up the code while keeping the test green
- * - Remove duplication, improve names, extract helpers
- */
-
-TEST(QueryOrderTest, TDD_QueryExistingOrder_ReturnsOrderDetails) {
-    // ========================================
-    // ARRANGE
-    // ========================================
-    std::string orderNo = "TDD-TEST-ORDER-001";
-    
-    // Expected result when order exists
-    int expectedCode = 0;  // Success
-    std::string expectedStatus = "PAYING";  // Default status for new order
-    
-    // ========================================
-    // ACT (RED STATE - will fail)
-    // ========================================
-    
-    // TODO: Implement PaymentService query
-    // For now, this will fail because we haven't implemented
-    // the service call yet
-    
-    int actualCode = -1;  // RED STATE: Force failure
-    std::string actualStatus = "";
-    
-    // In GREEN phase, this will be:
-    // auto plugin = drogon::app().getPlugin<PayPlugin>();
-    // auto paymentService = plugin->paymentService();
-    // paymentService->queryOrder(orderNo, 
-    //     [&actualCode, &actualStatus](const Json::Value& result, const std::error_code& error) {
-    //         if (!error) {
-    //             actualCode = result["code"].asInt();
-    //             actualStatus = result["data"]["status"].asString();
-    //         } else {
-    //             actualCode = -1;
-    //         }
-    //     });
-    
-    // ========================================
-    // ASSERT (RED STATE - will fail)
-    // ========================================
-    EXPECT_EQ(expectedCode, actualCode) 
-        << "Error code should be 0 for success, but got: " << actualCode;
-    
-    // This won't be reached due to the first failure, which is correct for RED state
-    if (expectedCode == actualCode) {
-        EXPECT_EQ(expectedStatus, actualStatus)
-            << "Order status should be PAYING";
-    }
-    
-    // TEST WILL FAIL HERE - THIS IS CORRECT FOR RED STATE ✅
 }

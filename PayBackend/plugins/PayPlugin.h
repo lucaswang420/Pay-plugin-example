@@ -32,6 +32,13 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
     std::shared_ptr<CallbackService> callbackService();
     std::shared_ptr<IdempotencyService> idempotencyService();
 
+    // Test support: Initialize services with test clients
+    // NOTE: This method is for integration testing only
+    void setTestClients(
+        std::shared_ptr<WechatPayClient> wechatClient,
+        std::shared_ptr<drogon::orm::DbClient> dbClient
+    );
+
   private:
     // Services
     std::shared_ptr<PaymentService> paymentService_;

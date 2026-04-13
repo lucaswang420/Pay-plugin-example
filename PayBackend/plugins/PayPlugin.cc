@@ -107,6 +107,34 @@ std::shared_ptr<IdempotencyService> PayPlugin::idempotencyService()
     return idempotencyService_;
 }
 
+void PayPlugin::setTestClients(
+    std::shared_ptr<WechatPayClient> wechatClient,
+    std::shared_ptr<drogon::orm::DbClient> dbClient)
+{
+    LOG_DEBUG << "PayPlugin::setTestClients called for testing";
+
+    // Store test clients
+    wechatClient_ = wechatClient;
+    dbClient_ = dbClient;
+
+    // Create IdempotencyService with test clients (no Redis for tests)
+    idempotencyService_ = std::make_shared<IdempotencyService>(
+        dbClient_, nullptr, 604800);
+
+    // Create business services with test clients
+    paymentService_ = std::make_shared<PaymentService>(
+        wechatClient_, dbClient_, nullptr, idempotencyService_);
+
+    refundService_ = std::make_shared<RefundService>(
+        wechatClient_, dbClient_, idempotencyService_);
+
+    callbackService_ = std::make_shared<CallbackService>(
+        wechatClient_, dbClient_);
+
+    // Note: ReconciliationService is NOT created for tests
+    // (it would start background timers)
+}
+
 void PayPlugin::startCertRefreshTimer()
 {
     if (!wechatClient_)

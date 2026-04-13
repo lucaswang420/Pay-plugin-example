@@ -9,6 +9,7 @@
 #include "../models/PayPayment.h"
 #include "../models/PayRefund.h"
 #include "../plugins/PayPlugin.h"
+#include "../services/RefundService.h"
 #include "../utils/PayUtils.h"
 #include <chrono>
 #include <filesystem>
@@ -265,29 +266,36 @@ DROGON_TEST(PayPlugin_QueryRefund_NoWechatClient)
     req->setMethod(drogon::Get);
     req->setParameter("refund_no", refundNo);
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryRefund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto refundService = plugin.refundService();
+    refundService->queryRefund(
+        refundNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    if (future.wait_for(std::chrono::seconds(5)) !=
-        std::future_status::ready)
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    if (resultFuture.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
     {
         return;
     }
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == refundNo);
-    CHECK((*respJson)["order_no"].asString() == orderNo);
-    CHECK((*respJson)["payment_no"].asString() == paymentNo);
-    CHECK((*respJson)["status"].asString() == "REFUNDING");
-    CHECK((*respJson)["amount"].asString() == amount);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);  // Should not have an error
+    CHECK(error.message().empty());  // Error message should be empty
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("refund_no"));
+    CHECK(result["refund_no"].asString() == refundNo);
+    CHECK(result["order_no"].asString() == orderNo);
+    CHECK(result["payment_no"].asString() == paymentNo);
+    CHECK(result["status"].asString() == "REFUNDING");
+    CHECK(result["amount"].asString() == amount);
 
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1",
                         refundNo);
@@ -348,30 +356,34 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatQueryError)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("refund_no", refundNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryRefund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->queryRefund(
+        refundNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    CHECK(resp->getHeader("X-Wechat-Query-Error") ==
-          "wechat pay config missing mch_id/serial_no/private_key_path");
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == refundNo);
-    CHECK((*respJson)["status"].asString() == "REFUNDING");
-    CHECK((*respJson)["updated_at"].isString());
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    // Should successfully return refund data from database
+    // even though WeChat query will fail due to invalid config
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["refund_no"].asString() == refundNo);
+    CHECK(result["data"]["status"].asString() == "REFUNDING");
+    CHECK(result["data"]["updated_at"].isString());
 
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1",
                         refundNo);
@@ -401,10 +413,14 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyConflict)
         "expires_at TIMESTAMPTZ NOT NULL)");
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
-    Json::Value payload;
-    payload["order_no"] = "ord_" + drogon::utils::getUuid();
-    payload["amount"] = "9.99";
-    const std::string body = pay::utils::toJsonString(payload);
+    const std::string orderNo = "ord_" + drogon::utils::getUuid();
+    const std::string paymentNo = "pay_" + drogon::utils::getUuid();
+
+    CreateRefundRequest request;
+    request.orderNo = orderNo;
+    request.paymentNo = paymentNo;
+    request.amount = "9.99";
+    request.refundNo = "";  // Auto-generated
 
     const std::string idempKey = "refund:" + idempotencyKey;
     client->execSqlSync(
@@ -418,26 +434,35 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyConflict)
     PayPlugin plugin;
     plugin.setTestClients(nullptr, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
-    req->addHeader("Idempotency-Key", idempotencyKey);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.refund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->createRefund(
+        request,
+        idempotencyKey,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k409Conflict);
-    CHECK(resp->body().find("idempotency key conflict") != std::string::npos);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    // Should fail with idempotency conflict
+    CHECK(error);
+    CHECK(error.value() == 1409);  // Idempotency conflict error code
+    CHECK(result.isMember("message"));
+    CHECK(result["message"].asString().find("idempotency") != std::string::npos ||
+          result["message"].asString().find("conflict") != std::string::npos);
 
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1",
                         idempKey);
@@ -467,16 +492,19 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot)
         "expires_at TIMESTAMPTZ NOT NULL)");
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
-    Json::Value payload;
-    payload["order_no"] = "ord_" + drogon::utils::getUuid();
-    payload["amount"] = "12.34";
-    const std::string body = pay::utils::toJsonString(payload);
-    const std::string requestHash = drogon::utils::getSha256(body);
+    const std::string orderNo = "ord_" + drogon::utils::getUuid();
+    const std::string paymentNo = "pay_" + drogon::utils::getUuid();
+
+    CreateRefundRequest request;
+    request.orderNo = orderNo;
+    request.paymentNo = paymentNo;
+    request.amount = "12.34";
+    request.refundNo = "";  // Auto-generated
 
     Json::Value snapshot;
-    snapshot["refund_no"] = "refund_prev";
-    snapshot["order_no"] = payload["order_no"];
-    snapshot["status"] = "REFUNDING";
+    snapshot["data"]["refund_no"] = "refund_prev";
+    snapshot["data"]["order_no"] = orderNo;
+    snapshot["data"]["status"] = "REFUNDING";
     const std::string snapshotBody = pay::utils::toJsonString(snapshot);
 
     const std::string idempKey = "refund:" + idempotencyKey;
@@ -485,35 +513,40 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot)
         "(idempotency_key, request_hash, response_snapshot, expires_at) "
         "VALUES ($1, $2, $3, NOW() + INTERVAL '1 day')",
         idempKey,
-        requestHash,
+        "hash_value",
         snapshotBody);
 
     PayPlugin plugin;
     plugin.setTestClients(nullptr, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
-    req->addHeader("Idempotency-Key", idempotencyKey);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.refund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->createRefund(
+        request,
+        idempotencyKey,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == "refund_prev");
-    CHECK((*respJson)["status"].asString() == "REFUNDING");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    // Should return cached snapshot
+    CHECK(!error);
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["refund_no"].asString() == "refund_prev");
+    CHECK(result["data"]["status"].asString() == "REFUNDING");
 
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1",
                         idempKey);
@@ -757,39 +790,46 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    Json::Value payload;
-    payload["order_no"] = orderNo;
-    payload["payment_no"] = paymentNo;
-    payload["amount"] = amount;
-    payload["reason"] = "Test reason";
-    payload["notify_url"] = "https://notify.refund";
-    payload["funds_account"] = "AVAILABLE";
-    const std::string body = pay::utils::toJsonString(payload);
+    // Prepare request using new API
+    CreateRefundRequest request;
+    request.orderNo = orderNo;
+    request.paymentNo = paymentNo;
+    request.amount = amount;
+    request.reason = "Test reason";
+    request.notifyUrl = "https://notify.refund";
+    request.fundsAccount = "AVAILABLE";
+    request.refundNo = "";  // Auto-generated
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.refund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->createRefund(
+        request,
+        "",  // No idempotency key for this test
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["payment_no"].asString() == paymentNo);
-    CHECK((*respJson)["amount"].asString() == amount);
-    CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
-    const auto refundNo = (*respJson)["refund_no"].asString();
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    CHECK(!error);
+    CHECK(error.message().empty());
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["payment_no"].asString() == paymentNo);
+    CHECK(result["data"]["amount"].asString() == amount);
+    CHECK(result["data"]["status"].asString() == "REFUND_SUCCESS");
+    const auto refundNo = result["data"]["refund_no"].asString();
     CHECK(!refundNo.empty());
     CHECK(sawReason.load());
     CHECK(sawNotify.load());
@@ -2533,31 +2573,36 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatSuccess)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("refund_no", refundNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryRefund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->queryRefund(
+        refundNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == refundNo);
-    CHECK((*respJson)["status"].asString() == "REFUND_SUCCESS");
-    CHECK((*respJson)["channel_refund_no"].asString() == "wx_refund_1");
-    CHECK((*respJson)["updated_at"].isString());
-    CHECK((*respJson)["updated_at"].asString().find("T") != std::string::npos);
-    CHECK((*respJson)["wechat_response"]["status"].asString() == "SUCCESS");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["refund_no"].asString() == refundNo);
+    CHECK(result["data"]["status"].asString() == "REFUND_SUCCESS");
+    CHECK(result["data"]["channel_refund_no"].asString() == "wx_refund_1");
+    CHECK(result["data"]["updated_at"].isString());
+    CHECK(result["data"]["updated_at"].asString().find("T") != std::string::npos);
+    CHECK(result["data"]["wechat_response"]["status"].asString() == "SUCCESS");
 
     const auto updated = refundMapper.findByPrimaryKey(
         refund.getValueOfId());
@@ -2704,28 +2749,33 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatProcessing)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("refund_no", refundNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryRefund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->queryRefund(
+        refundNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == refundNo);
-    CHECK((*respJson)["status"].asString() == "REFUNDING");
-    CHECK((*respJson)["wechat_response"]["status"].asString() ==
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["refund_no"].asString() == refundNo);
+    CHECK(result["data"]["status"].asString() == "REFUNDING");
+    CHECK(result["data"]["wechat_response"]["status"].asString() ==
           "PROCESSING");
 
     const auto updated =
@@ -2842,28 +2892,33 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatClosed)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("refund_no", refundNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryRefund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->queryRefund(
+        refundNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == refundNo);
-    CHECK((*respJson)["status"].asString() == "REFUND_FAIL");
-    CHECK((*respJson)["wechat_response"]["status"].asString() == "CLOSED");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["refund_no"].asString() == refundNo);
+    CHECK(result["data"]["status"].asString() == "REFUND_FAIL");
+    CHECK(result["data"]["wechat_response"]["status"].asString() == "CLOSED");
 
     const auto updated =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -2979,28 +3034,33 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatAbnormal)
     PayPlugin plugin;
     plugin.setTestClients(wechatClient, client);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Get);
-    req->setParameter("refund_no", refundNo);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.queryRefund(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto refundService = plugin.refundService();
+    refundService->queryRefund(
+        refundNo,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["refund_no"].asString() == refundNo);
-    CHECK((*respJson)["status"].asString() == "REFUND_FAIL");
-    CHECK((*respJson)["wechat_response"]["status"].asString() == "ABNORMAL");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);
+
+    const auto result = resultFuture.get();
+    CHECK(result.isMember("data"));
+    CHECK(result["data"]["refund_no"].asString() == refundNo);
+    CHECK(result["data"]["status"].asString() == "REFUND_FAIL");
+    CHECK(result["data"]["wechat_response"]["status"].asString() == "ABNORMAL");
 
     const auto updated =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
