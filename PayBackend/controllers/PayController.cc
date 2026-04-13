@@ -279,7 +279,15 @@ void PayController::queryRefund(
             auto resp = HttpResponse::newHttpJsonResponse(result);
             if (error)
             {
-                resp->setStatusCode(k500InternalServerError);
+                // Map error code 1404 (Refund not found) to HTTP 404
+                if (error.value() == 1404)
+                {
+                    resp->setStatusCode(k404NotFound);
+                }
+                else
+                {
+                    resp->setStatusCode(k500InternalServerError);
+                }
             }
             callback(resp);
         }
