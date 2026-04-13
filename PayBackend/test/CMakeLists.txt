@@ -9,7 +9,7 @@ find_package(Drogon CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 set(TEST_SRC
-    CreatePaymentIntegrationTest.cc  # Updated to new API
+    CreatePaymentIntegrationTest.cc  # ✅ Updated to new API
     ControllerMetricsTest.cc
     IdempotencyIntegrationTest.cc
     test_main.cc
@@ -18,17 +18,10 @@ set(TEST_SRC
     PayUtilsTest.cc
     QueryOrderTest.cc
     WechatPayClientTest.cc
-    # WechatCallbackIntegrationTest.cc  # TODO: Update to new API (Phase 5)
-    # RefundQueryTest.cc  # TODO: Partially updated, disable for now (Phase 5)
-    # ReconcileSummaryTest.cc  # TODO: Update to new API (Phase 5)
-    # TDD_SimpleTest.cc  # TODO: Fix gtest headers (Phase 5)
-
-    # NOTE: Tests disabled for Phase 1 (Performance Testing)
-    # These will be re-enabled and updated in Phase 5 (Unit Tests)
-    # - WechatCallbackIntegrationTest (40 tests)
-    # - RefundQueryTest (20 tests, 3 updated)
-    # - ReconcileSummaryTest (3 tests)
-    # - TDD_SimpleTest (header issues)
+    WechatCallbackIntegrationTest.cc  # ✅ Updated to new API (Phase 3)
+    RefundQueryTest.cc  # ✅ Updated to new API (Phase 3)
+    ReconcileSummaryTest.cc  # ✅ Updated to new API (Phase 3)
+    # TDD_SimpleTest.cc  # TODO: Fix gtest headers
 )
 
 add_executable(
