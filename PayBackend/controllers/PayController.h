@@ -9,31 +9,27 @@ class PayController : public drogon::HttpController<PayController>
 {
   public:
     METHOD_LIST_BEGIN
-    ADD_METHOD_TO(PayController::createPayment, "/pay/create", Post, Options, "RateLimiterFilter");
+    ADD_METHOD_TO(PayController::createPayment, "/pay/create", Post, Options);
     ADD_METHOD_TO(PayController::queryOrder,
                   "/pay/query",
                   Get,
                   Options,
-                  "PayAuthFilter",
-                  "RateLimiterFilter");
+                  "PayAuthFilter");
     ADD_METHOD_TO(PayController::refund,
                   "/pay/refund",
                   Post,
                   Options,
-                  "PayAuthFilter",
-                  "RateLimiterFilter");
+                  "PayAuthFilter");
     ADD_METHOD_TO(PayController::queryRefund,
                   "/pay/refund/query",
                   Get,
                   Options,
-                  "PayAuthFilter",
-                  "RateLimiterFilter");
+                  "PayAuthFilter");
     ADD_METHOD_TO(PayController::reconcileSummary,
                   "/pay/reconcile/summary",
                   Get,
                   Options,
-                  "PayAuthFilter",
-                  "RateLimiterFilter");
+                  "PayAuthFilter");
     METHOD_LIST_END
 
     void createPayment(const HttpRequestPtr &req,

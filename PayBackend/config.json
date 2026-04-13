@@ -144,6 +144,37 @@
             }
         },
         {
+            "name": "drogon::plugin::Hodor",
+            "dependencies": [],
+            "config": {
+                "algorithm": "token_bucket",
+                "urls": ["^/pay/.*", "^/api/.*"],
+                "time_unit": 60,
+                "capacity": 0,
+                "ip_capacity": 100,
+                "user_capacity": 0,
+                "use_real_ip_resolver": false,
+                "multi_threads": true,
+                "rejection_message": "Rate limit exceeded. Please try again later.",
+                "limiter_expire_time": 600,
+                "trust_ips": ["127.0.0.1", "::1"],
+                "sub_limits": [
+                    {
+                        "urls": ["^/pay/create$"],
+                        "capacity": 0,
+                        "ip_capacity": 20,
+                        "user_capacity": 0
+                    },
+                    {
+                        "urls": ["^/pay/refund$"],
+                        "capacity": 0,
+                        "ip_capacity": 10,
+                        "user_capacity": 0
+                    }
+                ]
+            }
+        },
+        {
             "name": "PayPlugin",
             "dependencies": [],
             "config": {
@@ -195,16 +226,6 @@
             },
             "api_key_default_scopes": ["read"],
             "metrics_base_url": "http://127.0.0.1:5566/metrics/base"
-        },
-        "rate_limit": {
-            "enabled": true,
-            "requests_per_minute": 100,
-            "burst": 10,
-            "key_type": "api_key",
-            "whitelist": [
-                "127.0.0.1",
-                "localhost"
-            ]
         }
     }
 }
