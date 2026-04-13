@@ -87,50 +87,62 @@
 
 ---
 
-### 3. 敏感文件未添加到 .gitignore ⚠️⚠️⚠️
+### 3. 敏感文件未添加到 .gitignore ✅ **已修复**
 
-**缺失的忽略规则：**
-```
-*.pem
-*.key
-*.crt
-certs/
-secrets/
-*.p12
-*.pfx
-```
+**修复时间：** 2026-04-13
 
-**严重性：** 🔴 **关键**  
-**风险：**
-- 私钥、证书可能被提交到 Git 仓库
-- 一旦提交到历史记录，即使删除也无法完全清除
-- 微信支付私钥泄露将导致资金损失
+**已添加的忽略规则：**
 
-**当前状态：**
-- ❌ `*.pem` 未忽略
-- ❌ `*.key` 未忽略
-- ❌ `certs/` 目录未忽略
-
-**修复建议：**
 ```gitignore
-# Certificates and keys
+# 🔒 SECURITY: Certificates and keys (CRITICAL)
 *.pem
 *.key
 *.crt
 *.p12
 *.pfx
 certs/
-
-# Secrets
 secrets/
 .secrets/
 
 # WeChat Pay specific
 wechatpay_*.pem
 apiclient_*.pem
+platform_*.pem
+mock_*.pem
+placeholder_*.pem
+
+# Private keys and certificates
+*.private_key
+*.private_key.pem
+*.public_key.pem
+*.cert.pem
+*.certificate.pem
+
+# OpenSSL configuration
+openssl.cnf
+*.rnd
 ```
 
-**优先级：** 🔴 **P0 - 立即修复**
+**严重性：** 🔴 **关键** → ✅ **已解决**
+
+**验证结果：**
+
+- ✅ 所有证书和密钥文件类型已添加到 .gitignore
+- ✅ 没有敏感文件被 Git 追踪
+- ✅ 项目中不存在任何证书/密钥文件
+- ✅ 修复已提交到 commit 952fdd0
+
+**严重性：** 🔴 **关键** → ✅ **已解决**
+
+**验证结果：**
+- ✅ 所有证书和密钥文件类型已添加到 .gitignore
+- ✅ 没有敏感文件被 Git 追踪
+- ✅ 项目中不存在任何证书/密钥文件
+- ✅ 修复已提交到 commit 952fdd0
+
+**优先级：** ~~🔴 P0 - 立即修复~~ → ✅ **已完成**
+
+---
 
 ---
 
