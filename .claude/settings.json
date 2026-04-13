@@ -167,7 +167,9 @@
       "mcp__plugin_context7_context7__query-docs",
       "Bash(find . -type f \\\\\\( -name \"*.h\" -o -name \"*.cc\" -o -name \"*.cpp\" -o -name \"*.json\" \\\\\\) -exec grep -l \"Hodor\\\\|hodor\\\\|rate.*limit\\\\|RateLimit\" {} \\\\;)",
       "Bash(ls -la PayBackend/controllers/*.h)",
-      "Bash(ls -la PayBackend/filters/RateLimiter*)"
+      "Bash(ls -la PayBackend/filters/RateLimiter*)",
+      "Bash(bash scripts/check_config.sh)",
+      "Bash(bash PayBackend/scripts/check_config.sh)"
     ],
     "additionalDirectories": [
       "D:\\work\\development\\Repos\\backend\\drogon-plugin\\Pay-plugin-example\\PayBackend\\docs"
