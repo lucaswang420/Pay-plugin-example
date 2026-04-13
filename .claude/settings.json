@@ -158,7 +158,8 @@
       "Edit(/.claude/skills/cpp-project-file-cleanup/**)",
       "Edit(/.claude/skills/drogon-service-api-migration/**)",
       "Edit(/.claude/skills/production-readiness-docs/**)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(grep -E \"\\\\.pem$|\\\\.key$|\\\\.crt$|certs/\")"
     ],
     "additionalDirectories": [
       "D:\\work\\development\\Repos\\backend\\drogon-plugin\\Pay-plugin-example\\PayBackend\\docs"
