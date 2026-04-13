@@ -1,231 +1,366 @@
-# Pay Plugin Deployment Guide
+# Pay Plugin 部署指南
 
-## Prerequisites
+**版本：** 1.0.0  
+**更新时间：** 2026-04-13  
+**目标环境：** Production
 
-- Ubuntu 20.04+ or Windows Server
-- PostgreSQL 12+
-- Redis 6+
-- CMake 3.5+
-- Conan dependency manager
-- Valid SSL certificate (for production)
+---
 
-## Build from Source
+## 📋 系统要求
 
-### 1. Clone Repository
+### 硬件要求
+
+**最低配置：**
+- CPU: 4核心
+- 内存: 2GB
+- 磁盘: 10GB 可用空间
+
+**推荐配置：**
+- CPU: 8核心+
+- 内存: 4GB+
+- 磁盘: 20GB+ SSD
+
+### 软件要求
+
+**操作系统：**
+- Windows 10/Server 2016+
+- Linux (Ubuntu 20.04+, CentOS 7+)
+
+**依赖软件：**
+- PostgreSQL 13.0+
+- Redis 6.0+
+- Drogon Framework (最新稳定版)
+- Conan 1.40+ (依赖管理)
+- Visual Studio 2019+ (Windows) / GCC 7+ (Linux)
+- CMake 3.15+
+
+---
+
+## 🔧 依赖安装
+
+### Windows
+
+#### 1. 安装PostgreSQL
+
+```powershell
+# 使用Chocolatey
+choco install postgresql
+
+# 或从官网下载安装包
+# https://www.postgresql.org/download/windows/
+```
+
+#### 2. 安装Redis
+
+```powershell
+# 使用Chocolatey
+choco install redis-64
+
+# 或使用WSL
+wsl redis-server
+```
+
+#### 3. 安装Visual Studio 2019/2022
+
+确保安装以下组件：
+- Desktop development with C++
+- CMake tools
+- Windows 10 SDK
+
+#### 4. 安装Conan
+
+```powershell
+pip install conan
+```
+
+### Linux (Ubuntu 20.04)
+
+```bash
+# 更新包管理器
+sudo apt update
+
+# 安装PostgreSQL
+sudo apt install postgresql postgresql-contrib
+
+# 安装Redis
+sudo apt install redis-server
+
+# 安装构建工具
+sudo apt install build-essential cmake git
+
+# 安装Conan
+pip3 install conan
+
+# 安装Drogon依赖
+sudo apt install libcurl4-openssl-dev libssl-dev zlib1g-dev
+```
+
+---
+
+## 📦 编译和构建
+
+### 1. 克隆项目
 
 ```bash
 git clone <repository-url>
-cd Pay-plugin-example
+cd Pay-plugin-example/PayBackend
 ```
 
-### 2. Install Dependencies
+### 2. 安装依赖（Conan）
 
-**Ubuntu/Debian:**
 ```bash
-sudo apt update
-sudo apt install -y cmake build-essential \
-  libpq-dev redis-server libssl-dev \
-  wget unzip
+cd PayBackend
 
-# Install Conan
-pip3 install conan
+# Windows
+conan install . --build=missing
+
+# Linux
+conan install . --build=missing -s
 ```
+
+### 3. 编译项目
 
 **Windows:**
-1. Install Visual Studio 2019 or later
-2. Install CMake
-3. Install Conan
-4. Install PostgreSQL
-5. Install Redis
+```bash
+# 必须使用Release模式！
+scripts\build.bat
+```
 
-### 3. Build Project
+**Linux:**
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
+
+**重要：** 
+- ⚠️ 必须使用 **Release** 模式编译！
+- ⚠️ Debug模式会导致链接错误（Drogon是Release编译的）
+- ⚠️ 使用 `scripts/build.bat` 而不是直接使用CMake
+
+### 4. 验证编译
 
 ```bash
-cd PayBackend/scripts
-./build.bat
+# 检查可执行文件
+ls build/Release/PayServer.exe  # Windows
+ls build/PayServer           # Linux
+
+# 运行测试（可选）
+ctest --test-dir build/test  # Linux
+build/Release/test_payplugin.exe  # Windows
 ```
 
-## Database Setup
+---
 
-### 1. Create Database
+## ⚙️ 配置
+
+### 1. 数据库配置
+
+#### 创建数据库
 
 ```sql
-CREATE DATABASE pay_test;
+-- 连接到PostgreSQL
+psql -U postgres
+
+-- 创建数据库和用户
+CREATE DATABASE pay_production;
+CREATE USER pay_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE pay_production TO pay_user;
+
+-- 退出
+\q
 ```
 
-### 2. Run Migrations
+### 2. Redis配置
 
-```bash
-psql -U postgres -d pay_test -f sql/001_init_pay_tables.sql
-psql -U postgres -d pay_test -f sql/002_add_indexes.sql
+#### 编辑redis.conf
+
+```conf
+# /etc/redis/redis.conf
+
+bind 127.0.0.1
+port 6379
+requirepass your_redis_password
 ```
 
-### 3. Create User
+#### 启动Redis
 
-```sql
-CREATE USER pay_user WITH PASSWORD 'secure_password';
-GRANT ALL PRIVILEGES ON DATABASE pay_test TO pay_user;
+**Windows:**
+```powershell
+redis-server
 ```
 
-## Redis Setup
-
-### Ubuntu/Debian
-
+**Linux:**
 ```bash
 sudo systemctl start redis-server
 sudo systemctl enable redis-server
 ```
 
-### Windows
+### 3. 应用配置
 
-Download and install Redis from https://redis.io/
+#### 编辑config.json
 
-## Configuration
-
-### 1. Copy Configuration Template
-
-```bash
-cp config.example.json config.json
+```json
+{
+  "listeners": [
+    {
+      "address": "0.0.0.0",
+      "port": 5566,
+      "https": false
+    }
+  ],
+  "db_clients": [
+    {
+      "name": "default",
+      "rdbms": "postgresql",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "dbname": "pay_production",
+      "user": "pay_user",
+      "passwd": "your_secure_password",
+      "number_of_connections": 32
+    }
+  ],
+  "redis_clients": [
+    {
+      "name": "default",
+      "host": "127.0.0.1",
+      "port": 6379,
+      "passwd": "your_redis_password",
+      "number_of_connections": 32
+    }
+  ],
+  "app": {
+    "number_of_threads": 4,
+    "max_connections": 100000
+  }
+}
 ```
 
-### 2. Update Configuration
+---
 
-Edit `config.json` with your settings:
-- WeChat Pay credentials
-- Database connection
-- Redis connection
-- SSL certificate paths
+## 🚀 部署
 
-### 3. Validate Configuration
+### 1. 准备部署目录
 
 ```bash
-./PayServer --test-config
+# 创建部署目录
+sudo mkdir -p /opt/payplugin
+sudo chown $USER:$USER /opt/payplugin
+
+# 复制文件
+cp -r PayBackend/* /opt/payplugin/
+cd /opt/payplugin
 ```
 
-## Deployment
-
-### Development Environment
+### 2. 创建systemd服务（Linux）
 
 ```bash
-cd PayBackend/build/Release
-./PayServer
+sudo nano /etc/systemd/system/payplugin.service
 ```
-
-### Production Environment
-
-#### Using Systemd (Linux)
-
-Create `/etc/systemd/system/payserver.service`:
 
 ```ini
 [Unit]
-Description=Pay Server
+Description=Pay Plugin Payment Service
 After=network.target postgresql.service redis.service
 
 [Service]
 Type=simple
 User=payuser
-WorkingDirectory=/opt/payserver
-ExecStart=/opt/payserver/PayServer
+WorkingDirectory=/opt/payplugin
+ExecStart=/opt/payplugin/build/Release/PayServer
 Restart=always
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable and start:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable payserver
-sudo systemctl start payserver
+sudo systemctl enable payplugin
+sudo systemctl start payplugin
 ```
 
-#### Using Docker
+### 3. 启动服务
 
-Create `Dockerfile`:
-
-```dockerfile
-FROM ubuntu:22.04
-
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    cmake build-essential \
-    libpq-dev redis-server \
-    libssl-dev wget git
-
-# Clone and build
-WORKDIR /app
-COPY . .
-RUN mkdir build && cd build && \
-    cmake .. && \
-    make -j$(nproc)
-
-# Expose port
-EXPOSE 8080
-
-CMD ["./PayServer"]
-```
-
-Build and run:
+**手动启动（测试）：**
 ```bash
-docker build -t payserver .
-docker run -d -p 8080:8080 payserver
+cd /opt/payplugin
+./build/Release/PayServer.exe
 ```
 
-## Health Checks
+**服务启动：**
+```bash
+sudo systemctl start payplugin
+```
 
-### Check Server Status
+### 4. 验证部署
+
+#### 健康检查
 
 ```bash
-curl http://localhost:8080/api/health
+curl http://localhost:5566/health
 ```
 
-Expected response:
+**预期响应：**
 ```json
-{"status": "healthy", "timestamp": "..."}
+{
+  "status": "healthy",
+  "timestamp": 1680739200,
+  "services": {
+    "database": "ok",
+    "redis": "ok"
+  }
+}
 ```
 
-### Check Database Connection
+---
 
+## 📊 监控
+
+### Prometheus指标
+
+访问：`http://localhost:5566/metrics`
+
+### 日志
+
+**应用日志：** 控制台输出或日志文件
+
+**查看日志（Linux systemd）：**
 ```bash
-psql -U pay_user -d pay_test -c "SELECT 1;"
+sudo journalctl -u payplugin -f
 ```
 
-### Check Redis Connection
+---
 
-```bash
-redis-cli ping
-```
+## 🐛 故障排查
 
-## Monitoring
+### 常见问题
 
-### Logs
+#### 1. 服务无法启动
 
-Logs are written to:
-- Standard output/syslog (Linux)
-- Console output (Windows)
+**检查：**
+- 配置文件语法
+- 数据库连接
+- Redis连接
+- 端口占用
 
-### Metrics
+#### 2. API返回500错误
 
-Prometheus metrics are exposed at `/metrics` endpoint.
+**检查：**
+- 数据库连接状态
+- config.json配置
+- 应用日志
 
-## Backup
+#### 3. 性能问题
 
-### Database Backup
+**优化：**
+- 增加线程数
+- 增加数据库连接数
+- 启用缓存
 
-```bash
-pg_dump -U pay_user pay_test > backup_$(date +%Y%m%d).sql
-```
+---
 
-### Configuration Backup
-
-```bash
-cp config.json config.json.backup
-```
-
-## Troubleshooting
-
-See [troubleshooting.md](troubleshooting.md) for common issues.
+**部署指南版本：** 1.0.0  
+**最后更新：** 2026-04-13
