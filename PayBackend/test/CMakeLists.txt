@@ -9,7 +9,7 @@ find_package(Drogon CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 set(TEST_SRC
-    # CreatePaymentIntegrationTest.cc  # TODO: Update to new API (Phase 5)
+    CreatePaymentIntegrationTest.cc  # Updated to new API
     ControllerMetricsTest.cc
     IdempotencyIntegrationTest.cc
     test_main.cc
@@ -25,7 +25,6 @@ set(TEST_SRC
 
     # NOTE: Tests disabled for Phase 1 (Performance Testing)
     # These will be re-enabled and updated in Phase 5 (Unit Tests)
-    # - CreatePaymentIntegrationTest (4 tests)
     # - WechatCallbackIntegrationTest (40 tests)
     # - RefundQueryTest (20 tests, 3 updated)
     # - ReconcileSummaryTest (3 tests)

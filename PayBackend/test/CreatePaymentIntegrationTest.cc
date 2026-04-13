@@ -10,9 +10,11 @@
 #include <fstream>
 #include <atomic>
 #include <thread>
+#include <future>
 #include "../models/PayIdempotency.h"
 #include "../plugins/PayPlugin.h"
 #include "../plugins/WechatPayClient.h"
+#include "../services/PaymentService.h"
 #include "../utils/PayUtils.h"
 
 namespace
@@ -250,32 +252,34 @@ DROGON_TEST(PayPlugin_CreatePayment_WechatError)
     plugin.setTestClients(wechatClient, client);
 
     const std::string title = "CreatePayError_" + drogon::utils::getUuid();
-    Json::Value payload;
-    payload["user_id"] = "10001";
-    payload["amount"] = "9.99";
-    payload["currency"] = "CNY";
-    payload["title"] = title;
-    const std::string body = pay::utils::toJsonString(payload);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
+    CreatePaymentRequest request;
+    request.userId = 10001;
+    request.amount = "9.99";
+    request.currency = "CNY";
+    request.description = title;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.createPayment(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto paymentService = plugin.paymentService();
+    paymentService->createPayment(
+        request,
+        "",
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k502BadGateway);
-    CHECK(resp->body().find("missing appid/mchid/notify_url") != std::string::npos);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(error);  // Should have an error
+    CHECK(error.message().find("missing appid/mchid/notify_url") != std::string::npos);
 
     std::string orderNo;
     CHECK(waitForOrderStatus(client, title, orderNo, "FAILED", "FAIL"));
@@ -375,41 +379,40 @@ DROGON_TEST(PayPlugin_CreatePayment_WechatSuccess)
     plugin.setTestClients(wechatClient, client);
 
     const std::string title = "CreatePayOK_" + drogon::utils::getUuid();
-    Json::Value payload;
-    payload["user_id"] = "10003";
-    payload["amount"] = "9.99";
-    payload["currency"] = "CNY";
-    payload["title"] = title;
-    payload["expire_seconds"] = 600;
-    payload["notify_url"] = "https://notify.override";
-    payload["attach"] = "meta_attach";
-    payload["scene_info"]["payer_client_ip"] = "203.0.113.10";
-    const std::string body = pay::utils::toJsonString(payload);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
+    CreatePaymentRequest request;
+    request.userId = 10003;
+    request.amount = "9.99";
+    request.currency = "CNY";
+    request.description = title;
+    request.notifyUrl = "https://notify.override";
+    request.sceneInfo["payer_client_ip"] = "203.0.113.10";
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.createPayment(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto paymentService = plugin.paymentService();
+    paymentService->createPayment(
+        request,
+        "",
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["status"].asString() == "PAYING");
-    CHECK((*respJson)["code_url"].asString() ==
-          "weixin://wxpay/mock_qr");
-    CHECK((*respJson)["prepay_id"].asString() == "prepay_mock_1");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);  // Should not have an error
+
+    const auto result = resultFuture.get();
+    CHECK(result["status"].asString() == "PAYING");
+    CHECK(result["code_url"].asString() == "weixin://wxpay/mock_qr");
+    CHECK(result["prepay_id"].asString() == "prepay_mock_1");
     CHECK(sawExpire.load());
     CHECK(sawNotify.load());
     CHECK(sawAttach.load());
@@ -463,13 +466,21 @@ DROGON_TEST(PayPlugin_CreatePayment_IdempotencySnapshot)
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
     const std::string title = "CreatePayIdem_" + drogon::utils::getUuid();
-    Json::Value payload;
-    payload["user_id"] = "10002";
-    payload["amount"] = "19.99";
-    payload["currency"] = "CNY";
-    payload["title"] = title;
-    const std::string body = pay::utils::toJsonString(payload);
-    const std::string requestHash = drogon::utils::getSha256(body);
+
+    CreatePaymentRequest request;
+    request.userId = 10002;
+    request.amount = "19.99";
+    request.currency = "CNY";
+    request.description = title;
+
+    // Calculate request hash manually (similar to what the service does)
+    Json::Value requestJson;
+    requestJson["user_id"] = std::to_string(request.userId);
+    requestJson["amount"] = request.amount;
+    requestJson["currency"] = request.currency;
+    requestJson["description"] = request.description;
+    const std::string requestBody = pay::utils::toJsonString(requestJson);
+    const std::string requestHash = drogon::utils::getSha256(requestBody);
 
     Json::Value snapshot;
     snapshot["order_no"] = "prev_order";
@@ -486,30 +497,31 @@ DROGON_TEST(PayPlugin_CreatePayment_IdempotencySnapshot)
         requestHash,
         snapshotBody);
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
-    req->addHeader("Idempotency-Key", idempotencyKey);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.createPayment(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->createPayment(
+        request,
+        idempotencyKey,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    auto json = resp->getJsonObject();
-    CHECK(json != nullptr);
-    CHECK((*json)["order_no"].asString() == "prev_order");
-    CHECK((*json)["payment_no"].asString() == "prev_payment");
-    CHECK((*json)["status"].asString() == "PAYING");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(!error);  // Should not have an error
+
+    const auto result = resultFuture.get();
+    CHECK(result["order_no"].asString() == "prev_order");
+    CHECK(result["payment_no"].asString() == "prev_payment");
+    CHECK(result["status"].asString() == "PAYING");
 
     const auto countRows = client->execSqlSync(
         "SELECT COUNT(*) AS cnt FROM pay_order WHERE title = $1",
@@ -549,12 +561,12 @@ DROGON_TEST(PayPlugin_CreatePayment_IdempotencyConflict)
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
     const std::string title = "CreatePayConflict_" + drogon::utils::getUuid();
-    Json::Value payload;
-    payload["user_id"] = "10003";
-    payload["amount"] = "29.99";
-    payload["currency"] = "CNY";
-    payload["title"] = title;
-    const std::string body = pay::utils::toJsonString(payload);
+
+    CreatePaymentRequest request;
+    request.userId = 10003;
+    request.amount = "29.99";
+    request.currency = "CNY";
+    request.description = title;
 
     const std::string idempKey = "create:" + idempotencyKey;
     client->execSqlSync(
@@ -565,26 +577,27 @@ DROGON_TEST(PayPlugin_CreatePayment_IdempotencyConflict)
         "other_hash",
         "{}");
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-    req->setBody(body);
-    req->addHeader("Idempotency-Key", idempotencyKey);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.createPayment(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto paymentService = plugin.paymentService();
+    paymentService->createPayment(
+        request,
+        idempotencyKey,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k409Conflict);
-    CHECK(resp->body().find("idempotency key conflict") != std::string::npos);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+
+    const auto error = errorFuture.get();
+    CHECK(error);  // Should have an error
+    CHECK(error.message().find("idempotency key conflict") != std::string::npos);
 
     const auto countRows = client->execSqlSync(
         "SELECT COUNT(*) AS cnt FROM pay_order WHERE title = $1",
