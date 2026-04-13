@@ -178,28 +178,81 @@ openssl.cnf
 
 ---
 
-### 5. 缺少速率限制 ⚠️⚠️
+### 5. 缺少速率限制 ✅ **已修复**
 
-**位置：** 所有 API 端点
+**修复时间：** 2026-04-13
 
-**严重性：** 🔴 **关键**  
-**风险：**
-- 没有请求速率限制
-- 容易遭受 DDoS 攻击
-- 暴力破解 API 密钥
-- 资源耗尽攻击
+**实现的解决方案：**
 
-**修复建议：**
-```cpp
-// 在 PayAuthFilter 中添加速率限制
-const int MAX_REQUESTS_PER_MINUTE = 100;
-const int MAX_FAILED_AUTH_PER_HOUR = 10;
+基于 Redis 的速率限制过滤器，使用滑动窗口算法。
 
-// 或使用 Nginx 配置
-limit_req_zone $binary_remote_addr zone=one:10m rate=10r/s;
+**核心文件：**
+- `filters/RateLimiterFilter.h` - 速率限制过滤器头文件
+- `filters/RateLimiterFilter.cc` - 速率限制过滤器实现
+- `config.json` - 速率限制配置
+
+**功能特性：**
+
+1. **基于 Redis 的滑动窗口算法**
+
+   - 使用 Redis INCR/EXPIRE 实现时间窗口计数
+   - 精确的每分钟请求计数
+
+2. **灵活的配置选项**
+
+```json
+"rate_limit": {
+  "enabled": true,
+  "requests_per_minute": 100,
+  "burst": 10,
+  "key_type": "api_key",
+  "whitelist": ["127.0.0.1", "localhost"]
+}
 ```
 
-**优先级：** 🔴 **P0 - 生产环境必须实施**
+3. **多种限流策略**
+
+   - 基于 API Key：防止密钥滥用
+   - 基于 IP 地址：防止 DDoS 攻击
+   - 白名单支持：信任的 IP 无限制
+
+4. **标准的 HTTP 429 响应**
+
+```json
+{
+  "result": "error",
+  "message": "Rate limit exceeded. Please try again later.",
+  "error_code": 429,
+  "retry_after": 60
+}
+```
+
+5. **响应头信息**
+
+   - `Retry-After`: 60
+   - `X-RateLimit-Limit`: 100
+   - `X-RateLimit-Remaining`: 0
+
+**已保护的端点：**
+- ✅ `/pay/create` - 创建支付
+- ✅ `/pay/query` - 查询订单
+- ✅ `/pay/refund` - 创建退款
+- ✅ `/pay/refund/query` - 查询退款
+- ✅ `/pay/reconcile/summary` - 对账汇总
+- ✅ `/pay/notify/wechat` - 微信回调
+
+**严重性：** 🔴 **关键** → ✅ **已解决**
+
+**验证结果：**
+- ✅ 速率限制过滤器已实现
+- ✅ 所有支付端点已应用过滤器
+- ✅ Redis 滑动窗口算法正确实现
+- ✅ 支持 API Key 和 IP 两种限流模式
+- ✅ 白名单功能正常
+- ✅ HTTP 429 响应符合标准
+- ✅ 修复已提交到 commit f25d622
+
+**优先级：** ~~🔴 P0 - 生产环境必须实施~~ → ✅ **已完成**
 
 ---
 
