@@ -146,35 +146,88 @@ openssl.cnf
 
 ---
 
-### 4. API 密钥明文存储在配置文件 ⚠️⚠️
+### 4. API 密钥明文存储在配置文件 ✅ **已修复**
 
-**位置：** `PayBackend/config.json:186-190`
+**修复时间：** 2026-04-13
 
-```json
-"api_keys": [
-  "test-dev-key",
-  "performance-test-key",
-  "admin-test-key"
-]
+**修复方法：** 从配置文件移除硬编码密钥，改用环境变量
+
+**实现的解决方案：**
+
+1. **移除硬编码密钥**
+
+   从 `config.json` 移除：
+
+   ```json
+   "api_keys": [
+     "test-dev-key",
+     "performance-test-key",
+     "admin-test-key"
+   ]
+   ```
+
+2. **PayAuthFilter 已支持环境变量**
+
+   代码已支持从以下环境变量读取密钥：
+
+   - `PAY_API_KEY` - 单个密钥
+   - `PAY_API_KEYS` - 多个密钥（逗号分隔）
+
+3. **创建 .env.example 模板**
+
+   文件：[.env.example](../.env.example)
+
+   提供了完整的环境变量配置模板和说明。
+
+4. **创建配置文档**
+
+   文件：[docs/api_key_configuration.md](api_key_configuration.md)
+
+   包含：
+   - 安全最佳实践
+   - 多种配置方法（环境变量、.env、Docker、Kubernetes、AWS Secrets Manager、Vault）
+   - API Key Scopes 说明
+   - 测试方法
+   - 密钥轮换流程
+   - 故障排除指南
+   - 生产环境检查清单
+
+**严重性：** 🔴 **关键** → ✅ **已解决**
+
+**验证结果：**
+
+- ✅ config.json 中无硬编码 API 密钥
+- ✅ PayAuthFilter 支持环境变量 `PAY_API_KEY` 和 `PAY_API_KEYS`
+- ✅ 创建 .env.example 作为配置模板
+- ✅ 创建详细的 API 密钥配置文档
+- ✅ .env 文件已在 .gitignore 中
+- ✅ 支持多种密钥管理方式（环境变量、Docker Secrets、Kubernetes、AWS、Vault）
+- ✅ 包含密钥轮换指南
+- ✅ 提供生产环境检查清单
+
+**使用方法：**
+
+```bash
+# 方式 1: 环境变量（推荐生产）
+export PAY_API_KEYS=key1,key2,key3
+./build/Release/PayServer.exe
+
+# 方式 2: .env 文件（仅开发）
+cp .env.example .env
+# 编辑 .env 文件
+source .env
+./build/Release/PayServer.exe
 ```
 
-**严重性：** 🔴 **关键**  
-**风险：**
-- API 密钥明文存储
-- 如果配置文件泄露，所有 API 密钥暴露
-- 没有密钥轮换机制
-- 测试密钥可能被用于生产
+**安全改进：**
 
-**修复建议：**
-```json
-{
-  "api_key_file": "/run/secrets/api_keys.json",
-  "api_key_env": "PAY_API_KEYS",
-  "api_key_vault": "aws-secret-manager:/prod/pay/api-keys"
-}
-```
+- ✅ API 密钥不再存储在配置文件中
+- ✅ 密钥可通过环境变量或密钥管理系统注入
+- ✅ 支持不同环境使用不同密钥
+- ✅ 便于密钥轮换
+- ✅ 符合 12-Factor App 最佳实践
 
-**优先级：** 🔴 **P0 - 生产环境必须使用密钥管理系统**
+**优先级：** ~~🔴 P0 - 生产环境必须使用密钥管理系统~~ → ✅ **已完成**
 
 ---
 

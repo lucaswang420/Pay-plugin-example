@@ -214,15 +214,8 @@
             ]
         },
         "pay": {
-            "api_keys": [
-                "test-dev-key",
-                "performance-test-key",
-                "admin-test-key"
-            ],
             "api_key_scopes": {
-                "test-dev-key": ["read", "write", "admin", "order_query", "refund_query", "refund"],
-                "performance-test-key": ["read", "write", "order_query", "refund_query"],
-                "admin-test-key": ["read", "write", "admin", "order_query", "refund_query", "refund", "reconcile"]
+                "__env_var__": ["read", "write", "admin", "order_query", "refund_query", "refund", "reconcile"]
             },
             "api_key_default_scopes": ["read"],
             "metrics_base_url": "http://127.0.0.1:5566/metrics/base"
