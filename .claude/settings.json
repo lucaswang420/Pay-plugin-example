@@ -159,7 +159,14 @@
       "Edit(/.claude/skills/drogon-service-api-migration/**)",
       "Edit(/.claude/skills/production-readiness-docs/**)",
       "Bash(git commit:*)",
-      "Bash(grep -E \"\\\\.pem$|\\\\.key$|\\\\.crt$|certs/\")"
+      "Bash(grep -E \"\\\\.pem$|\\\\.key$|\\\\.crt$|certs/\")",
+      "Bash(grep -E \"\\\\.pem$|\\\\.key$|\\\\.crt$|\\\\.p12$|\\\\.pfx$\")",
+      "Bash(ls -la *.pem *.key *.crt)",
+      "WebSearch",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(find . -type f \\\\\\( -name \"*.h\" -o -name \"*.cc\" -o -name \"*.cpp\" -o -name \"*.json\" \\\\\\) -exec grep -l \"Hodor\\\\|hodor\\\\|rate.*limit\\\\|RateLimit\" {} \\\\;)",
+      "Bash(ls -la PayBackend/controllers/*.h)"
     ],
     "additionalDirectories": [
       "D:\\work\\development\\Repos\\backend\\drogon-plugin\\Pay-plugin-example\\PayBackend\\docs"

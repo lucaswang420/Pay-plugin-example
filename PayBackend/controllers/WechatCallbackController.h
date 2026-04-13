@@ -10,7 +10,7 @@ class WechatCallbackController
 {
   public:
     METHOD_LIST_BEGIN
-    ADD_METHOD_TO(WechatCallbackController::notify, "/pay/notify/wechat", Post);
+    ADD_METHOD_TO(WechatCallbackController::notify, "/pay/notify/wechat", Post, "RateLimiterFilter");
     METHOD_LIST_END
 
     void notify(const HttpRequestPtr &req,
