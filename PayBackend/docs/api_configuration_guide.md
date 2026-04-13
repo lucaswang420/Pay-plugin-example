@@ -1,0 +1,590 @@
+# 微信支付和API Key配置完整指南
+
+**创建时间：** 2026-04-13
+**目的：** 配置PayPlugin的微信支付和内部API认证
+
+---
+
+## 📋 配置概述
+
+PayPlugin需要**两类**配置：
+
+### 1️⃣ 微信支付商户配置
+**用途：** 调用微信支付API
+**位置：** `config.json` → `plugins` → `PayPlugin` → `config` → `wechat_pay`
+
+### 2️⃣ 内部API密钥配置
+**用途：** 认证内部API调用（如 /pay/query）
+**位置：** `config.json` → `custom_config` → `pay` → `api_keys`
+
+---
+
+## 🔑 第一部分：微信支付商户配置
+
+### 必需的配置项
+
+```json
+{
+  "plugins": [
+    {
+      "name": "PayPlugin",
+      "config": {
+        "wechat_pay": {
+          "app_id": "wx8888888888888888",
+          "mch_id": "1234567890",
+          "serial_no": "ABCDEFGHIJKLMNOPQRST",
+          "api_v3_key": "your32characterbase64encodedkey==",
+          "private_key_path": "./certs/apiclient_key.pem",
+          "platform_cert_path": "./certs/wechatpay_platform.pem",
+          "api_base": "https://api.mch.weixin.qq.com",
+          "timeout_ms": 5000
+        }
+      }
+    }
+  ]
+}
+```
+
+### 配置项说明
+
+| 配置项 | 说明 | 获取方式 | 示例值 |
+|--------|------|----------|--------|
+| **app_id** | 微信公众号/小程序AppID | 微信公众平台 | `wx8888888888888888` |
+| **mch_id** | 微信支付商户号 | 微信商户平台 | `1234567890` |
+| **serial_no** | 商户API证书序列号 | 证书文件或商户平台 | `ABCDEFGHIJKLMNOPQRST` |
+| **api_v3_key** | APIv3密钥（32字节） | 商户平台设置 | `your32characterbase64encodedkey==` |
+| **private_key_path** | 商户私钥路径 | 下载证书 | `./certs/apiclient_key.pem` |
+| **platform_cert_path** | 平台证书路径 | 自动下载或手动 | `./certs/wechatpay_platform.pem` |
+| **api_base** | 微信支付API地址 | 固定值 | `https://api.mch.weixin.qq.com` |
+| **timeout_ms** | API超时时间 | 可选 | `5000` |
+
+### 如何获取微信支付配置
+
+#### 步骤1：注册微信支付商户号
+1. 访问 [微信支付商户平台](https://pay.weixin.qq.com/)
+2. 使用微信扫码登录
+3. 完成商户注册和认证
+4. 获取商户号（mch_id）
+
+#### 步骤2：获取AppID
+1. 登录 [微信公众平台](https://mp.weixin.qq.com/)
+2. 开发 → 基本配置 → AppID
+3. 复制你的AppID
+
+#### 步骤3：申请商户API证书
+1. 登录微信支付商户平台
+2. 账户中心 → API安全 → API证书
+3. 申请证书（需要使用证书工具生成）
+4. 下载证书文件（apiclient_cert.pem, apiclient_key.pem）
+
+#### 步骤4：查看证书序列号
+**方法1：从商户平台查看**
+```
+商户平台 → 账户中心 → API安全 → API证书 → 查看证书
+```
+
+**方法2：从证书文件提取**
+```bash
+openssl x509 -in apiclient_cert.pem -noout -serial
+```
+
+#### 步骤5：设置APIv3密钥
+1. 商户平台 → 账户中心 → API安全 → APIv3密钥
+2. 设置密钥（32个字符，支持数字+大小写字母）
+3. 保存密钥（重要：无法再次查看）
+
+#### 步骤6：放置证书文件
+```bash
+PayBackend/
+├── certs/
+│   ├── apiclient_cert.pem      # 商户证书
+│   ├── apiclient_key.pem       # 商户私钥（保密！）
+│   └── wechatpay_platform.pem  # 平台证书（自动下载）
+```
+
+---
+
+## 🔐 第二部分：内部API密钥配置
+
+### 为什么需要API Keys？
+
+PayPlugin的某些API端点（如 `/pay/query`, `/pay/refund/query`）需要API密钥认证，防止未授权访问。
+
+### 配置方式
+
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": [
+        "test-api-key",
+        "prod-api-key-123",
+        "admin-key-456"
+      ],
+      "api_key_scopes": {
+        "test-api-key": ["read", "write", "admin"],
+        "prod-api-key-123": ["read", "write"],
+        "admin-key-456": ["read", "write", "admin", "reconcile"]
+      },
+      "api_key_default_scopes": ["read", "write"]
+    }
+  }
+}
+```
+
+### 配置项说明
+
+| 配置项 | 说明 | 示例 |
+|--------|------|------|
+| **api_keys** | 允许的API密钥列表 | `["test-api-key", "prod-key"]` |
+| **api_key_scopes** | 每个密钥的权限范围 | `{"key": ["read", "write"]}` |
+| **api_key_default_scopes** | 未指定scope时的默认权限 | `["read"]` |
+
+### 权限范围（Scopes）
+
+| Scope | 说明 | 允许的端点 |
+|-------|------|-----------|
+| **read** | 读取权限 | GET /pay/query, GET /pay/refund/query |
+| **write** | 写入权限 | POST /pay/create, POST /pay/refund |
+| **admin** | 管理员权限 | /pay/metrics/*, 对账操作 |
+| **reconcile** | 对账权限 | 对账相关操作 |
+
+### 如何使用API Keys
+
+**客户端请求示例：**
+```bash
+curl "http://localhost:5566/pay/query?order_no=xxx" \
+  -H "X-Api-Key: test-api-key"
+```
+
+**如果没有API Key：**
+```bash
+curl "http://localhost:5566/pay/query?order_no=xxx"
+# 返回：HTTP 503 Service Unavailable
+# Body: {"code": 403, "message": "api key not configured"}
+```
+
+---
+
+## 🧪 第三部分：测试环境配置
+
+### 选项A：使用真实微信支付环境（需要真实商户号）
+
+**适用场景：** 集成测试、预发布验证
+
+```json
+{
+  "plugins": [
+    {
+      "name": "PayPlugin",
+      "config": {
+        "wechat_pay": {
+          "app_id": "wx8888888888888888",
+          "mch_id": "1234567890",
+          "serial_no": "ABCDEFGHIJKLMNOPQRST",
+          "api_v3_key": "your32characterbase64encodedkey==",
+          "private_key_path": "./certs/apiclient_key.pem",
+          "platform_cert_path": "./certs/wechatpay_platform.pem",
+          "api_base": "https://api.mch.weixin.qq.com",
+          "timeout_ms": 5000,
+          "notify_url": "https://your-domain.com/pay/notify/wechat"
+        }
+      }
+    }
+  ],
+  "custom_config": {
+    "pay": {
+      "api_keys": ["test-integration-key", "test-qa-key"],
+      "api_key_scopes": {
+        "test-integration-key": ["read", "write", "admin"],
+        "test-qa-key": ["read", "write"]
+      }
+    }
+  }
+}
+```
+
+**优点：**
+- ✅ 真实的支付流程
+- ✅ 可以测试完整场景
+- ✅ 接近生产环境
+
+**缺点：**
+- ❌ 需要真实的微信支付商户号
+- ❌ 需要真实的证书
+- ❌ 可能产生真实交易
+
+### 选项B：使用Mock服务（推荐用于开发/测试）
+
+**适用场景：** 开发、单元测试、本地调试
+
+**步骤1：安装Mock服务**
+
+使用 [wechat-pay-mock-server](https://github.com/wechatpay-apiv3/wechatpay-mock-server) 或类似工具。
+
+**步骤2：配置Mock服务**
+
+```json
+{
+  "plugins": [
+    {
+      "name": "PayPlugin",
+      "config": {
+        "wechat_pay": {
+          "app_id": "wx_mock_8888888888",
+          "mch_id": "1230000109",
+          "serial_no": "MOCK_SERIAL_NO_123",
+          "api_v3_key": "mock32characterbase64encodedkey==",
+          "private_key_path": "./certs/mock_apiclient_key.pem",
+          "platform_cert_path": "./certs/mock_wechatpay_platform.pem",
+          "api_base": "http://localhost:8080",  // Mock服务地址
+          "timeout_ms": 5000,
+          "notify_url": "http://localhost:5566/pay/notify/wechat"
+        }
+      }
+    }
+  ],
+  "custom_config": {
+    "pay": {
+      "api_keys": ["dev-test-key", "mock-test-key"],
+      "api_key_scopes": {
+        "dev-test-key": ["read", "write", "admin"],
+        "mock-test-key": ["read", "write"]
+      }
+    }
+  }
+}
+```
+
+**优点：**
+- ✅ 不需要真实商户号
+- ✅ 快速测试
+- ✅ 可控的测试场景
+- ✅ 无交易费用
+
+**缺点：**
+- ❌ 无法测试真实支付流程
+- ❌ 需要额外搭建Mock服务
+
+### 选项C：仅启用内部API Key认证（最小配置）
+
+**适用场景：** 仅测试内部API性能
+
+```json
+{
+  "plugins": [
+    {
+      "name": "PayPlugin",
+      "config": {
+        "wechat_pay": {
+          "app_id": "PLACEHOLDER",
+          "mch_id": "PLACEHOLDER",
+          "serial_no": "PLACEHOLDER",
+          "api_v3_key": "PLACEHOLDER_32_CHARACTER_KEY==",
+          "private_key_path": "./certs/placeholder.pem",
+          "platform_cert_path": "./certs/placeholder.pem",
+          "api_base": "https://api.mch.weixin.qq.com",
+          "timeout_ms": 5000
+        }
+      }
+    }
+  ],
+  "custom_config": {
+    "pay": {
+      "api_keys": [
+        "perf-test-key-1",
+        "perf-test-key-2",
+        "perf-test-key-3"
+      ],
+      "api_key_scopes": {
+        "perf-test-key-1": ["read", "write", "admin"],
+        "perf-test-key-2": ["read", "write"],
+        "perf-test-key-3": ["read"]
+      }
+    }
+  }
+}
+```
+
+**说明：**
+- 微信支付配置使用占位符（因为不会真正调用）
+- 内部API Key配置真实值（用于测试认证）
+- **适合：** 性能测试、功能验证
+
+---
+
+## 🚀 快速配置指南（5分钟）
+
+### 场景：本地开发/性能测试
+
+#### 步骤1：修改 config.json
+
+```bash
+cd PayBackend
+cp config.json config.json.backup
+```
+
+#### 步骤2：添加API Keys
+
+编辑 `config.json`，找到 `custom_config.pay` 部分：
+
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": [
+        "test-dev-key",
+        "performance-test-key",
+        "admin-key"
+      ],
+      "api_key_scopes": {
+        "test-dev-key": ["read", "write", "admin"],
+        "performance-test-key": ["read", "write"],
+        "admin-key": ["read", "write", "admin", "reconcile"]
+      },
+      "api_key_default_scopes": ["read"]
+    }
+  }
+}
+```
+
+#### 步骤3：创建占位符证书（如果文件不存在）
+
+```bash
+mkdir -p certs
+openssl genrsa -out certs/apiclient_key.pem 2048
+openssl req -new -x509 -key certs/apiclient_key.pem -out certs/apiclient_cert.pem -days 365 -subj "/CN=Placeholder"
+```
+
+#### 步骤4：重启PayServer
+
+```bash
+# 停止旧进程
+taskkill /F /IM PayServer.exe
+
+# 启动新进程
+cd PayBackend
+build/Release/PayServer.exe
+```
+
+#### 步骤5：验证配置
+
+```bash
+# 测试有API Key
+curl -H "X-Api-Key: test-dev-key" \
+  "http://localhost:5566/pay/query?order_no=test_123"
+
+# 应该返回：HTTP 200 + JSON响应（即使订单不存在）
+
+# 测试无API Key
+curl "http://localhost:5566/pay/query?order_no=test_123"
+
+# 应该返回：HTTP 503 + {"code": 403, "message": "Missing or invalid API key"}
+```
+
+---
+
+## 🔍 配置验证
+
+### 验证清单
+
+- [ ] 证书文件存在且可读
+- [ ] API keys已配置在 `custom_config.pay.api_keys`
+- [ ] API key scopes已配置
+- [ ] PayServer启动无错误
+- [ ] 查询API返回预期响应（需要API key）
+- [ ] Prometheus metrics端点可访问（不需要API key）
+
+### 常见配置错误
+
+#### 错误1：API key未配置
+
+**现象：**
+```bash
+curl "http://localhost:5566/pay/query?order_no=test"
+HTTP 503: api key not configured
+```
+
+**解决：**
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": ["your-api-key"]
+    }
+  }
+}
+```
+
+#### 错误2：证书文件不存在
+
+**现象：**
+```
+ERROR: Failed to load private key from ./certs/apiclient_key.pem
+```
+
+**解决：**
+```bash
+# 检查文件是否存在
+ls -la certs/apiclient_key.pem
+
+# 或创建占位符证书（用于测试）
+openssl genrsa -out certs/apiclient_key.pem 2048
+```
+
+#### 错误3：APIv3密钥格式错误
+
+**现象：**
+```
+ERROR: Invalid API v3 key format
+```
+
+**解决：**
+- 确保是32字节的base64编码
+- 示例：`your32characterbase64encodedkey==`
+
+#### 错误4：权限不足
+
+**现象：**
+```bash
+curl -H "X-Api-Key: read-only-key" \
+  -X POST http://localhost:5566/pay/create \
+  -d '{"order_no":"xxx","amount":"9.99"}'
+
+HTTP 403: Scope denied
+```
+
+**解决：**
+```json
+{
+  "api_key_scopes": {
+    "read-only-key": ["read", "write"]  // 添加 "write" 权限
+  }
+}
+```
+
+---
+
+## 📝 配置模板
+
+### 开发环境配置
+
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": [
+        "dev-key-1",
+        "dev-key-2"
+      ],
+      "api_key_scopes": {
+        "dev-key-1": ["read", "write", "admin"],
+        "dev-key-2": ["read", "write"]
+      }
+    }
+  }
+}
+```
+
+### 测试环境配置
+
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": [
+        "test-read-key",
+        "test-write-key",
+        "test-admin-key"
+      ],
+      "api_key_scopes": {
+        "test-read-key": ["read"],
+        "test-write-key": ["write"],
+        "test-admin-key": ["read", "write", "admin"]
+      }
+    }
+  }
+}
+```
+
+### 生产环境配置
+
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": [
+        // 不要在配置文件中硬编码生产密钥！
+        // 使用环境变量或密钥管理服务
+      ],
+      "api_key_scopes": {
+        // 从环境变量加载
+      }
+    }
+  }
+}
+```
+
+**生产环境最佳实践：**
+```bash
+# 使用环境变量
+export PAY_API_KEY_READ="prod-read-key-xxx"
+export PAY_API_KEY_WRITE="prod-write-key-yyy"
+
+# 或使用密钥管理服务（如Vault）
+```
+
+---
+
+## 🎯 总结
+
+### 配置优先级
+
+1. **立即配置（P0）**：
+   - ✅ `api_keys` 数组
+   - ✅ `api_key_scopes` 对象
+   - **用途：** 解锁被阻塞的API端点
+
+2. **按需配置（P1）**：
+   - ⏸️ 微信支付商户配置
+   - ⏸️ 证书文件
+   - **用途：** 真实支付场景
+
+3. **生产配置（P2）**：
+   - ⏸️ 密钥轮换机制
+   - ⏸️ 环境变量集成
+   - **用途：** 生产环境部署
+
+### 快速开始（性能测试）
+
+**最小配置（5分钟）：**
+
+1. 编辑 `config.json`：
+```json
+{
+  "custom_config": {
+    "pay": {
+      "api_keys": ["perf-test-key"],
+      "api_key_scopes": {
+        "perf-test-key": ["read", "write", "admin"]
+      }
+    }
+  }
+}
+```
+
+2. 重启PayServer
+
+3. 运行性能测试：
+```bash
+curl -H "X-Api-Key: perf-test-key" \
+  "http://localhost:5566/pay/query?order_no=test_123"
+```
+
+---
+
+**文档位置：** `PayBackend/docs/api_configuration_guide.md`  
+**配置文件：** `PayBackend/config.json`  
+**证书目录：** `PayBackend/certs/`
+
+**下一步：** 配置完成后，重新运行性能测试脚本！
