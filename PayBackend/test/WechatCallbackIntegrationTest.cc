@@ -303,26 +303,39 @@ DROGON_TEST(PayPlugin_WechatCallback_WechatClientNotReady)
 {
     PayPlugin plugin;
 
-    auto req = drogon::HttpRequest::newHttpRequest();
-    req->setMethod(drogon::Post);
-    req->setBody("{}");
+    std::string body = "{}";
+    std::string signature = "";
+    std::string timestamp = "";
+    std::string nonce = "";
+    std::string serial = "";
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto callbackService = plugin.callbackService();
+    callbackService->handlePaymentCallback(
+        body,
+        signature,
+        timestamp,
+        nonce,
+        serial,
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) ==
           std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k500InternalServerError);
-    const auto json = resp->getJsonObject();
-    CHECK(json != nullptr);
-    CHECK((*json)["message"].asString() == "wechat client not ready");
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    CHECK(result["code"].asString() == "FAIL");
+    CHECK(result["message"].asString() == "wechat client not ready");
 }
 
 DROGON_TEST(PayPlugin_WechatCallback_DbClientNotReady)
@@ -356,22 +369,27 @@ DROGON_TEST(PayPlugin_WechatCallback_DbClientNotReady)
     req->setMethod(drogon::Post);
     req->setBody("{}");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k500InternalServerError);
-    const auto json = resp->getJsonObject();
-    CHECK(json != nullptr);
-    CHECK((*json)["message"].asString() == "db client not ready");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -542,22 +560,27 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedPayment = paymentMapper.findByPrimaryKey(
         payment.getValueOfId());
@@ -757,19 +780,27 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     int64_t callbackCount = 0;
     for (int i = 0; i < 20; ++i)
@@ -943,19 +974,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     int64_t callbackCount = 0;
     for (int i = 0; i < 20; ++i)
@@ -1149,22 +1188,27 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedPayment = paymentMapper.findByPrimaryKey(
         payment.getValueOfId());
@@ -1364,22 +1408,27 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedPayment = paymentMapper.findByPrimaryKey(
         payment.getValueOfId());
@@ -1579,22 +1628,27 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedPayment = paymentMapper.findByPrimaryKey(
         payment.getValueOfId());
@@ -1794,22 +1848,27 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedPayment = paymentMapper.findByPrimaryKey(
         payment.getValueOfId());
@@ -2009,22 +2068,27 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedPayment = paymentMapper.findByPrimaryKey(
         payment.getValueOfId());
@@ -2226,22 +2290,27 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
         req->addHeader("Wechatpay-Signature", signatureB64);
         req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-        std::promise<drogon::HttpResponsePtr> promise;
-        plugin.handleWechatCallback(
-            req,
-            [&promise](const drogon::HttpResponsePtr &resp) {
-                promise.set_value(resp);
+        auto callbackService = plugin.callbackService();
+        std::promise<Json::Value> resultPromise;
+        std::promise<std::error_code> errorPromise;
+        callbackService->handlePaymentCallback(
+            req->body(),
+            req->getHeader("Wechatpay-Signature"),
+            req->getHeader("Wechatpay-Timestamp"),
+            req->getHeader("Wechatpay-Nonce"),
+            req->getHeader("Wechatpay-Serial"),
+            [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+                resultPromise.set_value(result);
+                errorPromise.set_value(error);
             });
 
-        auto future = promise.get_future();
-        CHECK(future.wait_for(std::chrono::seconds(5)) ==
-              std::future_status::ready);
-        const auto resp = future.get();
-        CHECK(resp != nullptr);
-        CHECK(resp->statusCode() == drogon::k200OK);
-        const auto respJson = resp->getJsonObject();
-        CHECK(respJson != nullptr);
-        CHECK((*respJson)["code"].asString() == "SUCCESS");
+        auto resultFuture = resultPromise.get_future();
+        auto errorFuture = errorPromise.get_future();
+        CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+        CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+        const auto result = resultFuture.get();
+        const auto error = errorFuture.get();
+        CHECK(!error);
     };
 
     const std::string notifyId1 = "notify_" + drogon::utils::getUuid();
@@ -2425,19 +2494,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidSignature)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k401Unauthorized);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto callbackRows = client->execSqlSync(
         "SELECT id FROM pay_callback WHERE payment_no = $1",
@@ -2617,19 +2694,27 @@ DROGON_TEST(PayPlugin_WechatCallback_DecryptFailure)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto callbackRows = client->execSqlSync(
         "SELECT id FROM pay_callback WHERE payment_no = $1",
@@ -2768,19 +2853,27 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingSignatureHeaders)
     req->setMethod(drogon::Post);
     req->setBody(body);
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto callbackRows = client->execSqlSync(
         "SELECT id FROM pay_callback WHERE payment_no = $1",
@@ -2859,19 +2952,27 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingResource)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -2934,19 +3035,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidJson)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3016,19 +3125,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceFields)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3106,19 +3223,27 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingEventType)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3206,19 +3331,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundEventType)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3306,19 +3439,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTradeState)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3405,19 +3546,27 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingTransactionId)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3505,19 +3654,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAssociatedData)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3605,19 +3762,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTransactionAssociatedData)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3687,19 +3852,27 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedResourceType)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3769,19 +3942,27 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedAlgorithm)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3860,19 +4041,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceJson)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -3943,19 +4132,27 @@ DROGON_TEST(PayPlugin_WechatCallback_SerialMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_OTHER");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k401Unauthorized);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -4118,19 +4315,27 @@ DROGON_TEST(PayPlugin_WechatCallback_AppIdMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto callbackRows = client->execSqlSync(
         "SELECT id FROM pay_callback WHERE payment_no = $1",
@@ -4342,19 +4547,27 @@ DROGON_TEST(PayPlugin_WechatCallback_MchIdMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -4529,19 +4742,27 @@ DROGON_TEST(PayPlugin_WechatCallback_AmountMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto callbackRows = client->execSqlSync(
         "SELECT id FROM pay_callback WHERE payment_no = $1",
@@ -4721,19 +4942,27 @@ DROGON_TEST(PayPlugin_WechatCallback_CurrencyMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto callbackRows = client->execSqlSync(
         "SELECT id FROM pay_callback WHERE payment_no = $1",
@@ -4939,22 +5168,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundSuccess)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -5180,19 +5414,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundAmountMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -5383,19 +5625,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundCurrencyMismatch)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -5574,19 +5824,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundNotFound)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handleRefundCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k404NotFound);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1",
                         paymentNo);
@@ -5770,19 +6028,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundMissingFields)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -5881,19 +6147,27 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingRefundId)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -6089,22 +6363,27 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k200OK);
-    const auto respJson = resp->getJsonObject();
-    CHECK(respJson != nullptr);
-    CHECK((*respJson)["code"].asString() == "SUCCESS");
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(!error);
 
     const auto updatedRefund = refundMapper.findByPrimaryKey(
         refund.getValueOfId());
@@ -6310,19 +6589,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundStatus)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
@@ -6513,19 +6800,27 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAmount)
     req->addHeader("Wechatpay-Signature", signatureB64);
     req->addHeader("Wechatpay-Serial", "SERIAL_TEST");
 
-    std::promise<drogon::HttpResponsePtr> promise;
-    plugin.handleWechatCallback(
-        req,
-        [&promise](const drogon::HttpResponsePtr &resp) {
-            promise.set_value(resp);
+    auto callbackService = plugin.callbackService();
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+    callbackService->handlePaymentCallback(
+        req->body(),
+        req->getHeader("Wechatpay-Signature"),
+        req->getHeader("Wechatpay-Timestamp"),
+        req->getHeader("Wechatpay-Nonce"),
+        req->getHeader("Wechatpay-Serial"),
+        [&resultPromise, &errorPromise](const Json::Value& result, const std::error_code& error) {
+            resultPromise.set_value(result);
+            errorPromise.set_value(error);
         });
 
-    auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) ==
-          std::future_status::ready);
-    const auto resp = future.get();
-    CHECK(resp != nullptr);
-    CHECK(resp->statusCode() == drogon::k400BadRequest);
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+    CHECK(error);
 
     const auto updatedRefund =
         refundMapper.findByPrimaryKey(refund.getValueOfId());
