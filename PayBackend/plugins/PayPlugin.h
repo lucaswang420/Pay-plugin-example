@@ -11,6 +11,7 @@
 #include <trantor/net/EventLoop.h>
 #include <trantor/utils/Date.h>
 #include "WechatPayClient.h"
+#include "AlipaySandboxClient.h"
 #include "../services/ReconciliationService.h"
 
 // Forward declarations
@@ -36,6 +37,7 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
     // NOTE: This method is for integration testing only
     void setTestClients(
         std::shared_ptr<WechatPayClient> wechatClient,
+        std::shared_ptr<AlipaySandboxClient> alipayClient,
         std::shared_ptr<drogon::orm::DbClient> dbClient
     );
 
@@ -49,6 +51,7 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
 
     // Infrastructure
     std::shared_ptr<WechatPayClient> wechatClient_;
+    std::shared_ptr<AlipaySandboxClient> alipayClient_;
     std::shared_ptr<drogon::orm::DbClient> dbClient_;
     drogon::nosql::RedisClientPtr redisClient_;
 

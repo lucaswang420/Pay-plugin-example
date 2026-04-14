@@ -26,8 +26,11 @@ void IdempotencyService::checkAndSet(
                 // Cache hit - return cached result
                 try {
                     Json::Value cached = Json::Value();
-                    Json::Reader reader;
-                    reader.parse(result.asString(), cached);
+                    Json::CharReaderBuilder builder;
+                    std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+                    std::string errors;
+                    const char* str = result.asString().c_str();
+                    reader->parse(str, str + result.asString().length(), &cached, &errors);
 
                     if (cached["request_hash"].asString() == requestHash) {
                         // Same request - return cached response
@@ -52,8 +55,11 @@ void IdempotencyService::checkAndSet(
                         if (cachedHash == requestHash) {
                             // Same request - backfill Redis and return
                             Json::Value response;
-                            Json::Reader reader;
-                            reader.parse(rows[0]["response"].c_str(), response);
+                            Json::CharReaderBuilder builder;
+                            std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+                            std::string errors;
+                            const char* str = rows[0]["response"].c_str();
+                            reader->parse(str, str + strlen(str), &response, &errors);
 
                             // Update Redis cache
                             Json::Value cached;

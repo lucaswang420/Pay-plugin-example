@@ -10,22 +10,22 @@
 /**
  * @brief Alipay Sandbox Payment Client
  *
- * 支付宝沙箱环境支付客户端，用于开发和测试。
+ * Alipay sandbox environment payment client for development and testing.
  *
- * 优势：
- * - 个人可注册，无需营业执照
- * - 完全免费
- * - 提供完整 API 支持
- * - 模拟真实支付流程
+ * Advantages:
+ * - Individual registration available, no business license required
+ * - Completely free
+ * - Full API support
+ * - Simulates real payment workflow
  *
- * 获取沙箱账号：
- * 1. 访问 https://open.alipay.com/
- * 2. 注册并登录
- * 3. 进入"研发服务" -> "沙箱环境"
- * 4. 获取沙箱 AppID 和密钥
- * 5. 下载沙箱工具生成密钥对
+ * Getting sandbox account:
+ * 1. Visit https://open.alipay.com/
+ * 2. Register and login
+ * 3. Go to "Development Service" -> "Sandbox Environment"
+ * 4. Get sandbox AppID and keys
+ * 5. Download sandbox tools to generate key pairs
  *
- * 文档：https://opendocs.alipay.com/open/02ivbs
+ * Documentation: https://opendocs.alipay.com/open/02ivbs
  */
 class AlipaySandboxClient
 {
@@ -36,91 +36,96 @@ class AlipaySandboxClient
     explicit AlipaySandboxClient(const Json::Value &config);
 
     /**
-     * @brief 创建支付订单（统一下单）
+     * @brief Create payment order
      *
-     * @param payload 支付请求参数
-     * @param callback 回调函数
+     * @param payload Payment request parameters
+     * @param callback Callback function
      */
     void createTrade(const Json::Value &payload,
                     JsonCallback &&callback);
 
     /**
-     * @brief 查询订单状态
+     * @brief Query order status
      *
-     * @param outTradeNo 商户订单号
-     * @param callback 回调函数
+     * @param outTradeNo Merchant order number
+     * @param callback Callback function
      */
     void queryTrade(const std::string &outTradeNo,
                    JsonCallback &&callback);
 
     /**
-     * @brief 创建退款
+     * @brief Create refund
      *
-     * @param payload 退款请求参数
-     * @param callback 回调函数
+     * @param payload Refund request parameters
+     * @param callback Callback function
      */
     void refund(const Json::Value &payload,
                JsonCallback &&callback);
 
     /**
-     * @brief 查询退款状态
+     * @brief Query refund status
      *
-     * @param outTradeNo 商户订单号
-     * @param callback 回调函数
+     * @param outTradeNo Merchant order number
+     * @param callback Callback function
      */
     void queryRefund(const std::string &outTradeNo,
-                    JsonCallback &&callback);
+                   JsonCallback &&callback);
 
     /**
-     * @brief 关闭订单
+     * @brief Close order
      *
-     * @param outTradeNo 商户订单号
-     * @param callback 回调函数
+     * @param outTradeNo Merchant order number
+     * @param callback Callback function
      */
     void closeTrade(const std::string &outTradeNo,
                    JsonCallback &&callback);
 
     /**
-     * @brief 验证支付宝回调签名
+     * @brief Verify Alipay callback signature
      *
-     * @param params 回调参数
-     * @param signature 签名
-     * @return 验证是否成功
+     * @param params Callback parameters
+     * @param signature Signature
+     * @return Verification success
      */
     bool verifyCallback(const Json::Value &params,
                        const std::string &signature);
 
     /**
-     * @brief 获取沙箱应用信息
+     * @brief Get sandbox application information
      */
     const std::string &getAppId() const { return appId_; }
     const std::string &getSellerId() const { return sellerId_; }
 
+    /**
+     * @brief Generate unique ID
+     */
+    std::string generateUUID() const;
+
   private:
     Json::Value config_;
     std::string appId_;
-    std::string sellerId_;          // 卖家支付宝用户ID（邮箱）
-    std::string privateKeyPath_;    // 应用私钥文件路径
-    std::string alipayPublicKeyPath_; // 支付宝公钥文件路径
-    std::string gatewayUrl_;         // 沙箱网关地址
+    std::string sellerId_;              // Seller Alipay user ID (email)
+    std::string privateKeyPath_;        // Application private key file path
+    std::string alipayPublicKeyPath_;   // Alipay public key file path
+    std::string gatewayUrl_;            // Sandbox gateway URL
 
-    // 加载私钥用于签名
+    // Load private key for signing
     std::string loadPrivateKey() const;
 
-    // 加载支付宝公钥用于验证签名
+    // Load Alipay public key for signature verification
     std::string loadAlipayPublicKey() const;
 
-    // RSA 签名
+    // RSA signing
     std::string sign(const std::string &data) const;
 
-    // 验证签名
+    // Verify signature
     bool verify(const std::string &data,
                const std::string &signature) const;
 
-    // 构建请求参数
+    // Build request parameters
     Json::Value buildCommonParams() const;
 
-    // 发送 HTTP 请求
+    // Send HTTP request
     void sendRequest(const std::string &method,
                     const Json::Value &bizContent,
                     JsonCallback &&callback);

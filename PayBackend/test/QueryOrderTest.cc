@@ -195,7 +195,7 @@ DROGON_TEST(PayPlugin_QueryOrder_NoWechatClient)
     orderMapper.insert(order);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -285,7 +285,7 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatQueryError)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -431,7 +431,7 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatSuccess)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -614,7 +614,7 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatSuccess_PaymentAlreadySuccess)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -782,7 +782,7 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatUserPaying)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -939,7 +939,7 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatNotPay)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -1095,7 +1095,7 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatClosed)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;

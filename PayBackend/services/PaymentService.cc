@@ -131,10 +131,11 @@ namespace {
 
 PaymentService::PaymentService(
     std::shared_ptr<WechatPayClient> wechatClient,
+    std::shared_ptr<AlipaySandboxClient> alipayClient,
     std::shared_ptr<DbClient> dbClient,
     nosql::RedisClientPtr redisClient,
     std::shared_ptr<IdempotencyService> idempotencyService)
-    : wechatClient_(wechatClient), dbClient_(dbClient),
+    : wechatClient_(wechatClient), alipayClient_(alipayClient), dbClient_(dbClient),
       redisClient_(redisClient), idempotencyService_(idempotencyService) {
 }
 

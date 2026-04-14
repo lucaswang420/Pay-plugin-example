@@ -364,7 +364,7 @@ DROGON_TEST(PayPlugin_WechatCallback_DbClientNotReady)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, nullptr);
+    plugin.setTestClients(wechatClient, nullptr, nullptr);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -551,7 +551,7 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -771,7 +771,7 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -965,7 +965,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -1179,7 +1179,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -1399,7 +1399,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -1619,7 +1619,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -1839,7 +1839,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -2059,7 +2059,7 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -2262,7 +2262,7 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
     CHECK(!ciphertext.empty());
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto sendCallback = [&](const std::string &notifyId) {
         Json::Value notify;
@@ -2485,7 +2485,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidSignature)
     CHECK(signMessage("tampered\n", pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -2685,7 +2685,7 @@ DROGON_TEST(PayPlugin_WechatCallback_DecryptFailure)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -2848,7 +2848,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingSignatureHeaders)
     const std::string body = toJsonCompact(notify);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -2943,7 +2943,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingResource)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3026,7 +3026,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidJson)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3116,7 +3116,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceFields)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3214,7 +3214,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingEventType)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3322,7 +3322,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundEventType)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3430,7 +3430,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTradeState)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3537,7 +3537,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingTransactionId)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3645,7 +3645,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAssociatedData)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3753,7 +3753,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTransactionAssociatedData)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3843,7 +3843,7 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedResourceType)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -3933,7 +3933,7 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedAlgorithm)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -4032,7 +4032,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceJson)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -4123,7 +4123,7 @@ DROGON_TEST(PayPlugin_WechatCallback_SerialMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -4306,7 +4306,7 @@ DROGON_TEST(PayPlugin_WechatCallback_AppIdMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -4538,7 +4538,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MchIdMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -4733,7 +4733,7 @@ DROGON_TEST(PayPlugin_WechatCallback_AmountMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -4933,7 +4933,7 @@ DROGON_TEST(PayPlugin_WechatCallback_CurrencyMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -5159,7 +5159,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundSuccess)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -5405,7 +5405,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundAmountMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -5616,7 +5616,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundCurrencyMismatch)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -5815,7 +5815,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundNotFound)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -6019,7 +6019,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundMissingFields)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -6138,7 +6138,7 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingRefundId)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -6354,7 +6354,7 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -6580,7 +6580,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundStatus)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);
@@ -6791,7 +6791,7 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAmount)
     CHECK(signMessage(message, pkey, signatureB64));
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Post);

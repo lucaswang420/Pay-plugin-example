@@ -7,9 +7,10 @@ ReconciliationService::ReconciliationService(
     std::shared_ptr<PaymentService> paymentService,
     std::shared_ptr<RefundService> refundService,
     std::shared_ptr<WechatPayClient> wechatClient,
+    std::shared_ptr<AlipaySandboxClient> alipayClient,
     std::shared_ptr<drogon::orm::DbClient> dbClient)
     : paymentService_(paymentService), refundService_(refundService),
-      wechatClient_(wechatClient), dbClient_(dbClient), reconcileTimerId_(0),
+      wechatClient_(wechatClient), alipayClient_(alipayClient), dbClient_(dbClient), reconcileTimerId_(0),
       reconcileIntervalSeconds_(300), reconcileBatchSize_(50) {
 }
 

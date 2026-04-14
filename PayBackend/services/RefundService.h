@@ -28,6 +28,7 @@
 #include <drogon/nosql/RedisClient.h>
 #include "IdempotencyService.h"
 #include "../plugins/WechatPayClient.h"
+#include "../plugins/AlipaySandboxClient.h"
 #include <json/json.h>
 #include <functional>
 #include <memory>
@@ -49,6 +50,7 @@ public:
 
     RefundService(
         std::shared_ptr<WechatPayClient> wechatClient,
+        std::shared_ptr<AlipaySandboxClient> alipayClient,
         std::shared_ptr<drogon::orm::DbClient> dbClient,
         std::shared_ptr<IdempotencyService> idempotencyService
     );
@@ -72,6 +74,7 @@ public:
 
 private:
     std::shared_ptr<WechatPayClient> wechatClient_;
+    std::shared_ptr<AlipaySandboxClient> alipayClient_;
     std::shared_ptr<drogon::orm::DbClient> dbClient_;
     std::shared_ptr<IdempotencyService> idempotencyService_;
 

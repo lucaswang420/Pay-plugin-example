@@ -160,7 +160,7 @@ DROGON_TEST(PayPlugin_ReconcileSummary)
     auto refundDone = makeRefund("REFUND_SUCCESS", paid.getValueOfOrderNo());
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Use today's date for the reconciliation summary
     auto now = trantor::Date::now();

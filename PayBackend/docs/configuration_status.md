@@ -180,27 +180,27 @@ export REDIS_PASSWORD=$(openssl rand -base64 32)
    - ✅ PostgreSQL 连接（需确保数据库运行）
    - ✅ Redis 连接（需确保 Redis 运行）
 
-### ⚠️ 部分可测试的功能（支付宝沙箱 - 实现中）
+### ✅ 完整可测试的功能（支付宝沙箱）
 
-**状态：** 框架已创建，需要完成 HTTP 请求和签名验证部分
+**状态：** 完整实现，已集成到 PayPlugin
 
 **已完成：**
 - ✅ AlipaySandboxClient.h 头文件
-- ✅ 核心 API 方法（createTrade, queryTrade, refund 等）
+- ✅ AlipaySandboxClient.cc 实现
+- ✅ 完整 API 方法（createTrade, queryTrade, refund, queryRefund, closeTrade）
+- ✅ HTTP 请求处理（sendRequest 方法）
+- ✅ RSA2 签名生成（sign 方法）
+- ✅ 签名验证（verify 方法）
+- ✅ 集成到 PaymentService、RefundService、ReconciliationService
 - ✅ 完整配置文档
-
-**待完成：**
-- ⏳ HTTP 请求处理（sendRequest 方法）
-- ⏳ RSA 签名生成（sign 方法）
-- ⏳ 签名验证（verify 方法）
-- ⏳ 集成到 PaymentService
 
 **配置步骤：**
 1. 查看 [alipay_sandbox_quickstart.md](alipay_sandbox_quickstart.md)
 2. 注册支付宝开放平台账号（个人即可）
 3. 进入沙箱环境获取参数
 4. 生成并配置密钥
-5. 测试支付流程
+5. 在 config.json 中添加 alipay_sandbox 配置
+6. 启动服务并测试支付流程
 
 **优势：**
 - ✅ 个人可注册（无需营业执照）
@@ -321,7 +321,7 @@ mkdir -p PayBackend/certs
 | **认证授权** | 100% | ✅ 全部 | API 密钥、Scope 控制 |
 | **速率限制** | 100% | ✅ 全部 | Hodor 插件 |
 | **数据库** | 90% | ✅ 全部 | PostgreSQL、Redis（弱密码） |
-| **支付宝沙箱** | 60% | ⚠️ 部分实现 | 头文件和核心方法完成，需完成 HTTP 签名验证 |
+| **支付宝沙箱** | 100% | ✅ 完整实现 | 完整 API 支持、签名验证、HTTP 请求处理 |
 | **微信支付** | 0% | ❌ 无法测试 | 需要企业资质 |
 | **HTTPS** | 0% | ⚠️ 仅 HTTP | 功能可测，生产不可用 |
 

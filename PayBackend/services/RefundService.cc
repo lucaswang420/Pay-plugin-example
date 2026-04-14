@@ -140,9 +140,10 @@ namespace {
 
 RefundService::RefundService(
     std::shared_ptr<WechatPayClient> wechatClient,
+    std::shared_ptr<AlipaySandboxClient> alipayClient,
     std::shared_ptr<drogon::orm::DbClient> dbClient,
     std::shared_ptr<IdempotencyService> idempotencyService)
-    : wechatClient_(wechatClient), dbClient_(dbClient),
+    : wechatClient_(wechatClient), alipayClient_(alipayClient), dbClient_(dbClient),
       idempotencyService_(idempotencyService) {
 }
 

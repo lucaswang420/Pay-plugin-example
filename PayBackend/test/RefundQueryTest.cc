@@ -260,7 +260,7 @@ DROGON_TEST(PayPlugin_QueryRefund_NoWechatClient)
     refundMapper.insert(refund);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Get);
@@ -354,7 +354,7 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatQueryError)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -432,7 +432,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyConflict)
         "{}");
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -519,7 +519,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot)
         snapshotBody);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -611,7 +611,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotencyInProgress)
     CHECK(setResult == "OK");
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -805,7 +805,7 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -968,7 +968,7 @@ DROGON_TEST(PayPlugin_Refund_WechatErrorPersistsPayload)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -1127,7 +1127,7 @@ DROGON_TEST(PayPlugin_Refund_NoWechatClient_ConsistentWriteback)
     paymentMapper.insert(payment);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -1293,7 +1293,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnNoWechatClientError)
     paymentMapper.insert(payment);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -1483,7 +1483,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnWechatError)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -1691,7 +1691,7 @@ DROGON_TEST(PayPlugin_Refund_DefaultPaymentNo)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     // Prepare request using new API (no paymentNo specified - should use default)
     CreateRefundRequest request;
@@ -1817,7 +1817,7 @@ DROGON_TEST(PayPlugin_Refund_OrderNotPaid)
     paymentMapper.insert(payment);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -1929,7 +1929,7 @@ DROGON_TEST(PayPlugin_Refund_PaymentNotSuccessful)
     paymentMapper.insert(payment);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2066,7 +2066,7 @@ DROGON_TEST(PayPlugin_Refund_DuplicateInProgress)
     refundMapper.insert(refund);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2217,7 +2217,7 @@ DROGON_TEST(PayPlugin_Refund_IdempotentSuccessSnapshot)
         historyPayload);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2367,7 +2367,7 @@ DROGON_TEST(PayPlugin_Refund_AmountExceedsPaid)
     refundMapper.insert(refund);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2433,7 +2433,7 @@ DROGON_TEST(PayPlugin_Refund_ReasonTooLong)
     CHECK(client != nullptr);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2493,7 +2493,7 @@ DROGON_TEST(PayPlugin_Refund_InvalidFundsAccount)
     CHECK(client != nullptr);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2547,7 +2547,7 @@ DROGON_TEST(PayPlugin_Refund_InvalidNotifyUrl)
     CHECK(client != nullptr);
 
     PayPlugin plugin;
-    plugin.setTestClients(nullptr, client);
+    plugin.setTestClients(nullptr, nullptr, client);
 
     // Prepare request using new API
     CreateRefundRequest request;
@@ -2699,7 +2699,7 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatSuccess)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -2875,7 +2875,7 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatProcessing)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -3018,7 +3018,7 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatClosed)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -3160,7 +3160,7 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatAbnormal)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;

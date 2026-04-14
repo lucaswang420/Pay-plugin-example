@@ -36,6 +36,25 @@ void PayPlugin::initAndStart(const Json::Value &config)
         return;
     }
 
+    // 2.5. Create AlipaySandboxClient (optional)
+    if (config.isMember("alipay_sandbox"))
+    {
+        try
+        {
+            alipayClient_ = std::make_shared<AlipaySandboxClient>(config["alipay_sandbox"]);
+            LOG_INFO << "AlipaySandboxClient created";
+        }
+        catch (const std::exception &e)
+        {
+            LOG_WARN << "Failed to create AlipaySandboxClient: " << e.what();
+            // Non-fatal: continue without Alipay support
+        }
+    }
+    else
+    {
+        LOG_INFO << "AlipaySandboxClient not configured (optional)";
+    }
+
     // 3. Create IdempotencyService (no dependencies)
     int64_t idempotencyTtl = config["idempotency"].get("ttl", 604800).asInt64();
     idempotencyService_ = std::make_shared<IdempotencyService>(
@@ -44,11 +63,11 @@ void PayPlugin::initAndStart(const Json::Value &config)
 
     // 4. Create business Services (depend on IdempotencyService)
     paymentService_ = std::make_shared<PaymentService>(
-        wechatClient_, dbClient_, redisClient_, idempotencyService_);
+        wechatClient_, alipayClient_, dbClient_, redisClient_, idempotencyService_);
     LOG_INFO << "PaymentService created";
 
     refundService_ = std::make_shared<RefundService>(
-        wechatClient_, dbClient_, idempotencyService_);
+        wechatClient_, alipayClient_, dbClient_, idempotencyService_);
     LOG_INFO << "RefundService created";
 
     callbackService_ = std::make_shared<CallbackService>(
@@ -57,7 +76,7 @@ void PayPlugin::initAndStart(const Json::Value &config)
 
     // 5. Create and start ReconciliationService (depends on PaymentService and RefundService)
     reconciliationService_ = std::make_unique<ReconciliationService>(
-        paymentService_, refundService_, wechatClient_, dbClient_);
+        paymentService_, refundService_, wechatClient_, alipayClient_, dbClient_);
     reconciliationService_->startReconcileTimer();
     LOG_INFO << "ReconciliationService created and timer started";
 
@@ -109,12 +128,14 @@ std::shared_ptr<IdempotencyService> PayPlugin::idempotencyService()
 
 void PayPlugin::setTestClients(
     std::shared_ptr<WechatPayClient> wechatClient,
+    std::shared_ptr<AlipaySandboxClient> alipayClient,
     std::shared_ptr<drogon::orm::DbClient> dbClient)
 {
     LOG_DEBUG << "PayPlugin::setTestClients called for testing";
 
     // Store test clients
     wechatClient_ = wechatClient;
+    alipayClient_ = alipayClient;
     dbClient_ = dbClient;
 
     // Create IdempotencyService with test clients (no Redis for tests)
@@ -123,10 +144,10 @@ void PayPlugin::setTestClients(
 
     // Create business services with test clients
     paymentService_ = std::make_shared<PaymentService>(
-        wechatClient_, dbClient_, nullptr, idempotencyService_);
+        wechatClient_, alipayClient_, dbClient_, nullptr, idempotencyService_);
 
     refundService_ = std::make_shared<RefundService>(
-        wechatClient_, dbClient_, idempotencyService_);
+        wechatClient_, alipayClient_, dbClient_, idempotencyService_);
 
     callbackService_ = std::make_shared<CallbackService>(
         wechatClient_, dbClient_);

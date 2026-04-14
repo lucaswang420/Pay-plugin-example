@@ -39,6 +39,7 @@ add_executable(
     ../controllers/PayMetricsController.cc
     ../plugins/PayPlugin.cc
     ../plugins/WechatPayClient.cc
+    ../plugins/AlipaySandboxClient.cc
     ../services/PaymentService.cc
     ../services/RefundService.cc
     ../services/CallbackService.cc
@@ -55,7 +56,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE Drogon::Drogon OpenSSL::Crypto OpenSSL::SSL)
 
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /FI"${CMAKE_CURRENT_SOURCE_DIR}/../models/orm_compat.h")
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        /FI"${CMAKE_CURRENT_SOURCE_DIR}/../models/orm_compat.h"
+        /bigobj  # Required for large object files (test files with lots of templates)
+    )
 endif()
 
 add_test(

@@ -249,7 +249,7 @@ DROGON_TEST(PayPlugin_CreatePayment_WechatError)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     const std::string title = "CreatePayError_" + drogon::utils::getUuid();
 
@@ -376,7 +376,7 @@ DROGON_TEST(PayPlugin_CreatePayment_WechatSuccess)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     const std::string title = "CreatePayOK_" + drogon::utils::getUuid();
 
@@ -462,7 +462,7 @@ DROGON_TEST(PayPlugin_CreatePayment_IdempotencySnapshot)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
     const std::string title = "CreatePayIdem_" + drogon::utils::getUuid();
@@ -557,7 +557,7 @@ DROGON_TEST(PayPlugin_CreatePayment_IdempotencyConflict)
     auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
 
     PayPlugin plugin;
-    plugin.setTestClients(wechatClient, client);
+    plugin.setTestClients(wechatClient, nullptr, client);
 
     const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
     const std::string title = "CreatePayConflict_" + drogon::utils::getUuid();
