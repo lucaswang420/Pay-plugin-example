@@ -92,3 +92,17 @@ openssl.cnf
 
 # Archives (keep structure but ignore content)
 # PayBackend/docs/archive/
+
+# Claude Code Settings
+.claude/settings.json
+.claude/settings.local.json
+
+# vs Code Settings
+.vscode/settings.json
+
+# Sensitive Data
+cookies.txt
+
+# Temporary Outputs
+tmp_output/*
+!tmp_output/.gitkeep

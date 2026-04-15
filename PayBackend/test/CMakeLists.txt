@@ -58,7 +58,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Drogon::Drogon OpenSSL::Crypto Ope
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
         /FI"${CMAKE_CURRENT_SOURCE_DIR}/../models/orm_compat.h"
+        /utf-8
         /bigobj  # Required for large object files (test files with lots of templates)
+    )
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+        _CRT_SECURE_NO_WARNINGS
     )
 endif()
 
