@@ -213,9 +213,15 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
 
                 // Parse JSON response
                 Json::Value root;
-                Json::Reader reader;
 
-                if (!reader.parse(std::string(body), root)) {
+                // Use CharReaderBuilder instead of deprecated Reader
+                Json::CharReaderBuilder builder;
+                std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+                std::string errors;
+                std::string bodyStr = std::string(body);
+                const char* str = bodyStr.c_str();
+
+                if (!reader->parse(str, str + bodyStr.length(), &root, &errors)) {
                     LOG_ERROR << "Failed to parse Alipay response: " << body;
                     Json::Value error;
                     error["error"] = "Invalid response format";

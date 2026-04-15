@@ -19,10 +19,14 @@ void WechatCallbackController::notify(
     // Route to appropriate callback handler based on event_type
     // Parse body to determine callback type
     Json::Value bodyJson;
-    Json::Reader reader;
     std::string eventType;
 
-    if (reader.parse(body, bodyJson) && bodyJson.isMember("event_type")) {
+    // Use CharReaderBuilder instead of deprecated Reader
+    Json::CharReaderBuilder builder;
+    std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+    std::string errors;
+    const char* str = body.c_str();
+    if (reader->parse(str, str + body.length(), &bodyJson, &errors) && bodyJson.isMember("event_type")) {
         eventType = bodyJson["event_type"].asString();
     }
 

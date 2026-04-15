@@ -226,7 +226,7 @@ bool decryptAesGcm(const std::string &ciphertextB64,
         return false;
     }
 
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, nonce.size(),
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(nonce.size()),
                             nullptr) != 1)
     {
         EVP_CIPHER_CTX_free(ctx);
@@ -249,7 +249,7 @@ bool decryptAesGcm(const std::string &ciphertextB64,
     {
         if (EVP_DecryptUpdate(ctx, nullptr, &outLen,
                               reinterpret_cast<const unsigned char *>(aad.data()),
-                              aad.size()) != 1)
+                              static_cast<int>(aad.size())) != 1)
         {
             EVP_CIPHER_CTX_free(ctx);
             error = "set aad failed";
@@ -263,7 +263,7 @@ bool decryptAesGcm(const std::string &ciphertextB64,
             reinterpret_cast<unsigned char *>(&plaintext[0]),
             &outLen,
             reinterpret_cast<const unsigned char *>(ciphertext.data()),
-            textLen) != 1)
+            static_cast<int>(textLen)) != 1)
     {
         EVP_CIPHER_CTX_free(ctx);
         error = "decrypt update failed";
