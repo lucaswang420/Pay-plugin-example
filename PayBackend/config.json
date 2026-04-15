@@ -157,7 +157,7 @@
                 "multi_threads": true,
                 "rejection_message": "Rate limit exceeded. Please try again later.",
                 "limiter_expire_time": 600,
-                "trust_ips": ["127.0.0.1", "::1"],
+                "trust_ips": ["127.0.0.1"],
                 "sub_limits": [
                     {
                         "urls": ["^/pay/create$"],
