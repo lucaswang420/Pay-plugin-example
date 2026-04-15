@@ -100,7 +100,7 @@ std::string encryptAesGcm(const std::string &plaintext,
         return {};
     }
 
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, nonce.size(),
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(nonce.size()),
                             nullptr) != 1)
     {
         EVP_CIPHER_CTX_free(ctx);
@@ -121,7 +121,7 @@ std::string encryptAesGcm(const std::string &plaintext,
     {
         if (EVP_EncryptUpdate(ctx, nullptr, &outLen,
                               reinterpret_cast<const unsigned char *>(aad.data()),
-                              aad.size()) != 1)
+                              static_cast<int>(aad.size())) != 1)
         {
             EVP_CIPHER_CTX_free(ctx);
             return {};
@@ -134,7 +134,7 @@ std::string encryptAesGcm(const std::string &plaintext,
             reinterpret_cast<unsigned char *>(&ciphertext[0]),
             &outLen,
             reinterpret_cast<const unsigned char *>(plaintext.data()),
-            plaintext.size()) != 1)
+            static_cast<int>(plaintext.size())) != 1)
     {
         EVP_CIPHER_CTX_free(ctx);
         return {};
