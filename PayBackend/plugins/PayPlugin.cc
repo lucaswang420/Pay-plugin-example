@@ -4,11 +4,20 @@
 #include "../services/CallbackService.h"
 #include "../services/ReconciliationService.h"
 #include "../services/IdempotencyService.h"
+#include "../utils/ConfigLoader.h"
 #include <drogon/drogon.h>
 
 void PayPlugin::initAndStart(const Json::Value &config)
 {
     LOG_INFO << "Initializing PayPlugin...";
+
+    // Load environment variables from .env file
+    ConfigLoader::loadEnvFile(".env");
+    LOG_INFO << "Environment variables loaded from .env file";
+
+    // Replace placeholders with actual environment variable values
+    Json::Value processedConfig = ConfigLoader::loadConfig(config);
+    LOG_INFO << "Configuration placeholders replaced";
 
     // 1. Get infrastructure
     dbClient_ = drogon::app().getDbClient();
@@ -27,7 +36,7 @@ void PayPlugin::initAndStart(const Json::Value &config)
     // 2. Create WechatPayClient
     try
     {
-        wechatClient_ = std::make_shared<WechatPayClient>(config["wechat"]);
+        wechatClient_ = std::make_shared<WechatPayClient>(processedConfig["wechat"]);
         LOG_INFO << "WechatPayClient created";
     }
     catch (const std::exception &e)
@@ -37,11 +46,11 @@ void PayPlugin::initAndStart(const Json::Value &config)
     }
 
     // 2.5. Create AlipaySandboxClient (optional)
-    if (config.isMember("alipay_sandbox"))
+    if (processedConfig.isMember("alipay_sandbox"))
     {
         try
         {
-            alipayClient_ = std::make_shared<AlipaySandboxClient>(config["alipay_sandbox"]);
+            alipayClient_ = std::make_shared<AlipaySandboxClient>(processedConfig["alipay_sandbox"]);
             LOG_INFO << "AlipaySandboxClient created";
         }
         catch (const std::exception &e)
@@ -56,7 +65,7 @@ void PayPlugin::initAndStart(const Json::Value &config)
     }
 
     // 3. Create IdempotencyService (no dependencies)
-    int64_t idempotencyTtl = config["idempotency"].get("ttl", 604800).asInt64();
+    int64_t idempotencyTtl = processedConfig["idempotency"].get("ttl", 604800).asInt64();
     idempotencyService_ = std::make_shared<IdempotencyService>(
         dbClient_, redisClient_, idempotencyTtl);
     LOG_INFO << "IdempotencyService created";

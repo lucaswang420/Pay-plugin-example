@@ -46,6 +46,7 @@ add_executable(
     ../services/IdempotencyService.cc
     ../services/ReconciliationService.cc
     ../utils/PayUtils.cc
+    ../utils/ConfigLoader.cc
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE

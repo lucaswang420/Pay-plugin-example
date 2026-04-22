@@ -14,7 +14,7 @@
             "port": 5432,
             "dbname": "pay_test",
             "user": "test",
-            "passwd": "123456",
+            "passwd": "__env_var:POSTGRES_PASSWORD__",
             "is_fast": false,
             "client_encoding": "",
             "number_of_connections": 32,
@@ -31,7 +31,7 @@
             "host": "127.0.0.1",
             "port": 6379,
             "username": "",
-            "passwd": "123456",
+            "passwd": "__env_var:REDIS_PASSWORD__",
             "db": 0,
             "is_fast": false,
             "number_of_connections": 32,
@@ -191,17 +191,24 @@
                 "reconcile_interval_seconds": 300,
                 "reconcile_batch_size": 50,
                 "wechat_pay": {
-                    "app_id": "YOUR_WECHAT_APP_ID",
-                    "mch_id": "YOUR_MCH_ID",
-                    "serial_no": "YOUR_CERT_SERIAL_NO",
-                    "api_v3_key": "YOUR_API_V3_KEY",
-                    "private_key_path": "./certs/apiclient_key.pem",
-                    "platform_cert_path": "./certs/wechatpay_platform.pem",
+                    "app_id": "__env_var:WECHAT_PAY_APP_ID__",
+                    "mch_id": "__env_var:WECHAT_PAY_MCH_ID__",
+                    "serial_no": "__env_var:WECHAT_PAY_SERIAL_NO__",
+                    "api_v3_key": "__env_var:WECHAT_PAY_API_V3_KEY__",
+                    "private_key_path": "__env_var:WECHAT_PAY_PRIVATE_KEY_PATH__",
+                    "platform_cert_path": "__env_var:WECHAT_PAY_PLATFORM_CERT_PATH__",
                     "cert_download_min_interval_seconds": 300,
                     "cert_refresh_interval_seconds": 43200,
-                    "notify_url": "https://example.com/pay/notify/wechat",
+                    "notify_url": "__env_var:WECHAT_PAY_NOTIFY_URL__",
                     "api_base": "https://api.mch.weixin.qq.com",
                     "timeout_ms": 5000
+                },
+                "alipay_sandbox": {
+                    "app_id": "__env_var:ALIPAY_SANDBOX_APP_ID__",
+                    "seller_id": "__env_var:ALIPAY_SANDBOX_SELLER_ID__",
+                    "private_key_path": "__env_var:ALIPAY_SANDBOX_PRIVATE_KEY_PATH__",
+                    "alipay_public_key_path": "__env_var:ALIPAY_SANDBOX_PUBLIC_KEY_PATH__",
+                    "gateway_url": "__env_var:ALIPAY_SANDBOX_GATEWAY_URL__"
                 }
             }
         }
