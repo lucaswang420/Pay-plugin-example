@@ -48,6 +48,7 @@ void PayController::createPayment(
     request.currency = json->get("currency", "CNY").asString();
     request.description = json->get("description", "").asString();
     request.notifyUrl = json->get("notify_url", "").asString();
+    request.channel = json->get("channel", "alipay").asString();  // Default to alipay
 
     // Get user_id from attributes (set by auth middleware)
     try

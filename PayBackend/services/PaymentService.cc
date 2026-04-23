@@ -214,7 +214,7 @@ void PaymentService::proceedCreatePayment(
     order.setAmount(request.amount);
     order.setCurrency(request.currency);
     order.setStatus("CREATED");
-    order.setChannel("wechat");
+    order.setChannel(request.channel);
     order.setTitle(request.description);
     order.setCreatedAt(trantor::Date::now());
     order.setUpdatedAt(trantor::Date::now());

@@ -42,6 +42,7 @@ struct CreatePaymentRequest {
     std::string notifyUrl;
     int64_t userId;
     Json::Value sceneInfo;
+    std::string channel;  // Payment channel: "alipay" or "wechat"
 };
 
 class PaymentService {
