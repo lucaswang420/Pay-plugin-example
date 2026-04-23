@@ -9,12 +9,12 @@ class PayMetricsController : public drogon::HttpController<PayMetricsController>
   public:
     METHOD_LIST_BEGIN
     ADD_METHOD_TO(PayMetricsController::authMetrics,
-                  "/pay/metrics/auth",
+                  "/api/pay/metrics/auth",
                   Get,
                   Options,
                   "PayAuthFilter");
     ADD_METHOD_TO(PayMetricsController::authMetricsProm,
-                  "/pay/metrics/auth.prom",
+                  "/api/pay/metrics/auth.prom",
                   Get,
                   Options,
                   "PayAuthFilter");
