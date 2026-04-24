@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS pay_order (
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
     channel VARCHAR(32) NOT NULL DEFAULT 'alipay',
     title VARCHAR(512),
+    expire_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS pay_idempotency (
     idempotency_key VARCHAR(128) PRIMARY KEY,
     request_hash VARCHAR(64) NOT NULL,
     response_snapshot TEXT,
+    expire_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

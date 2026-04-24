@@ -16,16 +16,20 @@ using namespace drogon_model::pay_test;
 const std::string PayIdempotency::Cols::_idempotency_key = "\"idempotency_key\"";
 const std::string PayIdempotency::Cols::_request_hash = "\"request_hash\"";
 const std::string PayIdempotency::Cols::_response_snapshot = "\"response_snapshot\"";
-const std::string PayIdempotency::Cols::_expires_at = "\"expires_at\"";
+const std::string PayIdempotency::Cols::_expire_at = "\"expire_at\"";
+const std::string PayIdempotency::Cols::_created_at = "\"created_at\"";
+const std::string PayIdempotency::Cols::_updated_at = "\"updated_at\"";
 const std::string PayIdempotency::primaryKeyName = "idempotency_key";
 const bool PayIdempotency::hasPrimaryKey = true;
 const std::string PayIdempotency::tableName = "\"pay_idempotency\"";
 
 const std::vector<typename PayIdempotency::MetaData> PayIdempotency::metaData_={
-{"idempotency_key","std::string","character varying",64,0,1,1},
+{"idempotency_key","std::string","character varying",128,0,1,1},
 {"request_hash","std::string","character varying",64,0,0,1},
 {"response_snapshot","std::string","text",0,0,0,0},
-{"expires_at","::trantor::Date","timestamp without time zone",0,0,0,0}
+{"expire_at","::trantor::Date","timestamp without time zone",0,0,0,0},
+{"created_at","::trantor::Date","timestamp without time zone",0,0,0,1},
+{"updated_at","::trantor::Date","timestamp without time zone",0,0,0,1}
 };
 const std::string &PayIdempotency::getColumnName(size_t index) noexcept(false)
 {
@@ -48,9 +52,9 @@ PayIdempotency::PayIdempotency(const Row &r, const ssize_t indexOffset) noexcept
         {
             responseSnapshot_=std::make_shared<std::string>(r["response_snapshot"].as<std::string>());
         }
-        if(!r["expires_at"].isNull())
+        if(!r["expire_at"].isNull())
         {
-            auto timeStr = r["expires_at"].as<std::string>();
+            auto timeStr = r["expire_at"].as<std::string>();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -67,14 +71,58 @@ PayIdempotency::PayIdempotency(const Row &r, const ssize_t indexOffset) noexcept
                     }
                     decimalNum = (size_t)atol(decimals.c_str());
                 }
-                expiresAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+                expireAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+        if(!r["created_at"].isNull())
+        {
+            auto timeStr = r["created_at"].as<std::string>();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+        if(!r["updated_at"].isNull())
+        {
+            auto timeStr = r["updated_at"].as<std::string>();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                updatedAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
     }
     else
     {
         size_t offset = (size_t)indexOffset;
-        if(offset + 4 > r.size())
+        if(offset + 6 > r.size())
         {
             LOG_FATAL << "Invalid SQL result for this model";
             return;
@@ -115,7 +163,53 @@ PayIdempotency::PayIdempotency(const Row &r, const ssize_t indexOffset) noexcept
                     }
                     decimalNum = (size_t)atol(decimals.c_str());
                 }
-                expiresAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+                expireAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+        index = offset + 4;
+        if(!r[index].isNull())
+        {
+            auto timeStr = r[index].as<std::string>();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+        index = offset + 5;
+        if(!r[index].isNull())
+        {
+            auto timeStr = r[index].as<std::string>();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                updatedAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
     }
@@ -124,7 +218,7 @@ PayIdempotency::PayIdempotency(const Row &r, const ssize_t indexOffset) noexcept
 
 PayIdempotency::PayIdempotency(const Json::Value &pJson, const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 6)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -175,7 +269,59 @@ PayIdempotency::PayIdempotency(const Json::Value &pJson, const std::vector<std::
                     }
                     decimalNum = (size_t)atol(decimals.c_str());
                 }
-                expiresAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+                expireAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson[pMasqueradingVector[4]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[4]].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
+    {
+        dirtyFlag_[5] = true;
+        if(!pJson[pMasqueradingVector[5]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[5]].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                updatedAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
     }
@@ -207,12 +353,12 @@ PayIdempotency::PayIdempotency(const Json::Value &pJson) noexcept(false)
             responseSnapshot_=std::make_shared<std::string>(pJson["response_snapshot"].asString());
         }
     }
-    if(pJson.isMember("expires_at"))
+    if(pJson.isMember("expire_at"))
     {
         dirtyFlag_[3]=true;
-        if(!pJson["expires_at"].isNull())
+        if(!pJson["expire_at"].isNull())
         {
-            auto timeStr = pJson["expires_at"].asString();
+            auto timeStr = pJson["expire_at"].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -229,7 +375,59 @@ PayIdempotency::PayIdempotency(const Json::Value &pJson) noexcept(false)
                     }
                     decimalNum = (size_t)atol(decimals.c_str());
                 }
-                expiresAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+                expireAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(pJson.isMember("created_at"))
+    {
+        dirtyFlag_[4]=true;
+        if(!pJson["created_at"].isNull())
+        {
+            auto timeStr = pJson["created_at"].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(pJson.isMember("updated_at"))
+    {
+        dirtyFlag_[5]=true;
+        if(!pJson["updated_at"].isNull())
+        {
+            auto timeStr = pJson["updated_at"].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                updatedAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
     }
@@ -238,7 +436,7 @@ PayIdempotency::PayIdempotency(const Json::Value &pJson) noexcept(false)
 void PayIdempotency::updateByMasqueradedJson(const Json::Value &pJson,
                                             const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 6)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -288,7 +486,59 @@ void PayIdempotency::updateByMasqueradedJson(const Json::Value &pJson,
                     }
                     decimalNum = (size_t)atol(decimals.c_str());
                 }
-                expiresAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+                expireAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson[pMasqueradingVector[4]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[4]].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
+    {
+        dirtyFlag_[5] = true;
+        if(!pJson[pMasqueradingVector[5]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[5]].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                updatedAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
     }
@@ -319,12 +569,12 @@ void PayIdempotency::updateByJson(const Json::Value &pJson) noexcept(false)
             responseSnapshot_=std::make_shared<std::string>(pJson["response_snapshot"].asString());
         }
     }
-    if(pJson.isMember("expires_at"))
+    if(pJson.isMember("expire_at"))
     {
         dirtyFlag_[3] = true;
-        if(!pJson["expires_at"].isNull())
+        if(!pJson["expire_at"].isNull())
         {
-            auto timeStr = pJson["expires_at"].asString();
+            auto timeStr = pJson["expire_at"].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -341,7 +591,59 @@ void PayIdempotency::updateByJson(const Json::Value &pJson) noexcept(false)
                     }
                     decimalNum = (size_t)atol(decimals.c_str());
                 }
-                expiresAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+                expireAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(pJson.isMember("created_at"))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson["created_at"].isNull())
+        {
+            auto timeStr = pJson["created_at"].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
+            }
+        }
+    }
+    if(pJson.isMember("updated_at"))
+    {
+        dirtyFlag_[5] = true;
+        if(!pJson["updated_at"].isNull())
+        {
+            auto timeStr = pJson["updated_at"].asString();
+            struct tm stm;
+            memset(&stm,0,sizeof(stm));
+            auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
+            time_t t = mktime(&stm);
+            size_t decimalNum = 0;
+            if(p)
+            {
+                if(*p=='.')
+                {
+                    std::string decimals(p+1,&timeStr[timeStr.length()]);
+                    while(decimals.length()<6)
+                    {
+                        decimals += "0";
+                    }
+                    decimalNum = (size_t)atol(decimals.c_str());
+                }
+                updatedAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
     }
@@ -423,26 +725,60 @@ void PayIdempotency::setResponseSnapshotToNull() noexcept
     dirtyFlag_[2] = true;
 }
 
-const ::trantor::Date &PayIdempotency::getValueOfExpiresAt() const noexcept
+const ::trantor::Date &PayIdempotency::getValueOfExpireAt() const noexcept
 {
     static const ::trantor::Date defaultValue = ::trantor::Date();
-    if(expiresAt_)
-        return *expiresAt_;
+    if(expireAt_)
+        return *expireAt_;
     return defaultValue;
 }
-const std::shared_ptr<::trantor::Date> &PayIdempotency::getExpiresAt() const noexcept
+const std::shared_ptr<::trantor::Date> &PayIdempotency::getExpireAt() const noexcept
 {
-    return expiresAt_;
+    return expireAt_;
 }
-void PayIdempotency::setExpiresAt(const ::trantor::Date &pExpiresAt) noexcept
+void PayIdempotency::setExpireAt(const ::trantor::Date &pExpireAt) noexcept
 {
-    expiresAt_ = std::make_shared<::trantor::Date>(pExpiresAt);
+    expireAt_ = std::make_shared<::trantor::Date>(pExpireAt);
     dirtyFlag_[3] = true;
 }
-void PayIdempotency::setExpiresAtToNull() noexcept
+void PayIdempotency::setExpireAtToNull() noexcept
 {
-    expiresAt_.reset();
+    expireAt_.reset();
     dirtyFlag_[3] = true;
+}
+
+const ::trantor::Date &PayIdempotency::getValueOfCreatedAt() const noexcept
+{
+    static const ::trantor::Date defaultValue = ::trantor::Date();
+    if(createdAt_)
+        return *createdAt_;
+    return defaultValue;
+}
+const std::shared_ptr<::trantor::Date> &PayIdempotency::getCreatedAt() const noexcept
+{
+    return createdAt_;
+}
+void PayIdempotency::setCreatedAt(const ::trantor::Date &pCreatedAt) noexcept
+{
+    createdAt_ = std::make_shared<::trantor::Date>(pCreatedAt);
+    dirtyFlag_[4] = true;
+}
+
+const ::trantor::Date &PayIdempotency::getValueOfUpdatedAt() const noexcept
+{
+    static const ::trantor::Date defaultValue = ::trantor::Date();
+    if(updatedAt_)
+        return *updatedAt_;
+    return defaultValue;
+}
+const std::shared_ptr<::trantor::Date> &PayIdempotency::getUpdatedAt() const noexcept
+{
+    return updatedAt_;
+}
+void PayIdempotency::setUpdatedAt(const ::trantor::Date &pUpdatedAt) noexcept
+{
+    updatedAt_ = std::make_shared<::trantor::Date>(pUpdatedAt);
+    dirtyFlag_[5] = true;
 }
 
 void PayIdempotency::updateId(const uint64_t id)
@@ -455,7 +791,9 @@ const std::vector<std::string> &PayIdempotency::insertColumns() noexcept
         "idempotency_key",
         "request_hash",
         "response_snapshot",
-        "expires_at"
+        "expire_at",
+        "created_at",
+        "updated_at"
     };
     return inCols;
 }
@@ -497,9 +835,31 @@ void PayIdempotency::outputArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[3])
     {
-        if(getExpiresAt())
+        if(getExpireAt())
         {
-            binder << getValueOfExpiresAt();
+            binder << getValueOfExpireAt();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[4])
+    {
+        if(getCreatedAt())
+        {
+            binder << getValueOfCreatedAt();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[5])
+    {
+        if(getUpdatedAt())
+        {
+            binder << getValueOfUpdatedAt();
         }
         else
         {
@@ -526,6 +886,14 @@ const std::vector<std::string> PayIdempotency::updateColumns() const
     if(dirtyFlag_[3])
     {
         ret.push_back(getColumnName(3));
+    }
+    if(dirtyFlag_[4])
+    {
+        ret.push_back(getColumnName(4));
+    }
+    if(dirtyFlag_[5])
+    {
+        ret.push_back(getColumnName(5));
     }
     return ret;
 }
@@ -567,9 +935,31 @@ void PayIdempotency::updateArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[3])
     {
-        if(getExpiresAt())
+        if(getExpireAt())
         {
-            binder << getValueOfExpiresAt();
+            binder << getValueOfExpireAt();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[4])
+    {
+        if(getCreatedAt())
+        {
+            binder << getValueOfCreatedAt();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[5])
+    {
+        if(getUpdatedAt())
+        {
+            binder << getValueOfUpdatedAt();
         }
         else
         {
@@ -604,13 +994,29 @@ Json::Value PayIdempotency::toJson() const
     {
         ret["response_snapshot"]=Json::Value();
     }
-    if(getExpiresAt())
+    if(getExpireAt())
     {
-        ret["expires_at"]=getExpiresAt()->toDbStringLocal();
+        ret["expire_at"]=getExpireAt()->toDbStringLocal();
     }
     else
     {
-        ret["expires_at"]=Json::Value();
+        ret["expire_at"]=Json::Value();
+    }
+    if(getCreatedAt())
+    {
+        ret["created_at"]=getCreatedAt()->toDbStringLocal();
+    }
+    else
+    {
+        ret["created_at"]=Json::Value();
+    }
+    if(getUpdatedAt())
+    {
+        ret["updated_at"]=getUpdatedAt()->toDbStringLocal();
+    }
+    else
+    {
+        ret["updated_at"]=Json::Value();
     }
     return ret;
 }
@@ -624,7 +1030,7 @@ Json::Value PayIdempotency::toMasqueradedJson(
     const std::vector<std::string> &pMasqueradingVector) const
 {
     Json::Value ret;
-    if(pMasqueradingVector.size() == 4)
+    if(pMasqueradingVector.size() == 6)
     {
         if(!pMasqueradingVector[0].empty())
         {
@@ -661,13 +1067,35 @@ Json::Value PayIdempotency::toMasqueradedJson(
         }
         if(!pMasqueradingVector[3].empty())
         {
-            if(getExpiresAt())
+            if(getExpireAt())
             {
-                ret[pMasqueradingVector[3]]=getExpiresAt()->toDbStringLocal();
+                ret[pMasqueradingVector[3]]=getExpireAt()->toDbStringLocal();
             }
             else
             {
                 ret[pMasqueradingVector[3]]=Json::Value();
+            }
+        }
+        if(!pMasqueradingVector[4].empty())
+        {
+            if(getCreatedAt())
+            {
+                ret[pMasqueradingVector[4]]=getCreatedAt()->toDbStringLocal();
+            }
+            else
+            {
+                ret[pMasqueradingVector[4]]=Json::Value();
+            }
+        }
+        if(!pMasqueradingVector[5].empty())
+        {
+            if(getUpdatedAt())
+            {
+                ret[pMasqueradingVector[5]]=getUpdatedAt()->toDbStringLocal();
+            }
+            else
+            {
+                ret[pMasqueradingVector[5]]=Json::Value();
             }
         }
         return ret;
@@ -697,13 +1125,29 @@ Json::Value PayIdempotency::toMasqueradedJson(
     {
         ret["response_snapshot"]=Json::Value();
     }
-    if(getExpiresAt())
+    if(getExpireAt())
     {
-        ret["expires_at"]=getExpiresAt()->toDbStringLocal();
+        ret["expire_at"]=getExpireAt()->toDbStringLocal();
     }
     else
     {
-        ret["expires_at"]=Json::Value();
+        ret["expire_at"]=Json::Value();
+    }
+    if(getCreatedAt())
+    {
+        ret["created_at"]=getCreatedAt()->toDbStringLocal();
+    }
+    else
+    {
+        ret["created_at"]=Json::Value();
+    }
+    if(getUpdatedAt())
+    {
+        ret["updated_at"]=getUpdatedAt()->toDbStringLocal();
+    }
+    else
+    {
+        ret["updated_at"]=Json::Value();
     }
     return ret;
 }
@@ -735,9 +1179,19 @@ bool PayIdempotency::validateJsonForCreation(const Json::Value &pJson, std::stri
         if(!validJsonOfField(2, "response_snapshot", pJson["response_snapshot"], err, true))
             return false;
     }
-    if(pJson.isMember("expires_at"))
+    if(pJson.isMember("expire_at"))
     {
-        if(!validJsonOfField(3, "expires_at", pJson["expires_at"], err, true))
+        if(!validJsonOfField(3, "expire_at", pJson["expire_at"], err, true))
+            return false;
+    }
+    if(pJson.isMember("created_at"))
+    {
+        if(!validJsonOfField(4, "created_at", pJson["created_at"], err, true))
+            return false;
+    }
+    if(pJson.isMember("updated_at"))
+    {
+        if(!validJsonOfField(5, "updated_at", pJson["updated_at"], err, true))
             return false;
     }
     return true;
@@ -746,7 +1200,7 @@ bool PayIdempotency::validateMasqueradedJsonForCreation(const Json::Value &pJson
                                                         const std::vector<std::string> &pMasqueradingVector,
                                                         std::string &err)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 6)
     {
         err = "Bad masquerading vector";
         return false;
@@ -794,6 +1248,22 @@ bool PayIdempotency::validateMasqueradedJsonForCreation(const Json::Value &pJson
                   return false;
           }
       }
+      if(!pMasqueradingVector[4].empty())
+      {
+          if(pJson.isMember(pMasqueradingVector[4]))
+          {
+              if(!validJsonOfField(4, pMasqueradingVector[4], pJson[pMasqueradingVector[4]], err, true))
+                  return false;
+          }
+      }
+      if(!pMasqueradingVector[5].empty())
+      {
+          if(pJson.isMember(pMasqueradingVector[5]))
+          {
+              if(!validJsonOfField(5, pMasqueradingVector[5], pJson[pMasqueradingVector[5]], err, true))
+                  return false;
+          }
+      }
     }
     catch(const Json::LogicError &e)
     {
@@ -824,9 +1294,19 @@ bool PayIdempotency::validateJsonForUpdate(const Json::Value &pJson, std::string
         if(!validJsonOfField(2, "response_snapshot", pJson["response_snapshot"], err, false))
             return false;
     }
-    if(pJson.isMember("expires_at"))
+    if(pJson.isMember("expire_at"))
     {
-        if(!validJsonOfField(3, "expires_at", pJson["expires_at"], err, false))
+        if(!validJsonOfField(3, "expire_at", pJson["expire_at"], err, false))
+            return false;
+    }
+    if(pJson.isMember("created_at"))
+    {
+        if(!validJsonOfField(4, "created_at", pJson["created_at"], err, false))
+            return false;
+    }
+    if(pJson.isMember("updated_at"))
+    {
+        if(!validJsonOfField(5, "updated_at", pJson["updated_at"], err, false))
             return false;
     }
     return true;
@@ -835,7 +1315,7 @@ bool PayIdempotency::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
                                                       const std::vector<std::string> &pMasqueradingVector,
                                                       std::string &err)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 6)
     {
         err = "Bad masquerading vector";
         return false;
@@ -866,6 +1346,16 @@ bool PayIdempotency::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
           if(!validJsonOfField(3, pMasqueradingVector[3], pJson[pMasqueradingVector[3]], err, false))
               return false;
       }
+      if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+      {
+          if(!validJsonOfField(4, pMasqueradingVector[4], pJson[pMasqueradingVector[4]], err, false))
+              return false;
+      }
+      if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
+      {
+          if(!validJsonOfField(5, pMasqueradingVector[5], pJson[pMasqueradingVector[5]], err, false))
+              return false;
+      }
     }
     catch(const Json::LogicError &e)
     {
@@ -894,11 +1384,11 @@ bool PayIdempotency::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 64)
+                .from_bytes(pJson.asCString()).size() > 128)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 64)";
+                    " field (the maximum value is 128)";
                 return false;
             }
             break;
@@ -937,6 +1427,30 @@ bool PayIdempotency::validJsonOfField(size_t index,
             if(pJson.isNull())
             {
                 return true;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            break;
+        case 4:
+            if(pJson.isNull())
+            {
+                err="The " + fieldName + " column cannot be null";
+                return false;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            break;
+        case 5:
+            if(pJson.isNull())
+            {
+                err="The " + fieldName + " column cannot be null";
+                return false;
             }
             if(!pJson.isString())
             {

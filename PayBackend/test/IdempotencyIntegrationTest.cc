@@ -241,7 +241,7 @@ DROGON_TEST(PayIdempotency_OrmRoundTrip)
     const auto now = trantor::Date::now();
     const auto expiresAt = trantor::Date(
         now.microSecondsSinceEpoch() + 3600LL * 1000000LL);
-    row.setExpiresAt(expiresAt);
+    row.setExpireAt(expiresAt);
 
     mapper.insert(row);
 

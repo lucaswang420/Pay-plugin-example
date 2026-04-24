@@ -62,6 +62,13 @@ private:
     drogon::nosql::RedisClientPtr redisClient_;
     int64_t ttlSeconds_;
 
+    void checkDatabase(
+        const std::string& idempotencyKey,
+        const std::string& requestHash,
+        const Json::Value& request,
+        CheckCallback&& callback
+    );
+
     void insertToDatabase(
         const std::string& key,
         const std::string& hash,

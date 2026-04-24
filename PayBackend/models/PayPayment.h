@@ -45,13 +45,13 @@ class PayPayment
     struct Cols
     {
         static const std::string _id;
-        static const std::string _order_no;
         static const std::string _payment_no;
-        static const std::string _channel_trade_no;
+        static const std::string _order_no;
         static const std::string _status;
         static const std::string _amount;
         static const std::string _request_payload;
         static const std::string _response_payload;
+        static const std::string _channel_trade_no;
         static const std::string _created_at;
         static const std::string _updated_at;
     };
@@ -113,15 +113,6 @@ class PayPayment
     ///Set the value of the column id
     void setId(const int64_t &pId) noexcept;
 
-    /**  For column order_no  */
-    ///Get the value of the column order_no, returns the default value if the column is null
-    const std::string &getValueOfOrderNo() const noexcept;
-    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<std::string> &getOrderNo() const noexcept;
-    ///Set the value of the column order_no
-    void setOrderNo(const std::string &pOrderNo) noexcept;
-    void setOrderNo(std::string &&pOrderNo) noexcept;
-
     /**  For column payment_no  */
     ///Get the value of the column payment_no, returns the default value if the column is null
     const std::string &getValueOfPaymentNo() const noexcept;
@@ -131,15 +122,14 @@ class PayPayment
     void setPaymentNo(const std::string &pPaymentNo) noexcept;
     void setPaymentNo(std::string &&pPaymentNo) noexcept;
 
-    /**  For column channel_trade_no  */
-    ///Get the value of the column channel_trade_no, returns the default value if the column is null
-    const std::string &getValueOfChannelTradeNo() const noexcept;
+    /**  For column order_no  */
+    ///Get the value of the column order_no, returns the default value if the column is null
+    const std::string &getValueOfOrderNo() const noexcept;
     ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<std::string> &getChannelTradeNo() const noexcept;
-    ///Set the value of the column channel_trade_no
-    void setChannelTradeNo(const std::string &pChannelTradeNo) noexcept;
-    void setChannelTradeNo(std::string &&pChannelTradeNo) noexcept;
-    void setChannelTradeNoToNull() noexcept;
+    const std::shared_ptr<std::string> &getOrderNo() const noexcept;
+    ///Set the value of the column order_no
+    void setOrderNo(const std::string &pOrderNo) noexcept;
+    void setOrderNo(std::string &&pOrderNo) noexcept;
 
     /**  For column status  */
     ///Get the value of the column status, returns the default value if the column is null
@@ -178,6 +168,16 @@ class PayPayment
     void setResponsePayload(const std::string &pResponsePayload) noexcept;
     void setResponsePayload(std::string &&pResponsePayload) noexcept;
     void setResponsePayloadToNull() noexcept;
+
+    /**  For column channel_trade_no  */
+    ///Get the value of the column channel_trade_no, returns the default value if the column is null
+    const std::string &getValueOfChannelTradeNo() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<std::string> &getChannelTradeNo() const noexcept;
+    ///Set the value of the column channel_trade_no
+    void setChannelTradeNo(const std::string &pChannelTradeNo) noexcept;
+    void setChannelTradeNo(std::string &&pChannelTradeNo) noexcept;
+    void setChannelTradeNoToNull() noexcept;
 
     /**  For column created_at  */
     ///Get the value of the column created_at, returns the default value if the column is null
@@ -219,13 +219,13 @@ class PayPayment
     ///For mysql or sqlite3
     void updateId(const uint64_t id);
     std::shared_ptr<int64_t> id_;
-    std::shared_ptr<std::string> orderNo_;
     std::shared_ptr<std::string> paymentNo_;
-    std::shared_ptr<std::string> channelTradeNo_;
+    std::shared_ptr<std::string> orderNo_;
     std::shared_ptr<std::string> status_;
     std::shared_ptr<std::string> amount_;
     std::shared_ptr<std::string> requestPayload_;
     std::shared_ptr<std::string> responsePayload_;
+    std::shared_ptr<std::string> channelTradeNo_;
     std::shared_ptr<::trantor::Date> createdAt_;
     std::shared_ptr<::trantor::Date> updatedAt_;
     struct MetaData
@@ -261,37 +261,38 @@ class PayPayment
             ++parametersCount;
         if(dirtyFlag_[1])
         {
-            sql += "order_no,";
+            sql += "payment_no,";
             ++parametersCount;
         }
         if(dirtyFlag_[2])
         {
-            sql += "payment_no,";
+            sql += "order_no,";
             ++parametersCount;
         }
-        if(dirtyFlag_[3])
+        sql += "status,";
+        ++parametersCount;
+        if(!dirtyFlag_[3])
         {
-            sql += "channel_trade_no,";
-            ++parametersCount;
+            needSelection=true;
         }
         if(dirtyFlag_[4])
-        {
-            sql += "status,";
-            ++parametersCount;
-        }
-        if(dirtyFlag_[5])
         {
             sql += "amount,";
             ++parametersCount;
         }
-        if(dirtyFlag_[6])
+        if(dirtyFlag_[5])
         {
             sql += "request_payload,";
             ++parametersCount;
         }
-        if(dirtyFlag_[7])
+        if(dirtyFlag_[6])
         {
             sql += "response_payload,";
+            ++parametersCount;
+        }
+        if(dirtyFlag_[7])
+        {
+            sql += "channel_trade_no,";
             ++parametersCount;
         }
         sql += "created_at,";
@@ -333,6 +334,10 @@ class PayPayment
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
         }
         if(dirtyFlag_[4])
         {

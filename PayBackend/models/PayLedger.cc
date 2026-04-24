@@ -30,9 +30,9 @@ const std::vector<typename PayLedger::MetaData> PayLedger::metaData_={
 {"user_id","int64_t","bigint",8,0,0,1},
 {"order_no","std::string","character varying",64,0,0,1},
 {"payment_no","std::string","character varying",64,0,0,0},
-{"entry_type","std::string","character varying",24,0,0,1},
-{"amount","std::string","numeric",0,0,0,1},
-{"balance","std::string","numeric",0,0,0,0},
+{"entry_type","std::string","character varying",32,0,0,1},
+{"amount","std::string","character varying",32,0,0,1},
+{"balance","std::string","character varying",32,0,0,0},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,1}
 };
 const std::string &PayLedger::getColumnName(size_t index) noexcept(false)
@@ -1513,11 +1513,11 @@ bool PayLedger::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 24)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 24)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
@@ -1532,6 +1532,14 @@ bool PayLedger::validJsonOfField(size_t index,
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
+            if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
+                .from_bytes(pJson.asCString()).size() > 32)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 32)";
+                return false;
+            }
             break;
         case 6:
             if(pJson.isNull())
@@ -1541,6 +1549,14 @@ bool PayLedger::validJsonOfField(size_t index,
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
+                .from_bytes(pJson.asCString()).size() > 32)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;

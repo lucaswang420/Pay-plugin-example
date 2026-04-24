@@ -29,7 +29,7 @@ const std::vector<typename PayCallback::MetaData> PayCallback::metaData_={
 {"id","int64_t","bigint",8,1,1,1},
 {"payment_no","std::string","character varying",64,0,0,1},
 {"raw_body","std::string","text",0,0,0,1},
-{"signature","std::string","character varying",256,0,0,0},
+{"signature","std::string","character varying",512,0,0,0},
 {"serial_no","std::string","character varying",64,0,0,0},
 {"verified","bool","boolean",1,0,0,1},
 {"processed","bool","boolean",1,0,0,1},
@@ -1468,11 +1468,11 @@ bool PayCallback::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 256)
+                .from_bytes(pJson.asCString()).size() > 512)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 256)";
+                    " field (the maximum value is 512)";
                 return false;
             }
             break;

@@ -14,13 +14,13 @@ using namespace drogon::orm;
 using namespace drogon_model::pay_test;
 
 const std::string PayPayment::Cols::_id = "\"id\"";
-const std::string PayPayment::Cols::_order_no = "\"order_no\"";
 const std::string PayPayment::Cols::_payment_no = "\"payment_no\"";
-const std::string PayPayment::Cols::_channel_trade_no = "\"channel_trade_no\"";
+const std::string PayPayment::Cols::_order_no = "\"order_no\"";
 const std::string PayPayment::Cols::_status = "\"status\"";
 const std::string PayPayment::Cols::_amount = "\"amount\"";
 const std::string PayPayment::Cols::_request_payload = "\"request_payload\"";
 const std::string PayPayment::Cols::_response_payload = "\"response_payload\"";
+const std::string PayPayment::Cols::_channel_trade_no = "\"channel_trade_no\"";
 const std::string PayPayment::Cols::_created_at = "\"created_at\"";
 const std::string PayPayment::Cols::_updated_at = "\"updated_at\"";
 const std::string PayPayment::primaryKeyName = "id";
@@ -29,13 +29,13 @@ const std::string PayPayment::tableName = "\"pay_payment\"";
 
 const std::vector<typename PayPayment::MetaData> PayPayment::metaData_={
 {"id","int64_t","bigint",8,1,1,1},
-{"order_no","std::string","character varying",64,0,0,1},
 {"payment_no","std::string","character varying",64,0,0,1},
-{"channel_trade_no","std::string","character varying",64,0,0,0},
-{"status","std::string","character varying",24,0,0,1},
-{"amount","std::string","numeric",0,0,0,1},
+{"order_no","std::string","character varying",64,0,0,1},
+{"status","std::string","character varying",32,0,0,1},
+{"amount","std::string","character varying",32,0,0,1},
 {"request_payload","std::string","text",0,0,0,0},
 {"response_payload","std::string","text",0,0,0,0},
+{"channel_trade_no","std::string","character varying",64,0,0,0},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,1},
 {"updated_at","::trantor::Date","timestamp without time zone",0,0,0,1}
 };
@@ -52,17 +52,13 @@ PayPayment::PayPayment(const Row &r, const ssize_t indexOffset) noexcept
         {
             id_=std::make_shared<int64_t>(r["id"].as<int64_t>());
         }
-        if(!r["order_no"].isNull())
-        {
-            orderNo_=std::make_shared<std::string>(r["order_no"].as<std::string>());
-        }
         if(!r["payment_no"].isNull())
         {
             paymentNo_=std::make_shared<std::string>(r["payment_no"].as<std::string>());
         }
-        if(!r["channel_trade_no"].isNull())
+        if(!r["order_no"].isNull())
         {
-            channelTradeNo_=std::make_shared<std::string>(r["channel_trade_no"].as<std::string>());
+            orderNo_=std::make_shared<std::string>(r["order_no"].as<std::string>());
         }
         if(!r["status"].isNull())
         {
@@ -79,6 +75,10 @@ PayPayment::PayPayment(const Row &r, const ssize_t indexOffset) noexcept
         if(!r["response_payload"].isNull())
         {
             responsePayload_=std::make_shared<std::string>(r["response_payload"].as<std::string>());
+        }
+        if(!r["channel_trade_no"].isNull())
+        {
+            channelTradeNo_=std::make_shared<std::string>(r["channel_trade_no"].as<std::string>());
         }
         if(!r["created_at"].isNull())
         {
@@ -142,37 +142,37 @@ PayPayment::PayPayment(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 1;
         if(!r[index].isNull())
         {
-            orderNo_=std::make_shared<std::string>(r[index].as<std::string>());
+            paymentNo_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 2;
         if(!r[index].isNull())
         {
-            paymentNo_=std::make_shared<std::string>(r[index].as<std::string>());
+            orderNo_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 3;
         if(!r[index].isNull())
         {
-            channelTradeNo_=std::make_shared<std::string>(r[index].as<std::string>());
+            status_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 4;
         if(!r[index].isNull())
         {
-            status_=std::make_shared<std::string>(r[index].as<std::string>());
+            amount_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 5;
         if(!r[index].isNull())
         {
-            amount_=std::make_shared<std::string>(r[index].as<std::string>());
+            requestPayload_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 6;
         if(!r[index].isNull())
         {
-            requestPayload_=std::make_shared<std::string>(r[index].as<std::string>());
+            responsePayload_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 7;
         if(!r[index].isNull())
         {
-            responsePayload_=std::make_shared<std::string>(r[index].as<std::string>());
+            channelTradeNo_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 8;
         if(!r[index].isNull())
@@ -244,7 +244,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            orderNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            paymentNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -252,7 +252,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            paymentNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            orderNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -260,7 +260,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            channelTradeNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -268,7 +268,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -276,7 +276,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
+            requestPayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -284,7 +284,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            requestPayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
+            responsePayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -292,7 +292,7 @@ PayPayment::PayPayment(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            responsePayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
+            channelTradeNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
         }
     }
     if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
@@ -359,33 +359,25 @@ PayPayment::PayPayment(const Json::Value &pJson) noexcept(false)
             id_=std::make_shared<int64_t>((int64_t)pJson["id"].asInt64());
         }
     }
-    if(pJson.isMember("order_no"))
-    {
-        dirtyFlag_[1]=true;
-        if(!pJson["order_no"].isNull())
-        {
-            orderNo_=std::make_shared<std::string>(pJson["order_no"].asString());
-        }
-    }
     if(pJson.isMember("payment_no"))
     {
-        dirtyFlag_[2]=true;
+        dirtyFlag_[1]=true;
         if(!pJson["payment_no"].isNull())
         {
             paymentNo_=std::make_shared<std::string>(pJson["payment_no"].asString());
         }
     }
-    if(pJson.isMember("channel_trade_no"))
+    if(pJson.isMember("order_no"))
     {
-        dirtyFlag_[3]=true;
-        if(!pJson["channel_trade_no"].isNull())
+        dirtyFlag_[2]=true;
+        if(!pJson["order_no"].isNull())
         {
-            channelTradeNo_=std::make_shared<std::string>(pJson["channel_trade_no"].asString());
+            orderNo_=std::make_shared<std::string>(pJson["order_no"].asString());
         }
     }
     if(pJson.isMember("status"))
     {
-        dirtyFlag_[4]=true;
+        dirtyFlag_[3]=true;
         if(!pJson["status"].isNull())
         {
             status_=std::make_shared<std::string>(pJson["status"].asString());
@@ -393,7 +385,7 @@ PayPayment::PayPayment(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("amount"))
     {
-        dirtyFlag_[5]=true;
+        dirtyFlag_[4]=true;
         if(!pJson["amount"].isNull())
         {
             amount_=std::make_shared<std::string>(pJson["amount"].asString());
@@ -401,7 +393,7 @@ PayPayment::PayPayment(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("request_payload"))
     {
-        dirtyFlag_[6]=true;
+        dirtyFlag_[5]=true;
         if(!pJson["request_payload"].isNull())
         {
             requestPayload_=std::make_shared<std::string>(pJson["request_payload"].asString());
@@ -409,10 +401,18 @@ PayPayment::PayPayment(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("response_payload"))
     {
-        dirtyFlag_[7]=true;
+        dirtyFlag_[6]=true;
         if(!pJson["response_payload"].isNull())
         {
             responsePayload_=std::make_shared<std::string>(pJson["response_payload"].asString());
+        }
+    }
+    if(pJson.isMember("channel_trade_no"))
+    {
+        dirtyFlag_[7]=true;
+        if(!pJson["channel_trade_no"].isNull())
+        {
+            channelTradeNo_=std::make_shared<std::string>(pJson["channel_trade_no"].asString());
         }
     }
     if(pJson.isMember("created_at"))
@@ -489,7 +489,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            orderNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            paymentNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -497,7 +497,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            paymentNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            orderNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -505,7 +505,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            channelTradeNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -513,7 +513,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -521,7 +521,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
+            requestPayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -529,7 +529,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            requestPayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
+            responsePayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -537,7 +537,7 @@ void PayPayment::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            responsePayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
+            channelTradeNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
         }
     }
     if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
@@ -603,33 +603,25 @@ void PayPayment::updateByJson(const Json::Value &pJson) noexcept(false)
             id_=std::make_shared<int64_t>((int64_t)pJson["id"].asInt64());
         }
     }
-    if(pJson.isMember("order_no"))
-    {
-        dirtyFlag_[1] = true;
-        if(!pJson["order_no"].isNull())
-        {
-            orderNo_=std::make_shared<std::string>(pJson["order_no"].asString());
-        }
-    }
     if(pJson.isMember("payment_no"))
     {
-        dirtyFlag_[2] = true;
+        dirtyFlag_[1] = true;
         if(!pJson["payment_no"].isNull())
         {
             paymentNo_=std::make_shared<std::string>(pJson["payment_no"].asString());
         }
     }
-    if(pJson.isMember("channel_trade_no"))
+    if(pJson.isMember("order_no"))
     {
-        dirtyFlag_[3] = true;
-        if(!pJson["channel_trade_no"].isNull())
+        dirtyFlag_[2] = true;
+        if(!pJson["order_no"].isNull())
         {
-            channelTradeNo_=std::make_shared<std::string>(pJson["channel_trade_no"].asString());
+            orderNo_=std::make_shared<std::string>(pJson["order_no"].asString());
         }
     }
     if(pJson.isMember("status"))
     {
-        dirtyFlag_[4] = true;
+        dirtyFlag_[3] = true;
         if(!pJson["status"].isNull())
         {
             status_=std::make_shared<std::string>(pJson["status"].asString());
@@ -637,7 +629,7 @@ void PayPayment::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("amount"))
     {
-        dirtyFlag_[5] = true;
+        dirtyFlag_[4] = true;
         if(!pJson["amount"].isNull())
         {
             amount_=std::make_shared<std::string>(pJson["amount"].asString());
@@ -645,7 +637,7 @@ void PayPayment::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("request_payload"))
     {
-        dirtyFlag_[6] = true;
+        dirtyFlag_[5] = true;
         if(!pJson["request_payload"].isNull())
         {
             requestPayload_=std::make_shared<std::string>(pJson["request_payload"].asString());
@@ -653,10 +645,18 @@ void PayPayment::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("response_payload"))
     {
-        dirtyFlag_[7] = true;
+        dirtyFlag_[6] = true;
         if(!pJson["response_payload"].isNull())
         {
             responsePayload_=std::make_shared<std::string>(pJson["response_payload"].asString());
+        }
+    }
+    if(pJson.isMember("channel_trade_no"))
+    {
+        dirtyFlag_[7] = true;
+        if(!pJson["channel_trade_no"].isNull())
+        {
+            channelTradeNo_=std::make_shared<std::string>(pJson["channel_trade_no"].asString());
         }
     }
     if(pJson.isMember("created_at"))
@@ -735,28 +735,6 @@ const typename PayPayment::PrimaryKeyType & PayPayment::getPrimaryKey() const
     return *id_;
 }
 
-const std::string &PayPayment::getValueOfOrderNo() const noexcept
-{
-    static const std::string defaultValue = std::string();
-    if(orderNo_)
-        return *orderNo_;
-    return defaultValue;
-}
-const std::shared_ptr<std::string> &PayPayment::getOrderNo() const noexcept
-{
-    return orderNo_;
-}
-void PayPayment::setOrderNo(const std::string &pOrderNo) noexcept
-{
-    orderNo_ = std::make_shared<std::string>(pOrderNo);
-    dirtyFlag_[1] = true;
-}
-void PayPayment::setOrderNo(std::string &&pOrderNo) noexcept
-{
-    orderNo_ = std::make_shared<std::string>(std::move(pOrderNo));
-    dirtyFlag_[1] = true;
-}
-
 const std::string &PayPayment::getValueOfPaymentNo() const noexcept
 {
     static const std::string defaultValue = std::string();
@@ -771,39 +749,34 @@ const std::shared_ptr<std::string> &PayPayment::getPaymentNo() const noexcept
 void PayPayment::setPaymentNo(const std::string &pPaymentNo) noexcept
 {
     paymentNo_ = std::make_shared<std::string>(pPaymentNo);
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 void PayPayment::setPaymentNo(std::string &&pPaymentNo) noexcept
 {
     paymentNo_ = std::make_shared<std::string>(std::move(pPaymentNo));
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 
-const std::string &PayPayment::getValueOfChannelTradeNo() const noexcept
+const std::string &PayPayment::getValueOfOrderNo() const noexcept
 {
     static const std::string defaultValue = std::string();
-    if(channelTradeNo_)
-        return *channelTradeNo_;
+    if(orderNo_)
+        return *orderNo_;
     return defaultValue;
 }
-const std::shared_ptr<std::string> &PayPayment::getChannelTradeNo() const noexcept
+const std::shared_ptr<std::string> &PayPayment::getOrderNo() const noexcept
 {
-    return channelTradeNo_;
+    return orderNo_;
 }
-void PayPayment::setChannelTradeNo(const std::string &pChannelTradeNo) noexcept
+void PayPayment::setOrderNo(const std::string &pOrderNo) noexcept
 {
-    channelTradeNo_ = std::make_shared<std::string>(pChannelTradeNo);
-    dirtyFlag_[3] = true;
+    orderNo_ = std::make_shared<std::string>(pOrderNo);
+    dirtyFlag_[2] = true;
 }
-void PayPayment::setChannelTradeNo(std::string &&pChannelTradeNo) noexcept
+void PayPayment::setOrderNo(std::string &&pOrderNo) noexcept
 {
-    channelTradeNo_ = std::make_shared<std::string>(std::move(pChannelTradeNo));
-    dirtyFlag_[3] = true;
-}
-void PayPayment::setChannelTradeNoToNull() noexcept
-{
-    channelTradeNo_.reset();
-    dirtyFlag_[3] = true;
+    orderNo_ = std::make_shared<std::string>(std::move(pOrderNo));
+    dirtyFlag_[2] = true;
 }
 
 const std::string &PayPayment::getValueOfStatus() const noexcept
@@ -820,12 +793,12 @@ const std::shared_ptr<std::string> &PayPayment::getStatus() const noexcept
 void PayPayment::setStatus(const std::string &pStatus) noexcept
 {
     status_ = std::make_shared<std::string>(pStatus);
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 void PayPayment::setStatus(std::string &&pStatus) noexcept
 {
     status_ = std::make_shared<std::string>(std::move(pStatus));
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 
 const std::string &PayPayment::getValueOfAmount() const noexcept
@@ -842,12 +815,12 @@ const std::shared_ptr<std::string> &PayPayment::getAmount() const noexcept
 void PayPayment::setAmount(const std::string &pAmount) noexcept
 {
     amount_ = std::make_shared<std::string>(pAmount);
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 void PayPayment::setAmount(std::string &&pAmount) noexcept
 {
     amount_ = std::make_shared<std::string>(std::move(pAmount));
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 
 const std::string &PayPayment::getValueOfRequestPayload() const noexcept
@@ -864,17 +837,17 @@ const std::shared_ptr<std::string> &PayPayment::getRequestPayload() const noexce
 void PayPayment::setRequestPayload(const std::string &pRequestPayload) noexcept
 {
     requestPayload_ = std::make_shared<std::string>(pRequestPayload);
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 void PayPayment::setRequestPayload(std::string &&pRequestPayload) noexcept
 {
     requestPayload_ = std::make_shared<std::string>(std::move(pRequestPayload));
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 void PayPayment::setRequestPayloadToNull() noexcept
 {
     requestPayload_.reset();
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 
 const std::string &PayPayment::getValueOfResponsePayload() const noexcept
@@ -891,16 +864,43 @@ const std::shared_ptr<std::string> &PayPayment::getResponsePayload() const noexc
 void PayPayment::setResponsePayload(const std::string &pResponsePayload) noexcept
 {
     responsePayload_ = std::make_shared<std::string>(pResponsePayload);
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 void PayPayment::setResponsePayload(std::string &&pResponsePayload) noexcept
 {
     responsePayload_ = std::make_shared<std::string>(std::move(pResponsePayload));
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 void PayPayment::setResponsePayloadToNull() noexcept
 {
     responsePayload_.reset();
+    dirtyFlag_[6] = true;
+}
+
+const std::string &PayPayment::getValueOfChannelTradeNo() const noexcept
+{
+    static const std::string defaultValue = std::string();
+    if(channelTradeNo_)
+        return *channelTradeNo_;
+    return defaultValue;
+}
+const std::shared_ptr<std::string> &PayPayment::getChannelTradeNo() const noexcept
+{
+    return channelTradeNo_;
+}
+void PayPayment::setChannelTradeNo(const std::string &pChannelTradeNo) noexcept
+{
+    channelTradeNo_ = std::make_shared<std::string>(pChannelTradeNo);
+    dirtyFlag_[7] = true;
+}
+void PayPayment::setChannelTradeNo(std::string &&pChannelTradeNo) noexcept
+{
+    channelTradeNo_ = std::make_shared<std::string>(std::move(pChannelTradeNo));
+    dirtyFlag_[7] = true;
+}
+void PayPayment::setChannelTradeNoToNull() noexcept
+{
+    channelTradeNo_.reset();
     dirtyFlag_[7] = true;
 }
 
@@ -945,13 +945,13 @@ void PayPayment::updateId(const uint64_t id)
 const std::vector<std::string> &PayPayment::insertColumns() noexcept
 {
     static const std::vector<std::string> inCols={
-        "order_no",
         "payment_no",
-        "channel_trade_no",
+        "order_no",
         "status",
         "amount",
         "request_payload",
         "response_payload",
+        "channel_trade_no",
         "created_at",
         "updated_at"
     };
@@ -962,17 +962,6 @@ void PayPayment::outputArgs(drogon::orm::internal::SqlBinder &binder) const
 {
     if(dirtyFlag_[1])
     {
-        if(getOrderNo())
-        {
-            binder << getValueOfOrderNo();
-        }
-        else
-        {
-            binder << nullptr;
-        }
-    }
-    if(dirtyFlag_[2])
-    {
         if(getPaymentNo())
         {
             binder << getValueOfPaymentNo();
@@ -982,18 +971,18 @@ void PayPayment::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[2])
     {
-        if(getChannelTradeNo())
+        if(getOrderNo())
         {
-            binder << getValueOfChannelTradeNo();
+            binder << getValueOfOrderNo();
         }
         else
         {
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[4])
+    if(dirtyFlag_[3])
     {
         if(getStatus())
         {
@@ -1004,7 +993,7 @@ void PayPayment::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[5])
+    if(dirtyFlag_[4])
     {
         if(getAmount())
         {
@@ -1015,7 +1004,7 @@ void PayPayment::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getRequestPayload())
         {
@@ -1026,11 +1015,22 @@ void PayPayment::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[7])
+    if(dirtyFlag_[6])
     {
         if(getResponsePayload())
         {
             binder << getValueOfResponsePayload();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[7])
+    {
+        if(getChannelTradeNo())
+        {
+            binder << getValueOfChannelTradeNo();
         }
         else
         {
@@ -1107,17 +1107,6 @@ void PayPayment::updateArgs(drogon::orm::internal::SqlBinder &binder) const
 {
     if(dirtyFlag_[1])
     {
-        if(getOrderNo())
-        {
-            binder << getValueOfOrderNo();
-        }
-        else
-        {
-            binder << nullptr;
-        }
-    }
-    if(dirtyFlag_[2])
-    {
         if(getPaymentNo())
         {
             binder << getValueOfPaymentNo();
@@ -1127,18 +1116,18 @@ void PayPayment::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[2])
     {
-        if(getChannelTradeNo())
+        if(getOrderNo())
         {
-            binder << getValueOfChannelTradeNo();
+            binder << getValueOfOrderNo();
         }
         else
         {
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[4])
+    if(dirtyFlag_[3])
     {
         if(getStatus())
         {
@@ -1149,7 +1138,7 @@ void PayPayment::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[5])
+    if(dirtyFlag_[4])
     {
         if(getAmount())
         {
@@ -1160,7 +1149,7 @@ void PayPayment::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getRequestPayload())
         {
@@ -1171,11 +1160,22 @@ void PayPayment::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[7])
+    if(dirtyFlag_[6])
     {
         if(getResponsePayload())
         {
             binder << getValueOfResponsePayload();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[7])
+    {
+        if(getChannelTradeNo())
+        {
+            binder << getValueOfChannelTradeNo();
         }
         else
         {
@@ -1216,14 +1216,6 @@ Json::Value PayPayment::toJson() const
     {
         ret["id"]=Json::Value();
     }
-    if(getOrderNo())
-    {
-        ret["order_no"]=getValueOfOrderNo();
-    }
-    else
-    {
-        ret["order_no"]=Json::Value();
-    }
     if(getPaymentNo())
     {
         ret["payment_no"]=getValueOfPaymentNo();
@@ -1232,13 +1224,13 @@ Json::Value PayPayment::toJson() const
     {
         ret["payment_no"]=Json::Value();
     }
-    if(getChannelTradeNo())
+    if(getOrderNo())
     {
-        ret["channel_trade_no"]=getValueOfChannelTradeNo();
+        ret["order_no"]=getValueOfOrderNo();
     }
     else
     {
-        ret["channel_trade_no"]=Json::Value();
+        ret["order_no"]=Json::Value();
     }
     if(getStatus())
     {
@@ -1271,6 +1263,14 @@ Json::Value PayPayment::toJson() const
     else
     {
         ret["response_payload"]=Json::Value();
+    }
+    if(getChannelTradeNo())
+    {
+        ret["channel_trade_no"]=getValueOfChannelTradeNo();
+    }
+    else
+    {
+        ret["channel_trade_no"]=Json::Value();
     }
     if(getCreatedAt())
     {
@@ -1315,9 +1315,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[1].empty())
         {
-            if(getOrderNo())
+            if(getPaymentNo())
             {
-                ret[pMasqueradingVector[1]]=getValueOfOrderNo();
+                ret[pMasqueradingVector[1]]=getValueOfPaymentNo();
             }
             else
             {
@@ -1326,9 +1326,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[2].empty())
         {
-            if(getPaymentNo())
+            if(getOrderNo())
             {
-                ret[pMasqueradingVector[2]]=getValueOfPaymentNo();
+                ret[pMasqueradingVector[2]]=getValueOfOrderNo();
             }
             else
             {
@@ -1337,9 +1337,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[3].empty())
         {
-            if(getChannelTradeNo())
+            if(getStatus())
             {
-                ret[pMasqueradingVector[3]]=getValueOfChannelTradeNo();
+                ret[pMasqueradingVector[3]]=getValueOfStatus();
             }
             else
             {
@@ -1348,9 +1348,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[4].empty())
         {
-            if(getStatus())
+            if(getAmount())
             {
-                ret[pMasqueradingVector[4]]=getValueOfStatus();
+                ret[pMasqueradingVector[4]]=getValueOfAmount();
             }
             else
             {
@@ -1359,9 +1359,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[5].empty())
         {
-            if(getAmount())
+            if(getRequestPayload())
             {
-                ret[pMasqueradingVector[5]]=getValueOfAmount();
+                ret[pMasqueradingVector[5]]=getValueOfRequestPayload();
             }
             else
             {
@@ -1370,9 +1370,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[6].empty())
         {
-            if(getRequestPayload())
+            if(getResponsePayload())
             {
-                ret[pMasqueradingVector[6]]=getValueOfRequestPayload();
+                ret[pMasqueradingVector[6]]=getValueOfResponsePayload();
             }
             else
             {
@@ -1381,9 +1381,9 @@ Json::Value PayPayment::toMasqueradedJson(
         }
         if(!pMasqueradingVector[7].empty())
         {
-            if(getResponsePayload())
+            if(getChannelTradeNo())
             {
-                ret[pMasqueradingVector[7]]=getValueOfResponsePayload();
+                ret[pMasqueradingVector[7]]=getValueOfChannelTradeNo();
             }
             else
             {
@@ -1423,14 +1423,6 @@ Json::Value PayPayment::toMasqueradedJson(
     {
         ret["id"]=Json::Value();
     }
-    if(getOrderNo())
-    {
-        ret["order_no"]=getValueOfOrderNo();
-    }
-    else
-    {
-        ret["order_no"]=Json::Value();
-    }
     if(getPaymentNo())
     {
         ret["payment_no"]=getValueOfPaymentNo();
@@ -1439,13 +1431,13 @@ Json::Value PayPayment::toMasqueradedJson(
     {
         ret["payment_no"]=Json::Value();
     }
-    if(getChannelTradeNo())
+    if(getOrderNo())
     {
-        ret["channel_trade_no"]=getValueOfChannelTradeNo();
+        ret["order_no"]=getValueOfOrderNo();
     }
     else
     {
-        ret["channel_trade_no"]=Json::Value();
+        ret["order_no"]=Json::Value();
     }
     if(getStatus())
     {
@@ -1479,6 +1471,14 @@ Json::Value PayPayment::toMasqueradedJson(
     {
         ret["response_payload"]=Json::Value();
     }
+    if(getChannelTradeNo())
+    {
+        ret["channel_trade_no"]=getValueOfChannelTradeNo();
+    }
+    else
+    {
+        ret["channel_trade_no"]=Json::Value();
+    }
     if(getCreatedAt())
     {
         ret["created_at"]=getCreatedAt()->toDbStringLocal();
@@ -1505,19 +1505,9 @@ bool PayPayment::validateJsonForCreation(const Json::Value &pJson, std::string &
         if(!validJsonOfField(0, "id", pJson["id"], err, true))
             return false;
     }
-    if(pJson.isMember("order_no"))
-    {
-        if(!validJsonOfField(1, "order_no", pJson["order_no"], err, true))
-            return false;
-    }
-    else
-    {
-        err="The order_no column cannot be null";
-        return false;
-    }
     if(pJson.isMember("payment_no"))
     {
-        if(!validJsonOfField(2, "payment_no", pJson["payment_no"], err, true))
+        if(!validJsonOfField(1, "payment_no", pJson["payment_no"], err, true))
             return false;
     }
     else
@@ -1525,24 +1515,24 @@ bool PayPayment::validateJsonForCreation(const Json::Value &pJson, std::string &
         err="The payment_no column cannot be null";
         return false;
     }
-    if(pJson.isMember("channel_trade_no"))
+    if(pJson.isMember("order_no"))
     {
-        if(!validJsonOfField(3, "channel_trade_no", pJson["channel_trade_no"], err, true))
-            return false;
-    }
-    if(pJson.isMember("status"))
-    {
-        if(!validJsonOfField(4, "status", pJson["status"], err, true))
+        if(!validJsonOfField(2, "order_no", pJson["order_no"], err, true))
             return false;
     }
     else
     {
-        err="The status column cannot be null";
+        err="The order_no column cannot be null";
         return false;
+    }
+    if(pJson.isMember("status"))
+    {
+        if(!validJsonOfField(3, "status", pJson["status"], err, true))
+            return false;
     }
     if(pJson.isMember("amount"))
     {
-        if(!validJsonOfField(5, "amount", pJson["amount"], err, true))
+        if(!validJsonOfField(4, "amount", pJson["amount"], err, true))
             return false;
     }
     else
@@ -1552,12 +1542,17 @@ bool PayPayment::validateJsonForCreation(const Json::Value &pJson, std::string &
     }
     if(pJson.isMember("request_payload"))
     {
-        if(!validJsonOfField(6, "request_payload", pJson["request_payload"], err, true))
+        if(!validJsonOfField(5, "request_payload", pJson["request_payload"], err, true))
             return false;
     }
     if(pJson.isMember("response_payload"))
     {
-        if(!validJsonOfField(7, "response_payload", pJson["response_payload"], err, true))
+        if(!validJsonOfField(6, "response_payload", pJson["response_payload"], err, true))
+            return false;
+    }
+    if(pJson.isMember("channel_trade_no"))
+    {
+        if(!validJsonOfField(7, "channel_trade_no", pJson["channel_trade_no"], err, true))
             return false;
     }
     if(pJson.isMember("created_at"))
@@ -1644,11 +1639,6 @@ bool PayPayment::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(5, pMasqueradingVector[5], pJson[pMasqueradingVector[5]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[5] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[6].empty())
       {
@@ -1702,39 +1692,39 @@ bool PayPayment::validateJsonForUpdate(const Json::Value &pJson, std::string &er
         err = "The value of primary key must be set in the json object for update";
         return false;
     }
-    if(pJson.isMember("order_no"))
-    {
-        if(!validJsonOfField(1, "order_no", pJson["order_no"], err, false))
-            return false;
-    }
     if(pJson.isMember("payment_no"))
     {
-        if(!validJsonOfField(2, "payment_no", pJson["payment_no"], err, false))
+        if(!validJsonOfField(1, "payment_no", pJson["payment_no"], err, false))
             return false;
     }
-    if(pJson.isMember("channel_trade_no"))
+    if(pJson.isMember("order_no"))
     {
-        if(!validJsonOfField(3, "channel_trade_no", pJson["channel_trade_no"], err, false))
+        if(!validJsonOfField(2, "order_no", pJson["order_no"], err, false))
             return false;
     }
     if(pJson.isMember("status"))
     {
-        if(!validJsonOfField(4, "status", pJson["status"], err, false))
+        if(!validJsonOfField(3, "status", pJson["status"], err, false))
             return false;
     }
     if(pJson.isMember("amount"))
     {
-        if(!validJsonOfField(5, "amount", pJson["amount"], err, false))
+        if(!validJsonOfField(4, "amount", pJson["amount"], err, false))
             return false;
     }
     if(pJson.isMember("request_payload"))
     {
-        if(!validJsonOfField(6, "request_payload", pJson["request_payload"], err, false))
+        if(!validJsonOfField(5, "request_payload", pJson["request_payload"], err, false))
             return false;
     }
     if(pJson.isMember("response_payload"))
     {
-        if(!validJsonOfField(7, "response_payload", pJson["response_payload"], err, false))
+        if(!validJsonOfField(6, "response_payload", pJson["response_payload"], err, false))
+            return false;
+    }
+    if(pJson.isMember("channel_trade_no"))
+    {
+        if(!validJsonOfField(7, "channel_trade_no", pJson["channel_trade_no"], err, false))
             return false;
     }
     if(pJson.isMember("created_at"))
@@ -1890,7 +1880,8 @@ bool PayPayment::validJsonOfField(size_t index,
         case 3:
             if(pJson.isNull())
             {
-                return true;
+                err="The " + fieldName + " column cannot be null";
+                return false;
             }
             if(!pJson.isString())
             {
@@ -1898,11 +1889,11 @@ bool PayPayment::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 64)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 64)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
@@ -1918,19 +1909,18 @@ bool PayPayment::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 24)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 24)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
         case 5:
             if(pJson.isNull())
             {
-                err="The " + fieldName + " column cannot be null";
-                return false;
+                return true;
             }
             if(!pJson.isString())
             {
@@ -1957,6 +1947,14 @@ bool PayPayment::validJsonOfField(size_t index,
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
+                .from_bytes(pJson.asCString()).size() > 64)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 64)";
                 return false;
             }
             break;

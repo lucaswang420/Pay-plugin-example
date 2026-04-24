@@ -17,9 +17,9 @@ const std::string PayRefund::Cols::_id = "\"id\"";
 const std::string PayRefund::Cols::_refund_no = "\"refund_no\"";
 const std::string PayRefund::Cols::_order_no = "\"order_no\"";
 const std::string PayRefund::Cols::_payment_no = "\"payment_no\"";
-const std::string PayRefund::Cols::_channel_refund_no = "\"channel_refund_no\"";
 const std::string PayRefund::Cols::_status = "\"status\"";
 const std::string PayRefund::Cols::_amount = "\"amount\"";
+const std::string PayRefund::Cols::_channel_refund_no = "\"channel_refund_no\"";
 const std::string PayRefund::Cols::_created_at = "\"created_at\"";
 const std::string PayRefund::Cols::_updated_at = "\"updated_at\"";
 const std::string PayRefund::primaryKeyName = "id";
@@ -31,9 +31,9 @@ const std::vector<typename PayRefund::MetaData> PayRefund::metaData_={
 {"refund_no","std::string","character varying",64,0,0,1},
 {"order_no","std::string","character varying",64,0,0,1},
 {"payment_no","std::string","character varying",64,0,0,1},
+{"status","std::string","character varying",32,0,0,1},
+{"amount","std::string","character varying",32,0,0,1},
 {"channel_refund_no","std::string","character varying",64,0,0,0},
-{"status","std::string","character varying",24,0,0,1},
-{"amount","std::string","numeric",0,0,0,1},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,1},
 {"updated_at","::trantor::Date","timestamp without time zone",0,0,0,1}
 };
@@ -62,10 +62,6 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
         {
             paymentNo_=std::make_shared<std::string>(r["payment_no"].as<std::string>());
         }
-        if(!r["channel_refund_no"].isNull())
-        {
-            channelRefundNo_=std::make_shared<std::string>(r["channel_refund_no"].as<std::string>());
-        }
         if(!r["status"].isNull())
         {
             status_=std::make_shared<std::string>(r["status"].as<std::string>());
@@ -73,6 +69,10 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
         if(!r["amount"].isNull())
         {
             amount_=std::make_shared<std::string>(r["amount"].as<std::string>());
+        }
+        if(!r["channel_refund_no"].isNull())
+        {
+            channelRefundNo_=std::make_shared<std::string>(r["channel_refund_no"].as<std::string>());
         }
         if(!r["created_at"].isNull())
         {
@@ -151,17 +151,17 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 4;
         if(!r[index].isNull())
         {
-            channelRefundNo_=std::make_shared<std::string>(r[index].as<std::string>());
+            status_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 5;
         if(!r[index].isNull())
         {
-            status_=std::make_shared<std::string>(r[index].as<std::string>());
+            amount_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 6;
         if(!r[index].isNull())
         {
-            amount_=std::make_shared<std::string>(r[index].as<std::string>());
+            channelRefundNo_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 7;
         if(!r[index].isNull())
@@ -257,7 +257,7 @@ PayRefund::PayRefund(const Json::Value &pJson, const std::vector<std::string> &p
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            channelRefundNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -265,7 +265,7 @@ PayRefund::PayRefund(const Json::Value &pJson, const std::vector<std::string> &p
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
+            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -273,7 +273,7 @@ PayRefund::PayRefund(const Json::Value &pJson, const std::vector<std::string> &p
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
+            channelRefundNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -364,17 +364,9 @@ PayRefund::PayRefund(const Json::Value &pJson) noexcept(false)
             paymentNo_=std::make_shared<std::string>(pJson["payment_no"].asString());
         }
     }
-    if(pJson.isMember("channel_refund_no"))
-    {
-        dirtyFlag_[4]=true;
-        if(!pJson["channel_refund_no"].isNull())
-        {
-            channelRefundNo_=std::make_shared<std::string>(pJson["channel_refund_no"].asString());
-        }
-    }
     if(pJson.isMember("status"))
     {
-        dirtyFlag_[5]=true;
+        dirtyFlag_[4]=true;
         if(!pJson["status"].isNull())
         {
             status_=std::make_shared<std::string>(pJson["status"].asString());
@@ -382,10 +374,18 @@ PayRefund::PayRefund(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("amount"))
     {
-        dirtyFlag_[6]=true;
+        dirtyFlag_[5]=true;
         if(!pJson["amount"].isNull())
         {
             amount_=std::make_shared<std::string>(pJson["amount"].asString());
+        }
+    }
+    if(pJson.isMember("channel_refund_no"))
+    {
+        dirtyFlag_[6]=true;
+        if(!pJson["channel_refund_no"].isNull())
+        {
+            channelRefundNo_=std::make_shared<std::string>(pJson["channel_refund_no"].asString());
         }
     }
     if(pJson.isMember("created_at"))
@@ -486,7 +486,7 @@ void PayRefund::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            channelRefundNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -494,7 +494,7 @@ void PayRefund::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            status_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
+            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[5]].asString());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -502,7 +502,7 @@ void PayRefund::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            amount_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
+            channelRefundNo_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -592,17 +592,9 @@ void PayRefund::updateByJson(const Json::Value &pJson) noexcept(false)
             paymentNo_=std::make_shared<std::string>(pJson["payment_no"].asString());
         }
     }
-    if(pJson.isMember("channel_refund_no"))
-    {
-        dirtyFlag_[4] = true;
-        if(!pJson["channel_refund_no"].isNull())
-        {
-            channelRefundNo_=std::make_shared<std::string>(pJson["channel_refund_no"].asString());
-        }
-    }
     if(pJson.isMember("status"))
     {
-        dirtyFlag_[5] = true;
+        dirtyFlag_[4] = true;
         if(!pJson["status"].isNull())
         {
             status_=std::make_shared<std::string>(pJson["status"].asString());
@@ -610,10 +602,18 @@ void PayRefund::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("amount"))
     {
-        dirtyFlag_[6] = true;
+        dirtyFlag_[5] = true;
         if(!pJson["amount"].isNull())
         {
             amount_=std::make_shared<std::string>(pJson["amount"].asString());
+        }
+    }
+    if(pJson.isMember("channel_refund_no"))
+    {
+        dirtyFlag_[6] = true;
+        if(!pJson["channel_refund_no"].isNull())
+        {
+            channelRefundNo_=std::make_shared<std::string>(pJson["channel_refund_no"].asString());
         }
     }
     if(pJson.isMember("created_at"))
@@ -758,33 +758,6 @@ void PayRefund::setPaymentNo(std::string &&pPaymentNo) noexcept
     dirtyFlag_[3] = true;
 }
 
-const std::string &PayRefund::getValueOfChannelRefundNo() const noexcept
-{
-    static const std::string defaultValue = std::string();
-    if(channelRefundNo_)
-        return *channelRefundNo_;
-    return defaultValue;
-}
-const std::shared_ptr<std::string> &PayRefund::getChannelRefundNo() const noexcept
-{
-    return channelRefundNo_;
-}
-void PayRefund::setChannelRefundNo(const std::string &pChannelRefundNo) noexcept
-{
-    channelRefundNo_ = std::make_shared<std::string>(pChannelRefundNo);
-    dirtyFlag_[4] = true;
-}
-void PayRefund::setChannelRefundNo(std::string &&pChannelRefundNo) noexcept
-{
-    channelRefundNo_ = std::make_shared<std::string>(std::move(pChannelRefundNo));
-    dirtyFlag_[4] = true;
-}
-void PayRefund::setChannelRefundNoToNull() noexcept
-{
-    channelRefundNo_.reset();
-    dirtyFlag_[4] = true;
-}
-
 const std::string &PayRefund::getValueOfStatus() const noexcept
 {
     static const std::string defaultValue = std::string();
@@ -799,12 +772,12 @@ const std::shared_ptr<std::string> &PayRefund::getStatus() const noexcept
 void PayRefund::setStatus(const std::string &pStatus) noexcept
 {
     status_ = std::make_shared<std::string>(pStatus);
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 void PayRefund::setStatus(std::string &&pStatus) noexcept
 {
     status_ = std::make_shared<std::string>(std::move(pStatus));
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 
 const std::string &PayRefund::getValueOfAmount() const noexcept
@@ -821,11 +794,38 @@ const std::shared_ptr<std::string> &PayRefund::getAmount() const noexcept
 void PayRefund::setAmount(const std::string &pAmount) noexcept
 {
     amount_ = std::make_shared<std::string>(pAmount);
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 void PayRefund::setAmount(std::string &&pAmount) noexcept
 {
     amount_ = std::make_shared<std::string>(std::move(pAmount));
+    dirtyFlag_[5] = true;
+}
+
+const std::string &PayRefund::getValueOfChannelRefundNo() const noexcept
+{
+    static const std::string defaultValue = std::string();
+    if(channelRefundNo_)
+        return *channelRefundNo_;
+    return defaultValue;
+}
+const std::shared_ptr<std::string> &PayRefund::getChannelRefundNo() const noexcept
+{
+    return channelRefundNo_;
+}
+void PayRefund::setChannelRefundNo(const std::string &pChannelRefundNo) noexcept
+{
+    channelRefundNo_ = std::make_shared<std::string>(pChannelRefundNo);
+    dirtyFlag_[6] = true;
+}
+void PayRefund::setChannelRefundNo(std::string &&pChannelRefundNo) noexcept
+{
+    channelRefundNo_ = std::make_shared<std::string>(std::move(pChannelRefundNo));
+    dirtyFlag_[6] = true;
+}
+void PayRefund::setChannelRefundNoToNull() noexcept
+{
+    channelRefundNo_.reset();
     dirtyFlag_[6] = true;
 }
 
@@ -873,9 +873,9 @@ const std::vector<std::string> &PayRefund::insertColumns() noexcept
         "refund_no",
         "order_no",
         "payment_no",
-        "channel_refund_no",
         "status",
         "amount",
+        "channel_refund_no",
         "created_at",
         "updated_at"
     };
@@ -919,17 +919,6 @@ void PayRefund::outputArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[4])
     {
-        if(getChannelRefundNo())
-        {
-            binder << getValueOfChannelRefundNo();
-        }
-        else
-        {
-            binder << nullptr;
-        }
-    }
-    if(dirtyFlag_[5])
-    {
         if(getStatus())
         {
             binder << getValueOfStatus();
@@ -939,11 +928,22 @@ void PayRefund::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getAmount())
         {
             binder << getValueOfAmount();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[6])
+    {
+        if(getChannelRefundNo())
+        {
+            binder << getValueOfChannelRefundNo();
         }
         else
         {
@@ -1049,17 +1049,6 @@ void PayRefund::updateArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[4])
     {
-        if(getChannelRefundNo())
-        {
-            binder << getValueOfChannelRefundNo();
-        }
-        else
-        {
-            binder << nullptr;
-        }
-    }
-    if(dirtyFlag_[5])
-    {
         if(getStatus())
         {
             binder << getValueOfStatus();
@@ -1069,11 +1058,22 @@ void PayRefund::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getAmount())
         {
             binder << getValueOfAmount();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[6])
+    {
+        if(getChannelRefundNo())
+        {
+            binder << getValueOfChannelRefundNo();
         }
         else
         {
@@ -1138,14 +1138,6 @@ Json::Value PayRefund::toJson() const
     {
         ret["payment_no"]=Json::Value();
     }
-    if(getChannelRefundNo())
-    {
-        ret["channel_refund_no"]=getValueOfChannelRefundNo();
-    }
-    else
-    {
-        ret["channel_refund_no"]=Json::Value();
-    }
     if(getStatus())
     {
         ret["status"]=getValueOfStatus();
@@ -1161,6 +1153,14 @@ Json::Value PayRefund::toJson() const
     else
     {
         ret["amount"]=Json::Value();
+    }
+    if(getChannelRefundNo())
+    {
+        ret["channel_refund_no"]=getValueOfChannelRefundNo();
+    }
+    else
+    {
+        ret["channel_refund_no"]=Json::Value();
     }
     if(getCreatedAt())
     {
@@ -1238,9 +1238,9 @@ Json::Value PayRefund::toMasqueradedJson(
         }
         if(!pMasqueradingVector[4].empty())
         {
-            if(getChannelRefundNo())
+            if(getStatus())
             {
-                ret[pMasqueradingVector[4]]=getValueOfChannelRefundNo();
+                ret[pMasqueradingVector[4]]=getValueOfStatus();
             }
             else
             {
@@ -1249,9 +1249,9 @@ Json::Value PayRefund::toMasqueradedJson(
         }
         if(!pMasqueradingVector[5].empty())
         {
-            if(getStatus())
+            if(getAmount())
             {
-                ret[pMasqueradingVector[5]]=getValueOfStatus();
+                ret[pMasqueradingVector[5]]=getValueOfAmount();
             }
             else
             {
@@ -1260,9 +1260,9 @@ Json::Value PayRefund::toMasqueradedJson(
         }
         if(!pMasqueradingVector[6].empty())
         {
-            if(getAmount())
+            if(getChannelRefundNo())
             {
-                ret[pMasqueradingVector[6]]=getValueOfAmount();
+                ret[pMasqueradingVector[6]]=getValueOfChannelRefundNo();
             }
             else
             {
@@ -1326,14 +1326,6 @@ Json::Value PayRefund::toMasqueradedJson(
     {
         ret["payment_no"]=Json::Value();
     }
-    if(getChannelRefundNo())
-    {
-        ret["channel_refund_no"]=getValueOfChannelRefundNo();
-    }
-    else
-    {
-        ret["channel_refund_no"]=Json::Value();
-    }
     if(getStatus())
     {
         ret["status"]=getValueOfStatus();
@@ -1349,6 +1341,14 @@ Json::Value PayRefund::toMasqueradedJson(
     else
     {
         ret["amount"]=Json::Value();
+    }
+    if(getChannelRefundNo())
+    {
+        ret["channel_refund_no"]=getValueOfChannelRefundNo();
+    }
+    else
+    {
+        ret["channel_refund_no"]=Json::Value();
     }
     if(getCreatedAt())
     {
@@ -1406,30 +1406,25 @@ bool PayRefund::validateJsonForCreation(const Json::Value &pJson, std::string &e
         err="The payment_no column cannot be null";
         return false;
     }
-    if(pJson.isMember("channel_refund_no"))
-    {
-        if(!validJsonOfField(4, "channel_refund_no", pJson["channel_refund_no"], err, true))
-            return false;
-    }
     if(pJson.isMember("status"))
     {
-        if(!validJsonOfField(5, "status", pJson["status"], err, true))
+        if(!validJsonOfField(4, "status", pJson["status"], err, true))
             return false;
-    }
-    else
-    {
-        err="The status column cannot be null";
-        return false;
     }
     if(pJson.isMember("amount"))
     {
-        if(!validJsonOfField(6, "amount", pJson["amount"], err, true))
+        if(!validJsonOfField(5, "amount", pJson["amount"], err, true))
             return false;
     }
     else
     {
         err="The amount column cannot be null";
         return false;
+    }
+    if(pJson.isMember("channel_refund_no"))
+    {
+        if(!validJsonOfField(6, "channel_refund_no", pJson["channel_refund_no"], err, true))
+            return false;
     }
     if(pJson.isMember("created_at"))
     {
@@ -1528,11 +1523,6 @@ bool PayRefund::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(6, pMasqueradingVector[6], pJson[pMasqueradingVector[6]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[6] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[7].empty())
       {
@@ -1585,19 +1575,19 @@ bool PayRefund::validateJsonForUpdate(const Json::Value &pJson, std::string &err
         if(!validJsonOfField(3, "payment_no", pJson["payment_no"], err, false))
             return false;
     }
-    if(pJson.isMember("channel_refund_no"))
-    {
-        if(!validJsonOfField(4, "channel_refund_no", pJson["channel_refund_no"], err, false))
-            return false;
-    }
     if(pJson.isMember("status"))
     {
-        if(!validJsonOfField(5, "status", pJson["status"], err, false))
+        if(!validJsonOfField(4, "status", pJson["status"], err, false))
             return false;
     }
     if(pJson.isMember("amount"))
     {
-        if(!validJsonOfField(6, "amount", pJson["amount"], err, false))
+        if(!validJsonOfField(5, "amount", pJson["amount"], err, false))
+            return false;
+    }
+    if(pJson.isMember("channel_refund_no"))
+    {
+        if(!validJsonOfField(6, "channel_refund_no", pJson["channel_refund_no"], err, false))
             return false;
     }
     if(pJson.isMember("created_at"))
@@ -1768,7 +1758,8 @@ bool PayRefund::validJsonOfField(size_t index,
         case 4:
             if(pJson.isNull())
             {
-                return true;
+                err="The " + fieldName + " column cannot be null";
+                return false;
             }
             if(!pJson.isString())
             {
@@ -1776,11 +1767,11 @@ bool PayRefund::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 64)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 64)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
@@ -1796,23 +1787,30 @@ bool PayRefund::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 24)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 24)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
         case 6:
             if(pJson.isNull())
             {
-                err="The " + fieldName + " column cannot be null";
-                return false;
+                return true;
             }
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
+                .from_bytes(pJson.asCString()).size() > 64)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 64)";
                 return false;
             }
             break;

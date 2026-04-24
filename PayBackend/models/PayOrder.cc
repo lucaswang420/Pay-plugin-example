@@ -32,11 +32,11 @@ const std::vector<typename PayOrder::MetaData> PayOrder::metaData_={
 {"id","int64_t","bigint",8,1,1,1},
 {"order_no","std::string","character varying",64,0,0,1},
 {"user_id","int64_t","bigint",8,0,0,1},
-{"amount","std::string","numeric",0,0,0,1},
+{"amount","std::string","character varying",32,0,0,1},
 {"currency","std::string","character varying",8,0,0,1},
-{"status","std::string","character varying",24,0,0,1},
-{"channel","std::string","character varying",16,0,0,1},
-{"title","std::string","character varying",128,0,0,1},
+{"status","std::string","character varying",32,0,0,1},
+{"channel","std::string","character varying",32,0,0,1},
+{"title","std::string","character varying",512,0,0,0},
 {"expire_at","::trantor::Date","timestamp without time zone",0,0,0,0},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,1},
 {"updated_at","::trantor::Date","timestamp without time zone",0,0,0,1}
@@ -1034,6 +1034,11 @@ void PayOrder::setTitle(std::string &&pTitle) noexcept
     title_ = std::make_shared<std::string>(std::move(pTitle));
     dirtyFlag_[7] = true;
 }
+void PayOrder::setTitleToNull() noexcept
+{
+    title_.reset();
+    dirtyFlag_[7] = true;
+}
 
 const ::trantor::Date &PayOrder::getValueOfExpireAt() const noexcept
 {
@@ -1752,30 +1757,15 @@ bool PayOrder::validateJsonForCreation(const Json::Value &pJson, std::string &er
         if(!validJsonOfField(5, "status", pJson["status"], err, true))
             return false;
     }
-    else
-    {
-        err="The status column cannot be null";
-        return false;
-    }
     if(pJson.isMember("channel"))
     {
         if(!validJsonOfField(6, "channel", pJson["channel"], err, true))
             return false;
     }
-    else
-    {
-        err="The channel column cannot be null";
-        return false;
-    }
     if(pJson.isMember("title"))
     {
         if(!validJsonOfField(7, "title", pJson["title"], err, true))
             return false;
-    }
-    else
-    {
-        err="The title column cannot be null";
-        return false;
     }
     if(pJson.isMember("expire_at"))
     {
@@ -1866,11 +1856,6 @@ bool PayOrder::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(5, pMasqueradingVector[5], pJson[pMasqueradingVector[5]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[5] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[6].empty())
       {
@@ -1879,11 +1864,6 @@ bool PayOrder::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(6, pMasqueradingVector[6], pJson[pMasqueradingVector[6]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[6] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[7].empty())
       {
@@ -1892,11 +1872,6 @@ bool PayOrder::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(7, pMasqueradingVector[7], pJson[pMasqueradingVector[7]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[7] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[8].empty())
       {
@@ -2140,6 +2115,14 @@ bool PayOrder::validJsonOfField(size_t index,
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
+            if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
+                .from_bytes(pJson.asCString()).size() > 32)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 32)";
+                return false;
+            }
             break;
         case 4:
             if(pJson.isNull())
@@ -2173,11 +2156,11 @@ bool PayOrder::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 24)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 24)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
@@ -2193,19 +2176,18 @@ bool PayOrder::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 16)
+                .from_bytes(pJson.asCString()).size() > 32)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 16)";
+                    " field (the maximum value is 32)";
                 return false;
             }
             break;
         case 7:
             if(pJson.isNull())
             {
-                err="The " + fieldName + " column cannot be null";
-                return false;
+                return true;
             }
             if(!pJson.isString())
             {
@@ -2213,11 +2195,11 @@ bool PayOrder::validJsonOfField(size_t index,
                 return false;
             }
             if(pJson.isString() && std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}
-                .from_bytes(pJson.asCString()).size() > 128)
+                .from_bytes(pJson.asCString()).size() > 512)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 128)";
+                    " field (the maximum value is 512)";
                 return false;
             }
             break;

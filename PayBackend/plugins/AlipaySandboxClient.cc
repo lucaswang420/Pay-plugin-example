@@ -134,6 +134,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
                                      const Json::Value &bizContent,
                                      JsonCallback &&callback)
 {
+    LOG_ERROR << "sendRequest called for method: " << method;
     try {
         // Build common parameters
         Json::Value commonParams = buildCommonParams();
@@ -177,10 +178,11 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
             }
         }
 
-        LOG_DEBUG << "Alipay request: " << method << ", data: " << bizContent.toStyledString();
+        LOG_INFO << "Alipay request: " << method << ", URL: " << gatewayUrl_;
 
-        // Send HTTP POST request
-        auto client = drogon::HttpClient::newHttpClient("openapi.alipaydev.com");
+        // Use the complete gateway URL for creating HTTP client
+        auto client = drogon::HttpClient::newHttpClient(gatewayUrl_);
+
         auto req = drogon::HttpRequest::newHttpRequest();
         req->setMethod(drogon::Post);
         req->setPath("/gateway.do");

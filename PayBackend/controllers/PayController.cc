@@ -50,20 +50,22 @@ void PayController::createPayment(
     request.notifyUrl = json->get("notify_url", "").asString();
     request.channel = json->get("channel", "alipay").asString();  // Default to alipay
 
-    // Get user_id from attributes (set by auth middleware)
-    try
+    // Get user_id from JSON body or attributes (set by auth middleware)
+    if (json->isMember("user_id"))
     {
-        request.userId = req->attributes()->get<int64_t>("user_id");
+        request.userId = (*json)["user_id"].asInt64();
     }
-    catch (const std::exception&)
+    else
     {
-        Json::Value error;
-        error["code"] = 401;
-        error["message"] = "Unauthorized: user_id not found";
-        auto resp = HttpResponse::newHttpJsonResponse(error);
-        resp->setStatusCode(k401Unauthorized);
-        callback(resp);
-        return;
+        try
+        {
+            request.userId = req->attributes()->get<int64_t>("user_id");
+        }
+        catch (const std::exception&)
+        {
+            // For API key authentication, use default user_id = 0
+            request.userId = 0;
+        }
     }
 
     // Extract scene info if present

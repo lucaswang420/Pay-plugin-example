@@ -7,6 +7,7 @@
 #include <drogon/drogon.h>
 #include <random>
 #include <sstream>
+#include <iomanip>
 
 using namespace drogon;
 using namespace drogon::orm;
@@ -106,7 +107,7 @@ namespace {
         const auto now = trantor::Date::now();
         const auto expiresAt = trantor::Date(
             now.microSecondsSinceEpoch() + ttlSeconds * static_cast<int64_t>(1000000));
-        idemp.setExpiresAt(expiresAt);
+        idemp.setExpireAt(expiresAt);
 
         Mapper<PayIdempotencyModel> idempMapper(dbClient);
         idempMapper.insert(
@@ -206,6 +207,9 @@ void PaymentService::proceedCreatePayment(
     int64_t totalFen,
     PaymentCallback&& callback) {
 
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<PaymentCallback>(std::move(callback));
+
     // Create order record in database
     Mapper<PayOrderModel> orderMapper(dbClient_);
     PayOrderModel order;
@@ -219,103 +223,72 @@ void PaymentService::proceedCreatePayment(
     order.setCreatedAt(trantor::Date::now());
     order.setUpdatedAt(trantor::Date::now());
 
-    // Build WeChat Pay request payload
+    // Build payment request payload based on channel
     Json::Value payload;
-    payload["description"] = request.description;
-    payload["out_trade_no"] = request.orderNo;
-    payload["amount"]["total"] = static_cast<Json::Int64>(totalFen);
-    payload["amount"]["currency"] = request.currency;
 
-    if (!request.notifyUrl.empty()) {
-        payload["notify_url"] = request.notifyUrl;
-    }
+    if (request.channel == "alipay") {
+        // Alipay API format
+        // Convert fen to yuan for Alipay (string format)
+        std::ostringstream yuanStream;
+        yuanStream << std::fixed << std::setprecision(2) << (totalFen / 100.0);
+        const std::string totalAmountYuan = yuanStream.str();
 
-    if (!request.sceneInfo.isNull()) {
-        payload["scene_info"] = request.sceneInfo;
+        payload["total_amount"] = totalAmountYuan;
+        payload["subject"] = request.description;  // Alipay uses 'subject' instead of 'description'
+        payload["out_trade_no"] = request.orderNo;
+        payload["buyer_id"] = "2088102146225135";  // Default sandbox buyer ID
+
+        if (!request.notifyUrl.empty()) {
+            payload["notify_url"] = request.notifyUrl;
+        }
+    } else {
+        // WeChat Pay API format (original format)
+        payload["description"] = request.description;
+        payload["out_trade_no"] = request.orderNo;
+        payload["amount"]["total"] = static_cast<Json::Int64>(totalFen);
+        payload["amount"]["currency"] = request.currency;
+
+        if (!request.notifyUrl.empty()) {
+            payload["notify_url"] = request.notifyUrl;
+        }
+
+        if (!request.sceneInfo.isNull()) {
+            payload["scene_info"] = request.sceneInfo;
+        }
     }
 
     const std::string requestPayload = pay::utils::toJsonString(payload);
 
     // Insert order into database
-    orderMapper.insert(
-        order,
-        [this, request, paymentNo, payload, requestPayload, callback](const PayOrderModel &) {
-            // Create payment record
-            Mapper<PayPaymentModel> paymentMapper(dbClient_);
-            PayPaymentModel payment;
-            payment.setOrderNo(request.orderNo);
-            payment.setPaymentNo(paymentNo);
-            payment.setStatus("INIT");
-            payment.setAmount(request.amount);
+    try {
+        orderMapper.insert(
+            order,
+            [this, request, paymentNo, payload, requestPayload, sharedCb](const PayOrderModel &) {
+                // Create payment record
+                Mapper<PayPaymentModel> paymentMapper(dbClient_);
+                PayPaymentModel payment;
+                payment.setOrderNo(request.orderNo);
+                payment.setPaymentNo(paymentNo);
+                payment.setStatus("INIT");
+                payment.setAmount(request.amount);
             payment.setRequestPayload(requestPayload);
             payment.setCreatedAt(trantor::Date::now());
             payment.setUpdatedAt(trantor::Date::now());
 
             paymentMapper.insert(
                 payment,
-                [this, request, paymentNo, payload, callback](const PayPaymentModel &) {
-                    // Call WeChat Pay API to create transaction
-                    wechatClient_->createTransactionNative(
-                        payload,
-                        [this, request, paymentNo, callback](
-                            const Json::Value &result, const std::string &error) {
+                [this, request, paymentNo, payload, sharedCb](const PayPaymentModel &) {
+                    // Helper lambda to handle payment client response
+                    auto paymentCallback = [this, request, paymentNo, sharedCb](
+                        const Json::Value &result, const std::string &error) {
 
-                            if (!error.empty()) {
-                                // Handle WeChat Pay error
-                                Json::Value errJson;
-                                errJson["error"] = error;
-                                const std::string errPayload = pay::utils::toJsonString(errJson);
+                        if (!error.empty()) {
+                            // Handle payment error
+                            Json::Value errJson;
+                            errJson["error"] = error;
+                            const std::string errPayload = pay::utils::toJsonString(errJson);
 
-                                // Update payment status to FAILED
-                                Mapper<PayPaymentModel> paymentMapper(dbClient_);
-                                auto payCriteria = Criteria(
-                                    PayPaymentModel::Cols::_payment_no,
-                                    CompareOperator::EQ,
-                                    paymentNo);
-                                paymentMapper.findOne(
-                                    payCriteria,
-                                    [this, errPayload, request](PayPaymentModel payment) {
-                                        payment.setStatus("FAIL");
-                                        payment.setResponsePayload(errPayload);
-                                        payment.setUpdatedAt(trantor::Date::now());
-                                        Mapper<PayPaymentModel> paymentUpdater(dbClient_);
-                                        paymentUpdater.update(
-                                            payment,
-                                            [this, request](const size_t) {
-                                                // Update order status to FAILED
-                                                Mapper<PayOrderModel> orderMapper(dbClient_);
-                                                auto orderCriteria = Criteria(
-                                                    PayOrderModel::Cols::_order_no,
-                                                    CompareOperator::EQ,
-                                                    request.orderNo);
-                                                orderMapper.findOne(
-                                                    orderCriteria,
-                                                    [this](PayOrderModel order) {
-                                                        order.setStatus("FAILED");
-                                                        order.setUpdatedAt(trantor::Date::now());
-                                                        Mapper<PayOrderModel> orderUpdater(dbClient_);
-                                                        orderUpdater.update(
-                                                            order,
-                                                            [](const size_t) {},
-                                                            [](const DrogonDbException &) {});
-                                                    },
-                                                    [](const DrogonDbException &) {});
-                                            },
-                                            [](const DrogonDbException &) {});
-                                    },
-                                    [](const DrogonDbException &) {});
-
-                                // Return error response
-                                Json::Value response;
-                                response["code"] = 1002;
-                                response["message"] = "WeChat Pay error: " + error;
-                                callback(response, std::error_code());
-                                return;
-                            }
-
-                            // Success - update payment and order status
-                            const std::string responsePayload = pay::utils::toJsonString(result);
-
+                            // Update payment status to FAILED
                             Mapper<PayPaymentModel> paymentMapper(dbClient_);
                             auto payCriteria = Criteria(
                                 PayPaymentModel::Cols::_payment_no,
@@ -323,17 +296,15 @@ void PaymentService::proceedCreatePayment(
                                 paymentNo);
                             paymentMapper.findOne(
                                 payCriteria,
-                                [this, request, paymentNo, result, responsePayload, callback](
-                                    PayPaymentModel payment) {
-                                    payment.setStatus("PROCESSING");
-                                    payment.setResponsePayload(responsePayload);
+                                [this, errPayload, request, sharedCb](PayPaymentModel payment) {
+                                    payment.setStatus("FAIL");
+                                    payment.setResponsePayload(errPayload);
                                     payment.setUpdatedAt(trantor::Date::now());
                                     Mapper<PayPaymentModel> paymentUpdater(dbClient_);
                                     paymentUpdater.update(
                                         payment,
-                                        [this, request, paymentNo, result, callback](
-                                            const size_t) {
-                                            // Update order status to PAYING
+                                        [this, request, sharedCb](const size_t) {
+                                            // Update order status to FAILED
                                             Mapper<PayOrderModel> orderMapper(dbClient_);
                                             auto orderCriteria = Criteria(
                                                 PayOrderModel::Cols::_order_no,
@@ -341,25 +312,110 @@ void PaymentService::proceedCreatePayment(
                                                 request.orderNo);
                                             orderMapper.findOne(
                                                 orderCriteria,
-                                                [this, request, paymentNo, result, callback](
-                                                    PayOrderModel order) {
-                                                    order.setStatus("PAYING");
+                                                [this, sharedCb](PayOrderModel order) {
+                                                    order.setStatus("FAILED");
                                                     order.setUpdatedAt(trantor::Date::now());
                                                     Mapper<PayOrderModel> orderUpdater(dbClient_);
                                                     orderUpdater.update(
                                                         order,
-                                                        [this, request, paymentNo, result, callback](
-                                                            const size_t) {
-                                                            // Build success response
-                                                            Json::Value response;
-                                                            response["code"] = 0;
-                                                            response["message"] = "Payment created successfully";
-                                                            Json::Value data;
-                                                            data["order_no"] = request.orderNo;
-                                                            data["payment_no"] = paymentNo;
-                                                            data["status"] = "PAYING";
+                                                        [](const size_t) {},
+                                                        [](const DrogonDbException &) {});
+                                                },
+                                                [sharedCb](const DrogonDbException &) {
+                                                    if (*sharedCb) {
+                                                        Json::Value response;
+                                                        response["code"] = 1003;
+                                                        response["message"] = "Database error during payment failure update";
+                                                        (*sharedCb)(response, std::error_code());
+                                                    }
+                                                });
+                                        },
+                                        [sharedCb](const DrogonDbException &) {
+                                            if (*sharedCb) {
+                                                Json::Value response;
+                                                response["code"] = 1003;
+                                                response["message"] = "Database error during payment failure update";
+                                                (*sharedCb)(response, std::error_code());
+                                            }
+                                        });
+                                },
+                                [sharedCb](const DrogonDbException &) {
+                                    if (*sharedCb) {
+                                        Json::Value response;
+                                        response["code"] = 1003;
+                                        response["message"] = "Database error during payment failure update";
+                                        (*sharedCb)(response, std::error_code());
+                                    }
+                                });
 
-                                                            // Add WeChat response details
+                            // Return error response
+                            if (*sharedCb) {
+                                Json::Value response;
+                                response["code"] = 1002;
+                                std::string channelName = request.channel == "alipay" ? "Alipay" : "WeChat Pay";
+                                response["message"] = channelName + " error: " + error;
+                                (*sharedCb)(response, std::error_code());
+                            }
+                            return;
+                        }
+
+                        // Success - update payment and order status
+                        const std::string responsePayload = pay::utils::toJsonString(result);
+
+                        Mapper<PayPaymentModel> paymentMapper(dbClient_);
+                        auto payCriteria = Criteria(
+                            PayPaymentModel::Cols::_payment_no,
+                            CompareOperator::EQ,
+                            paymentNo);
+                        paymentMapper.findOne(
+                            payCriteria,
+                            [this, request, paymentNo, result, responsePayload, sharedCb](
+                                PayPaymentModel payment) {
+                                payment.setStatus("PROCESSING");
+                                payment.setResponsePayload(responsePayload);
+                                payment.setUpdatedAt(trantor::Date::now());
+                                Mapper<PayPaymentModel> paymentUpdater(dbClient_);
+                                paymentUpdater.update(
+                                    payment,
+                                    [this, request, paymentNo, result, sharedCb](
+                                        const size_t) {
+                                        // Update order status to PAYING
+                                        Mapper<PayOrderModel> orderMapper(dbClient_);
+                                        auto orderCriteria = Criteria(
+                                            PayOrderModel::Cols::_order_no,
+                                            CompareOperator::EQ,
+                                            request.orderNo);
+                                        orderMapper.findOne(
+                                            orderCriteria,
+                                            [this, request, paymentNo, result, sharedCb](
+                                                PayOrderModel order) {
+                                                order.setStatus("PAYING");
+                                                order.setUpdatedAt(trantor::Date::now());
+                                                Mapper<PayOrderModel> orderUpdater(dbClient_);
+                                                orderUpdater.update(
+                                                    order,
+                                                    [this, request, paymentNo, result, sharedCb](
+                                                        const size_t) {
+                                                        // Build success response
+                                                        Json::Value response;
+                                                        response["code"] = 0;
+                                                        response["message"] = "Payment created successfully";
+                                                        Json::Value data;
+                                                        data["order_no"] = request.orderNo;
+                                                        data["payment_no"] = paymentNo;
+                                                        data["status"] = "PAYING";
+
+                                                        // Add payment channel response details
+                                                        if (request.channel == "alipay") {
+                                                            // Alipay response
+                                                            data["alipay_response"] = result;
+                                                            const auto qrCode = result.get("qr_code", "").asString();
+                                                            if (!qrCode.empty()) {
+                                                                data["qr_code"] = qrCode;
+                                                            }
+                                                        } else {
+                                                            // WeChat Pay response
+                                                            data["wechat_response"] = result;
                                                             const auto codeUrl = result.get("code_url", "").asString();
                                                             if (!codeUrl.empty()) {
                                                                 data["code_url"] = codeUrl;
@@ -368,53 +424,87 @@ void PaymentService::proceedCreatePayment(
                                                             if (!prepayId.empty()) {
                                                                 data["prepay_id"] = prepayId;
                                                             }
-                                                            data["wechat_response"] = result;
+                                                        }
 
-                                                            response["data"] = data;
-                                                            callback(response, std::error_code());
-                                                        },
-                                                        [callback](const DrogonDbException &e) {
+                                                        response["data"] = data;
+                                                        if (*sharedCb) {
+                                                            (*sharedCb)(response, std::error_code());
+                                                        }
+                                                    },
+                                                    [sharedCb](const DrogonDbException &e) {
+                                                        if (*sharedCb) {
                                                             Json::Value response;
                                                             response["code"] = 1003;
                                                             response["message"] = "Database error: " + std::string(e.base().what());
-                                                            callback(response, std::error_code());
-                                                        });
-                                                },
-                                                [callback](const DrogonDbException &e) {
+                                                            (*sharedCb)(response, std::error_code());
+                                                        }
+                                                    });
+                                            },
+                                            [sharedCb](const DrogonDbException &e) {
+                                                if (*sharedCb) {
                                                     Json::Value response;
                                                     response["code"] = 1003;
                                                     response["message"] = "Database error: " + std::string(e.base().what());
-                                                    callback(response, std::error_code());
-                                                });
-                                        },
-                                        [callback](const DrogonDbException &e) {
+                                                    (*sharedCb)(response, std::error_code());
+                                                }
+                                            });
+                                    },
+                                    [sharedCb](const DrogonDbException &e) {
+                                        if (*sharedCb) {
                                             Json::Value response;
                                             response["code"] = 1003;
                                             response["message"] = "Database error: " + std::string(e.base().what());
-                                            callback(response, std::error_code());
-                                        });
-                                },
-                                [callback](const DrogonDbException &e) {
+                                            (*sharedCb)(response, std::error_code());
+                                        }
+                                    });
+                            },
+                            [sharedCb](const DrogonDbException &e) {
+                                if (*sharedCb) {
                                     Json::Value response;
                                     response["code"] = 1003;
                                     response["message"] = "Database error: " + std::string(e.base().what());
-                                    callback(response, std::error_code());
-                                });
-                        });
+                                    (*sharedCb)(response, std::error_code());
+                                }
+                            });
+                    };
+
+                    // Route to appropriate payment client based on channel
+                    LOG_ERROR << "About to call payment client, channel: " << request.channel;
+                    if (request.channel == "alipay") {
+                        // Call Alipay Sandbox API to create trade
+                        LOG_ERROR << "Calling Alipay createTrade with payload: " << payload.toStyledString();
+                        alipayClient_->createTrade(payload, paymentCallback);
+                    } else {
+                        // Call WeChat Pay API to create transaction
+                        LOG_ERROR << "Calling WeChat createTransactionNative";
+                        wechatClient_->createTransactionNative(payload, paymentCallback);
+                    }
                 },
-                [callback](const DrogonDbException &e) {
-                    Json::Value response;
-                    response["code"] = 1003;
-                    response["message"] = "Database error: " + std::string(e.base().what());
-                    callback(response, std::make_error_code(std::errc::io_error));
+                [sharedCb](const DrogonDbException &e) {
+                    if (*sharedCb) {
+                        Json::Value response;
+                        response["code"] = 1003;
+                        response["message"] = "Database error: " + std::string(e.base().what());
+                        (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                    }
                 });
         },
-        [callback](const DrogonDbException &e) {
+        [sharedCb](const DrogonDbException &e) {
+            if (*sharedCb) {
+                Json::Value response;
+                response["code"] = 1003;
+                response["message"] = "Database error: " + std::string(e.base().what());
+                (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+            }
+        });
+    } catch (const std::exception& e) {
+        if (*sharedCb) {
             Json::Value response;
             response["code"] = 1003;
-            response["message"] = "Database error: " + std::string(e.base().what());
-            callback(response, std::make_error_code(std::errc::io_error));
-        });
+            response["message"] = "Exception during payment creation: " + std::string(e.what());
+            (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+        }
+    }
 }
 
 void PaymentService::queryOrder(
@@ -437,6 +527,9 @@ void PaymentService::queryOrder(
         return;
     }
 
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<PaymentCallback>(std::move(callback));
+
     // Query order from database
     Mapper<PayOrderModel> orderMapper(dbClient_);
     auto criteria = Criteria(
@@ -446,7 +539,7 @@ void PaymentService::queryOrder(
 
     orderMapper.findOne(
         criteria,
-        [this, orderNo, callback](const PayOrderModel &order) {
+        [this, orderNo, sharedCb](const PayOrderModel &order) {
             Json::Value response;
             response["code"] = 0;
             response["message"] = "Order found";
@@ -462,20 +555,24 @@ void PaymentService::queryOrder(
             // If not WeChat channel or WeChat client not available, return database data
             if (!wechatClient_ || order.getValueOfChannel() != "wechat") {
                 response["data"] = data;
-                callback(response, std::error_code());
+                if (*sharedCb) {
+                    (*sharedCb)(response, std::error_code());
+                }
                 return;
             }
 
             // Query transaction from WeChat Pay
             wechatClient_->queryTransaction(
                 orderNo,
-                [this, orderNo, data, callback](
+                [this, orderNo, data, sharedCb](
                     const Json::Value &result, const std::string &error) {
                     if (!error.empty()) {
                         // Return database data with error header
                         Json::Value response = data;
                         response["wechat_query_error"] = error;
-                        callback(response, std::error_code());
+                        if (*sharedCb) {
+                            (*sharedCb)(response, std::error_code());
+                        }
                         return;
                     }
 
@@ -483,7 +580,7 @@ void PaymentService::queryOrder(
                     syncOrderStatusFromWechat(
                         orderNo,
                         result,
-                        [data, result, callback](const std::string &status) {
+                        [data, result, sharedCb](const std::string &status) {
                             Json::Value response = data;
                             if (!status.empty()) {
                                 response["status"] = status;
@@ -493,15 +590,19 @@ void PaymentService::queryOrder(
                                 response["channel_refund_no"] = channelRefundNo;
                             }
                             response["wechat_response"] = result;
-                            callback(response, std::error_code());
+                            if (*sharedCb) {
+                                (*sharedCb)(response, std::error_code());
+                            }
                         });
                 });
         },
-        [callback](const DrogonDbException &e) {
-            Json::Value response;
-            response["code"] = 1004;
-            response["message"] = "Order not found: " + std::string(e.base().what());
-            callback(response, std::error_code());
+        [sharedCb](const DrogonDbException &e) {
+            if (*sharedCb) {
+                Json::Value response;
+                response["code"] = 1004;
+                response["message"] = "Order not found: " + std::string(e.base().what());
+                (*sharedCb)(response, std::error_code());
+            }
         });
 }
 
@@ -720,18 +821,23 @@ void PaymentService::reconcileSummary(
     (*summary)["oldest_paying_updated"] = "";
     (*summary)["oldest_refund_updated"] = "";
 
-    auto finishIfReady = [callback, responded, pending, summary]() {
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<PaymentCallback>(std::move(callback));
+
+    auto finishIfReady = [sharedCb, responded, pending, summary]() {
         if (pending->fetch_sub(1) != 1) {
             return;
         }
         if (responded->exchange(true)) {
             return;
         }
-        Json::Value response;
-        response["code"] = 0;
-        response["message"] = "Reconciliation summary";
-        response["data"] = *summary;
-        callback(response, std::error_code());
+        if (*sharedCb) {
+            Json::Value response;
+            response["code"] = 0;
+            response["message"] = "Reconciliation summary";
+            response["data"] = *summary;
+            (*sharedCb)(response, std::error_code());
+        }
     };
 
     // Query paying orders
@@ -749,14 +855,16 @@ void PaymentService::reconcileSummary(
             }
             finishIfReady();
         },
-        [callback, responded](const DrogonDbException &e) {
+        [sharedCb, responded](const DrogonDbException &e) {
             if (responded->exchange(true)) {
                 return;
             }
-            Json::Value response;
-            response["code"] = 1003;
-            response["message"] = "Database error: " + std::string(e.base().what());
-            callback(response, std::make_error_code(std::errc::io_error));
+            if (*sharedCb) {
+                Json::Value response;
+                response["code"] = 1003;
+                response["message"] = "Database error: " + std::string(e.base().what());
+                (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+            }
         },
         "PAYING");
 
@@ -775,14 +883,16 @@ void PaymentService::reconcileSummary(
             }
             finishIfReady();
         },
-        [callback, responded](const DrogonDbException &e) {
+        [sharedCb, responded](const DrogonDbException &e) {
             if (responded->exchange(true)) {
                 return;
             }
-            Json::Value response;
-            response["code"] = 1003;
-            response["message"] = "Database error: " + std::string(e.base().what());
-            callback(response, std::make_error_code(std::errc::io_error));
+            if (*sharedCb) {
+                Json::Value response;
+                response["code"] = 1003;
+                response["message"] = "Database error: " + std::string(e.base().what());
+                (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+            }
         },
         "REFUND_INIT",
         "REFUNDING");

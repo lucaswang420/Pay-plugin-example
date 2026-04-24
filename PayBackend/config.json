@@ -16,7 +16,7 @@
             "user": "test",
             "passwd": "123456",
             "is_fast": false,
-            "client_encoding": "",
+            "client_encoding": "UTF8",
             "number_of_connections": 32,
             "timeout": -1.0,
             "auto_batch": false,
@@ -230,8 +230,11 @@
             ]
         },
         "pay": {
+            "api_keys": [
+                "test_key_123456"
+            ],
             "api_key_scopes": {
-                "__env_var__": [
+                "test_key_123456": [
                     "read",
                     "write",
                     "admin",

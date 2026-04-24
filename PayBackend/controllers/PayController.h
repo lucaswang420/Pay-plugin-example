@@ -9,7 +9,11 @@ class PayController : public drogon::HttpController<PayController>
 {
   public:
     METHOD_LIST_BEGIN
-    ADD_METHOD_TO(PayController::createPayment, "/api/pay/create", Post, Options);
+    ADD_METHOD_TO(PayController::createPayment,
+                  "/api/pay/create",
+                  Post,
+                  Options,
+                  "PayAuthFilter");
     ADD_METHOD_TO(PayController::queryOrder,
                   "/api/pay/query",
                   Get,

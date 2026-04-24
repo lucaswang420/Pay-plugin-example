@@ -175,6 +175,7 @@ class PayOrder
     ///Set the value of the column title
     void setTitle(const std::string &pTitle) noexcept;
     void setTitle(std::string &&pTitle) noexcept;
+    void setTitleToNull() noexcept;
 
     /**  For column expire_at  */
     ///Get the value of the column expire_at, returns the default value if the column is null
@@ -287,15 +288,17 @@ class PayOrder
         {
             needSelection=true;
         }
-        if(dirtyFlag_[5])
+        sql += "status,";
+        ++parametersCount;
+        if(!dirtyFlag_[5])
         {
-            sql += "status,";
-            ++parametersCount;
+            needSelection=true;
         }
-        if(dirtyFlag_[6])
+        sql += "channel,";
+        ++parametersCount;
+        if(!dirtyFlag_[6])
         {
-            sql += "channel,";
-            ++parametersCount;
+            needSelection=true;
         }
         if(dirtyFlag_[7])
         {
@@ -361,10 +364,18 @@ class PayOrder
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
         }
+        else
+        {
+            sql +="default,";
+        }
         if(dirtyFlag_[6])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
         }
         if(dirtyFlag_[7])
         {

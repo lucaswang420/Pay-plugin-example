@@ -48,9 +48,9 @@ class PayRefund
         static const std::string _refund_no;
         static const std::string _order_no;
         static const std::string _payment_no;
-        static const std::string _channel_refund_no;
         static const std::string _status;
         static const std::string _amount;
+        static const std::string _channel_refund_no;
         static const std::string _created_at;
         static const std::string _updated_at;
     };
@@ -139,16 +139,6 @@ class PayRefund
     void setPaymentNo(const std::string &pPaymentNo) noexcept;
     void setPaymentNo(std::string &&pPaymentNo) noexcept;
 
-    /**  For column channel_refund_no  */
-    ///Get the value of the column channel_refund_no, returns the default value if the column is null
-    const std::string &getValueOfChannelRefundNo() const noexcept;
-    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<std::string> &getChannelRefundNo() const noexcept;
-    ///Set the value of the column channel_refund_no
-    void setChannelRefundNo(const std::string &pChannelRefundNo) noexcept;
-    void setChannelRefundNo(std::string &&pChannelRefundNo) noexcept;
-    void setChannelRefundNoToNull() noexcept;
-
     /**  For column status  */
     ///Get the value of the column status, returns the default value if the column is null
     const std::string &getValueOfStatus() const noexcept;
@@ -166,6 +156,16 @@ class PayRefund
     ///Set the value of the column amount
     void setAmount(const std::string &pAmount) noexcept;
     void setAmount(std::string &&pAmount) noexcept;
+
+    /**  For column channel_refund_no  */
+    ///Get the value of the column channel_refund_no, returns the default value if the column is null
+    const std::string &getValueOfChannelRefundNo() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<std::string> &getChannelRefundNo() const noexcept;
+    ///Set the value of the column channel_refund_no
+    void setChannelRefundNo(const std::string &pChannelRefundNo) noexcept;
+    void setChannelRefundNo(std::string &&pChannelRefundNo) noexcept;
+    void setChannelRefundNoToNull() noexcept;
 
     /**  For column created_at  */
     ///Get the value of the column created_at, returns the default value if the column is null
@@ -210,9 +210,9 @@ class PayRefund
     std::shared_ptr<std::string> refundNo_;
     std::shared_ptr<std::string> orderNo_;
     std::shared_ptr<std::string> paymentNo_;
-    std::shared_ptr<std::string> channelRefundNo_;
     std::shared_ptr<std::string> status_;
     std::shared_ptr<std::string> amount_;
+    std::shared_ptr<std::string> channelRefundNo_;
     std::shared_ptr<::trantor::Date> createdAt_;
     std::shared_ptr<::trantor::Date> updatedAt_;
     struct MetaData
@@ -261,19 +261,20 @@ class PayRefund
             sql += "payment_no,";
             ++parametersCount;
         }
-        if(dirtyFlag_[4])
+        sql += "status,";
+        ++parametersCount;
+        if(!dirtyFlag_[4])
         {
-            sql += "channel_refund_no,";
-            ++parametersCount;
+            needSelection=true;
         }
         if(dirtyFlag_[5])
         {
-            sql += "status,";
+            sql += "amount,";
             ++parametersCount;
         }
         if(dirtyFlag_[6])
         {
-            sql += "amount,";
+            sql += "channel_refund_no,";
             ++parametersCount;
         }
         sql += "created_at,";
@@ -320,6 +321,10 @@ class PayRefund
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
         }
         if(dirtyFlag_[5])
         {

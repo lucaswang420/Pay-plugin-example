@@ -313,7 +313,7 @@ void CallbackService::handlePaymentCallback(
                 const auto expiresAt = trantor::Date(
                     now.microSecondsSinceEpoch() +
                     static_cast<int64_t>(7) * 24 * 60 * 60 * 1000000);
-                idemp.setExpiresAt(expiresAt);
+                idemp.setExpireAt(expiresAt);
 
                 dbClient_->newTransactionAsync(
                     [this,
@@ -802,7 +802,7 @@ void CallbackService::handleRefundCallback(
                 const auto expiresAt = trantor::Date(
                     now.microSecondsSinceEpoch() +
                     static_cast<int64_t>(7) * 24 * 60 * 60 * 1000000);
-                idemp.setExpiresAt(expiresAt);
+                idemp.setExpireAt(expiresAt);
 
                 drogon::orm::Mapper<PayIdempotencyModel> idempInsert(dbClient_);
                 idempInsert.insert(

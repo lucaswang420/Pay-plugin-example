@@ -18,94 +18,138 @@ void IdempotencyService::checkAndSet(
     const Json::Value& request,
     CheckCallback&& callback) {
 
-    // Step 1: Check Redis first (fast path)
-    std::string redisKey = "idempotency:" + idempotencyKey;
-    redisClient_->execCommandAsync(
-        [this, idempotencyKey, requestHash, request, callback](const nosql::RedisResult& result) {
-            if (!result.isNil()) {
-                // Cache hit - return cached result
-                try {
-                    Json::Value cached = Json::Value();
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<CheckCallback>(std::move(callback));
+
+    // Step 1: Check Redis first (fast path) - only if Redis client is available
+    if (redisClient_) {
+        std::string redisKey = "idempotency:" + idempotencyKey;
+        redisClient_->execCommandAsync(
+            [this, idempotencyKey, requestHash, request, sharedCb](const nosql::RedisResult& result) {
+                if (!result.isNil()) {
+                    // Cache hit - return cached result
+                    try {
+                        Json::Value cached = Json::Value();
+                        Json::CharReaderBuilder builder;
+                        std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+                        std::string errors;
+                        const char* str = result.asString().c_str();
+                        reader->parse(str, str + result.asString().length(), &cached, &errors);
+
+                        if (*sharedCb) {
+                            if (cached["request_hash"].asString() == requestHash) {
+                                // Same request - return cached response
+                                (*sharedCb)(true, cached["response"]);
+                            } else {
+                                // Different request - idempotency conflict
+                                (*sharedCb)(false, Json::Value());
+                            }
+                        }
+                    } catch (...) {
+                        if (*sharedCb) {
+                            (*sharedCb)(false, Json::Value());
+                        }
+                    }
+                    return;
+                }
+
+                // Cache miss - check database
+                checkDatabase(idempotencyKey, requestHash, request, std::move(*sharedCb));
+            },
+            [this, idempotencyKey, requestHash, request, sharedCb](const std::exception& e) {
+                // Redis error - fall back to database
+                LOG_WARN << "Redis idempotency check failed: " << e.what();
+                checkDatabase(idempotencyKey, requestHash, request, std::move(*sharedCb));
+            },
+            "GET %s",
+            redisKey.c_str()
+        );
+    } else {
+        // Redis not available - check database directly
+        checkDatabase(idempotencyKey, requestHash, request, std::move(*sharedCb));
+    }
+}
+
+void IdempotencyService::checkDatabase(
+    const std::string& idempotencyKey,
+    const std::string& requestHash,
+    const Json::Value& request,
+    CheckCallback&& callback) {
+
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<CheckCallback>(std::move(callback));
+
+    // Step 2: Check database
+    dbClient_->execSqlAsync(
+        "SELECT request_hash, response_snapshot FROM pay_idempotency WHERE idempotency_key = $1",
+        [this, idempotencyKey, requestHash, request, sharedCb](const orm::Result& rows) {
+            if (!rows.empty()) {
+                std::string cachedHash = rows[0]["request_hash"].c_str();
+
+                if (cachedHash == requestHash) {
+                    // Same request - backfill Redis and return
+                    Json::Value response;
                     Json::CharReaderBuilder builder;
                     std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
                     std::string errors;
-                    const char* str = result.asString().c_str();
-                    reader->parse(str, str + result.asString().length(), &cached, &errors);
+                    const char* str = rows[0]["response_snapshot"].c_str();
+                    reader->parse(str, str + strlen(str), &response, &errors);
 
-                    if (cached["request_hash"].asString() == requestHash) {
-                        // Same request - return cached response
-                        callback(true, cached["response"]);
+                    // Update Redis cache if available
+                    if (redisClient_) {
+                        Json::Value cached;
+                        cached["request_hash"] = requestHash;
+                        cached["response"] = response;
+
+                        std::string redisKey = "idempotency:" + idempotencyKey;
+                        std::string cacheStr = Json::writeString(Json::StreamWriterBuilder(), cached);
+
+                        redisClient_->execCommandAsync(
+                            [sharedCb, response](const nosql::RedisResult&) {
+                                if (*sharedCb) {
+                                    (*sharedCb)(true, response);
+                                }
+                            },
+                            [sharedCb, response](const nosql::RedisException&) {
+                                // Ignore Redis errors - DB is source of truth
+                                if (*sharedCb) {
+                                    (*sharedCb)(true, response);
+                                }
+                            },
+                            "SETEX %s %d %s",
+                            redisKey.c_str(),
+                            ttlSeconds_,
+                            cacheStr.c_str()
+                        );
                     } else {
-                        // Different request - idempotency conflict
-                        callback(false, Json::Value());
+                        if (*sharedCb) {
+                            (*sharedCb)(true, response);
+                        }
                     }
-                } catch (...) {
-                    callback(false, Json::Value());
+                } else {
+                    // Different request - conflict
+                    if (*sharedCb) {
+                        (*sharedCb)(false, Json::Value());
+                    }
                 }
                 return;
             }
 
-            // Step 2: Check database
-            dbClient_->execSqlAsync(
-                "SELECT request_hash, response FROM pay_idempotency WHERE key = $1",
-                [this, idempotencyKey, requestHash, request, callback](const orm::Result& rows) {
-                    if (!rows.empty()) {
-                        std::string cachedHash = rows[0]["request_hash"].c_str();
-
-                        if (cachedHash == requestHash) {
-                            // Same request - backfill Redis and return
-                            Json::Value response;
-                            Json::CharReaderBuilder builder;
-                            std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-                            std::string errors;
-                            const char* str = rows[0]["response"].c_str();
-                            reader->parse(str, str + strlen(str), &response, &errors);
-
-                            // Update Redis cache
-                            Json::Value cached;
-                            cached["request_hash"] = requestHash;
-                            cached["response"] = response;
-
-                            std::string redisKey = "idempotency:" + idempotencyKey;
-                            std::string cacheStr = Json::writeString(Json::StreamWriterBuilder(), cached);
-
-                            redisClient_->execCommandAsync(
-                                [callback, response](const nosql::RedisResult&) {
-                                    callback(true, response);
-                                },
-                                [](const nosql::RedisException&) {
-                                    // Ignore Redis errors - DB is source of truth
-                                },
-                                "SETEX %s %d %s",
-                                redisKey.c_str(),
-                                ttlSeconds_,
-                                cacheStr.c_str()
-                            );
-                        } else {
-                            // Different request - conflict
-                            callback(false, Json::Value());
-                        }
-                        return;
-                    }
-
-                    // Step 3: First request - insert placeholder
-                    insertToDatabase(idempotencyKey, requestHash, request, [callback]() {
-                        callback(true, Json::Value());
-                    });
-                },
-                [callback](const orm::DrogonDbException& e) {
-                    // On database error, fail the idempotency check
-                    LOG_ERROR << "Idempotency DB check error: " << e.base().what();
-                    callback(false, Json::Value());
-                },
-                idempotencyKey
-            );
+            // Step 3: First request - insert placeholder
+            insertToDatabase(idempotencyKey, requestHash, request, [sharedCb]() {
+                if (*sharedCb) {
+                    (*sharedCb)(true, Json::Value());
+                }
+            });
         },
-        [](const nosql::RedisException&) {
-            // On Redis error, fall through to database check
+        [sharedCb](const orm::DrogonDbException& e) {
+            // On database error, fail the idempotency check
+            LOG_ERROR << "Idempotency DB check error: " << e.base().what();
+            if (*sharedCb) {
+                (*sharedCb)(false, Json::Value());
+            }
         },
-        "GET %s",
-        redisKey.c_str()
+        idempotencyKey
     );
 }
 
@@ -114,13 +158,18 @@ void IdempotencyService::updateResult(
     const Json::Value& response,
     UpdateCallback&& callback) {
 
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<UpdateCallback>(std::move(callback));
+
     // First, get the request_hash from database to maintain cache structure consistency
     dbClient_->execSqlAsync(
-        "SELECT request_hash FROM pay_idempotency WHERE key = $1",
-        [this, idempotencyKey, response, callback](const orm::Result& rows) {
+        "SELECT request_hash FROM pay_idempotency WHERE idempotency_key = $1",
+        [this, idempotencyKey, response, sharedCb](const orm::Result& rows) {
             if (rows.empty()) {
                 LOG_ERROR << "IdempotencyService::updateResult: Key not found in database: " << idempotencyKey;
-                callback();
+                if (*sharedCb) {
+                    (*sharedCb)();
+                }
                 return;
             }
 
@@ -129,40 +178,54 @@ void IdempotencyService::updateResult(
 
             // Update database with response
             dbClient_->execSqlAsync(
-                "UPDATE pay_idempotency SET response = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2",
-                [this, idempotencyKey, requestHash, response, callback](const orm::Result& result) {
-                    // Update Redis cache with proper structure (including request_hash)
-                    Json::Value cached;
-                    cached["request_hash"] = requestHash;
-                    cached["response"] = response;
+                "UPDATE pay_idempotency SET response_snapshot = $1, updated_at = CURRENT_TIMESTAMP WHERE idempotency_key = $2",
+                [this, idempotencyKey, requestHash, response, sharedCb](const orm::Result& result) {
+                    // Update Redis cache with proper structure (including request_hash) if available
+                    if (redisClient_) {
+                        Json::Value cached;
+                        cached["request_hash"] = requestHash;
+                        cached["response"] = response;
 
-                    std::string redisKey = "idempotency:" + idempotencyKey;
-                    std::string cacheStr = Json::writeString(Json::StreamWriterBuilder(), cached);
+                        std::string redisKey = "idempotency:" + idempotencyKey;
+                        std::string cacheStr = Json::writeString(Json::StreamWriterBuilder(), cached);
 
-                    redisClient_->execCommandAsync(
-                        [callback](const nosql::RedisResult&) {
-                            callback();
-                        },
-                        [callback](const nosql::RedisException&) {
-                            // Ignore Redis errors - DB is source of truth
-                            callback();
-                        },
-                        "SETEX %s %d %s",
-                        redisKey.c_str(),
-                        ttlSeconds_,
-                        cacheStr.c_str()
-                    );
+                        redisClient_->execCommandAsync(
+                            [sharedCb](const nosql::RedisResult&) {
+                                if (*sharedCb) {
+                                    (*sharedCb)();
+                                }
+                            },
+                            [sharedCb](const nosql::RedisException&) {
+                                // Ignore Redis errors - DB is source of truth
+                                if (*sharedCb) {
+                                    (*sharedCb)();
+                                }
+                            },
+                            "SETEX %s %d %s",
+                            redisKey.c_str(),
+                            ttlSeconds_,
+                            cacheStr.c_str()
+                        );
+                    } else {
+                        if (*sharedCb) {
+                            (*sharedCb)();
+                        }
+                    }
                 },
-                [callback](const orm::DrogonDbException& e) {
+                [sharedCb](const orm::DrogonDbException& e) {
                     LOG_ERROR << "Idempotency DB update error: " << e.base().what();
-                    callback();
+                    if (*sharedCb) {
+                        (*sharedCb)();
+                    }
                 },
                 responseStr, idempotencyKey
             );
         },
-        [callback](const orm::DrogonDbException& e) {
+        [sharedCb](const orm::DrogonDbException& e) {
             LOG_ERROR << "Idempotency DB query error: " << e.base().what();
-            callback();
+            if (*sharedCb) {
+                (*sharedCb)();
+            }
         },
         idempotencyKey
     );
@@ -174,38 +237,58 @@ void IdempotencyService::insertToDatabase(
     const Json::Value& request,
     std::function<void()>&& callback) {
 
-    std::string requestStr = Json::writeString(Json::StreamWriterBuilder(), request);
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<std::function<void()>>(std::move(callback));
+
+    // Build cached response structure (empty response initially)
+    Json::Value cachedResponse;
+    cachedResponse["request_hash"] = hash;
+    cachedResponse["request"] = request;
+    cachedResponse["response"] = Json::Value();
+    std::string responseStr = Json::writeString(Json::StreamWriterBuilder(), cachedResponse);
 
     dbClient_->execSqlAsync(
-        "INSERT INTO pay_idempotency (key, request_hash, request) VALUES ($1, $2, $3)",
-        [this, key, hash, request, callback](const orm::Result& result) {
-            // Backfill Redis
-            Json::Value cached;
-            cached["request_hash"] = hash;
-            cached["request"] = request;
-            cached["response"] = Json::Value();
+        "INSERT INTO pay_idempotency (idempotency_key, request_hash, response_snapshot) VALUES ($1, $2, $3)",
+        [this, key, hash, request, sharedCb](const orm::Result& result) {
+            // Backfill Redis if available
+            if (redisClient_) {
+                Json::Value cached;
+                cached["request_hash"] = hash;
+                cached["request"] = request;
+                cached["response"] = Json::Value();
 
-            std::string redisKey = "idempotency:" + key;
-            std::string cacheStr = Json::writeString(Json::StreamWriterBuilder(), cached);
+                std::string redisKey = "idempotency:" + key;
+                std::string cacheStr = Json::writeString(Json::StreamWriterBuilder(), cached);
 
-            redisClient_->execCommandAsync(
-                [callback](const nosql::RedisResult&) {
-                    callback();
-                },
-                [callback](const nosql::RedisException&) {
-                    // Ignore Redis errors - DB is source of truth
-                    callback();
-                },
-                "SETEX %s %d %s",
-                redisKey.c_str(),
-                ttlSeconds_,
-                cacheStr.c_str()
-            );
+                redisClient_->execCommandAsync(
+                    [sharedCb](const nosql::RedisResult&) {
+                        if (*sharedCb) {
+                            (*sharedCb)();
+                        }
+                    },
+                    [sharedCb](const nosql::RedisException&) {
+                        // Ignore Redis errors - DB is source of truth
+                        if (*sharedCb) {
+                            (*sharedCb)();
+                        }
+                    },
+                    "SETEX %s %d %s",
+                    redisKey.c_str(),
+                    ttlSeconds_,
+                    cacheStr.c_str()
+                );
+            } else {
+                if (*sharedCb) {
+                    (*sharedCb)();
+                }
+            }
         },
-        [callback](const orm::DrogonDbException& e) {
+        [sharedCb](const orm::DrogonDbException& e) {
             LOG_ERROR << "Idempotency DB insert error: " << e.base().what();
-            callback();
+            if (*sharedCb) {
+                (*sharedCb)();
+            }
         },
-        key, hash, requestStr
+        key, hash, responseStr
     );
 }

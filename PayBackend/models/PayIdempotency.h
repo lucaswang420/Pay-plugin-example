@@ -47,7 +47,9 @@ class PayIdempotency
         static const std::string _idempotency_key;
         static const std::string _request_hash;
         static const std::string _response_snapshot;
-        static const std::string _expires_at;
+        static const std::string _expire_at;
+        static const std::string _created_at;
+        static const std::string _updated_at;
     };
 
     static const int primaryKeyNumber;
@@ -127,17 +129,33 @@ class PayIdempotency
     void setResponseSnapshot(std::string &&pResponseSnapshot) noexcept;
     void setResponseSnapshotToNull() noexcept;
 
-    /**  For column expires_at  */
-    ///Get the value of the column expires_at, returns the default value if the column is null
-    const ::trantor::Date &getValueOfExpiresAt() const noexcept;
+    /**  For column expire_at  */
+    ///Get the value of the column expire_at, returns the default value if the column is null
+    const ::trantor::Date &getValueOfExpireAt() const noexcept;
     ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<::trantor::Date> &getExpiresAt() const noexcept;
-    ///Set the value of the column expires_at
-    void setExpiresAt(const ::trantor::Date &pExpiresAt) noexcept;
-    void setExpiresAtToNull() noexcept;
+    const std::shared_ptr<::trantor::Date> &getExpireAt() const noexcept;
+    ///Set the value of the column expire_at
+    void setExpireAt(const ::trantor::Date &pExpireAt) noexcept;
+    void setExpireAtToNull() noexcept;
+
+    /**  For column created_at  */
+    ///Get the value of the column created_at, returns the default value if the column is null
+    const ::trantor::Date &getValueOfCreatedAt() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<::trantor::Date> &getCreatedAt() const noexcept;
+    ///Set the value of the column created_at
+    void setCreatedAt(const ::trantor::Date &pCreatedAt) noexcept;
+
+    /**  For column updated_at  */
+    ///Get the value of the column updated_at, returns the default value if the column is null
+    const ::trantor::Date &getValueOfUpdatedAt() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<::trantor::Date> &getUpdatedAt() const noexcept;
+    ///Set the value of the column updated_at
+    void setUpdatedAt(const ::trantor::Date &pUpdatedAt) noexcept;
 
 
-    static size_t getColumnNumber() noexcept {  return 4;  }
+    static size_t getColumnNumber() noexcept {  return 6;  }
     static const std::string &getColumnName(size_t index) noexcept(false);
 
     Json::Value toJson() const;
@@ -162,7 +180,9 @@ class PayIdempotency
     std::shared_ptr<std::string> idempotencyKey_;
     std::shared_ptr<std::string> requestHash_;
     std::shared_ptr<std::string> responseSnapshot_;
-    std::shared_ptr<::trantor::Date> expiresAt_;
+    std::shared_ptr<::trantor::Date> expireAt_;
+    std::shared_ptr<::trantor::Date> createdAt_;
+    std::shared_ptr<::trantor::Date> updatedAt_;
     struct MetaData
     {
         const std::string colName_;
@@ -174,7 +194,7 @@ class PayIdempotency
         const bool notNull_;
     };
     static const std::vector<MetaData> metaData_;
-    bool dirtyFlag_[4]={ false };
+    bool dirtyFlag_[6]={ false };
   public:
     static const std::string &sqlForFindingByPrimaryKey()
     {
@@ -209,8 +229,20 @@ class PayIdempotency
         }
         if(dirtyFlag_[3])
         {
-            sql += "expires_at,";
+            sql += "expire_at,";
             ++parametersCount;
+        }
+        sql += "created_at,";
+        ++parametersCount;
+        if(!dirtyFlag_[4])
+        {
+            needSelection=true;
+        }
+        sql += "updated_at,";
+        ++parametersCount;
+        if(!dirtyFlag_[5])
+        {
+            needSelection=true;
         }
         if(parametersCount > 0)
         {
@@ -242,6 +274,24 @@ class PayIdempotency
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
+        }
+        if(dirtyFlag_[4])
+        {
+            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
+            sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
+        }
+        if(dirtyFlag_[5])
+        {
+            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
+            sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
         }
         if(parametersCount > 0)
         {
