@@ -6,10 +6,12 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/bio.h>
+#include <openssl/evp.h>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <trantor/utils/Logger.h>
+#include <ctime>
 
 AlipaySandboxClient::AlipaySandboxClient(const Json::Value &config)
     : config_(config)
@@ -134,12 +136,18 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
                                      const Json::Value &bizContent,
                                      JsonCallback &&callback)
 {
-    LOG_ERROR << "sendRequest called for method: " << method;
+    LOG_DEBUG << "sendRequest called for method: " << method;
     try {
         // Build common parameters
         Json::Value commonParams = buildCommonParams();
         commonParams["method"] = method;
-        commonParams["biz_content"] = bizContent.toStyledString();
+
+        // Convert bizContent to compact JSON string (no spaces/newlines)
+        Json::StreamWriterBuilder builder;
+        builder["indentation"] = "";
+        std::string bizContentStr = Json::writeString(builder, bizContent);
+        commonParams["biz_content"] = bizContentStr;
+
         commonParams["charset"] = "utf-8";
         commonParams["version"] = "1.0";
         commonParams["sign_type"] = "RSA2";
@@ -149,7 +157,10 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         std::vector<std::string> keys;
 
         for (const auto &key : commonParams.getMemberNames()) {
-            keys.push_back(key);
+            // Exclude sign and sign_type from signature calculation (Alipay requirement)
+            if (key != "sign" && key != "sign_type") {
+                keys.push_back(key);
+            }
         }
 
         std::sort(keys.begin(), keys.end());
@@ -159,6 +170,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
                 if (!signData.empty()) {
                     signData += "&";
                 }
+                // Use raw values for signature (no URL encoding)
                 signData += key + "=" + commonParams[key].asString();
             }
         }
@@ -167,7 +179,10 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         std::string signature = sign(signData);
         commonParams["sign"] = signature;
 
-        // Build request body (form format)
+        LOG_ERROR << "Alipay request params: " << commonParams.toStyledString();
+        LOG_ERROR << "Sign data: " << signData;
+
+        // Build request body (form format) - use same keys as signature for consistency
         std::string requestBody;
         for (const auto &key : keys) {
             if (!commonParams[key].isNull()) {
@@ -177,11 +192,24 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
                 requestBody += key + "=" + drogon::utils::urlEncode(commonParams[key].asString());
             }
         }
+        // Add sign at the end
+        requestBody += "&sign=" + drogon::utils::urlEncode(signature);
+        // Add sign_type at the end (not included in signature)
+        requestBody += "&sign_type=" + drogon::utils::urlEncode(commonParams["sign_type"].asString());
 
         LOG_INFO << "Alipay request: " << method << ", URL: " << gatewayUrl_;
+        LOG_ERROR << "Request body: " << requestBody;
 
-        // Use the complete gateway URL for creating HTTP client
-        auto client = drogon::HttpClient::newHttpClient(gatewayUrl_);
+        // Parse gateway URL to get base URL (without path)
+        std::string baseUrl = gatewayUrl_;
+        size_t pathPos = baseUrl.find("/gateway.do");
+        if (pathPos != std::string::npos) {
+            baseUrl = baseUrl.substr(0, pathPos);
+        }
+
+        LOG_ERROR << "Base URL: " << baseUrl;
+
+        auto client = drogon::HttpClient::newHttpClient(baseUrl);
 
         auto req = drogon::HttpRequest::newHttpRequest();
         req->setMethod(drogon::Post);
@@ -270,6 +298,9 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
 
 std::string AlipaySandboxClient::sign(const std::string &data) const
 {
+    LOG_DEBUG << "=== SIGN FUNCTION CALLED ===";
+    LOG_DEBUG << "Data to sign: " << data;
+
     std::string privateKeyPem;
 
     // Read private key file
@@ -318,13 +349,24 @@ std::string AlipaySandboxClient::sign(const std::string &data) const
     EVP_MD_CTX_free(mdctx);
     EVP_PKEY_free(pkey);
 
-    // Convert to uppercase hex string
-    std::stringstream ss;
-    for (size_t i = 0; i < signatureLen; i++) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(signature[i]);
-    }
+    // Convert to Base64 string (Alipay requires Base64, not hex)
+    BIO* b64 = BIO_new(BIO_f_base64());
+    BIO* mem = BIO_new(BIO_s_mem());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    b64 = BIO_push(b64, mem);
+    BIO_write(b64, signature.data(), static_cast<int>(signatureLen));
+    BIO_flush(b64);
 
-    return ss.str();
+    BUF_MEM* bufferPtr;
+    BIO_get_mem_ptr(b64, &bufferPtr);
+
+    std::string signatureStr(bufferPtr->data, bufferPtr->length);
+    BIO_free_all(b64);
+
+    LOG_ERROR << "Signature generated (Base64): " << signatureStr;
+    LOG_DEBUG << "=== SIGN FUNCTION END ===";
+
+    return signatureStr;
 }
 
 bool AlipaySandboxClient::verify(const std::string &data,
@@ -363,13 +405,19 @@ bool AlipaySandboxClient::verify(const std::string &data,
         return false;
     }
 
-    // Convert hex signature to binary
+    // Convert Base64 signature to binary
+    BIO* b64 = BIO_new(BIO_f_base64());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    BIO* mem = BIO_new_mem_buf(signature.c_str(), static_cast<int>(signature.length()));
+    b64 = BIO_push(b64, mem);
+
     std::vector<unsigned char> binarySig;
-    for (size_t i = 0; i < signature.length(); i += 2) {
-        std::string byteStr = signature.substr(i, 2);
-        unsigned char byte = static_cast<unsigned char>(std::stoi(byteStr, nullptr, 16));
-        binarySig.push_back(byte);
+    unsigned char sigBuf[256];
+    int bytesRead;
+    while ((bytesRead = BIO_read(b64, sigBuf, sizeof(sigBuf))) > 0) {
+        binarySig.insert(binarySig.end(), sigBuf, sigBuf + bytesRead);
     }
+    BIO_free_all(b64);
 
     // RSA verify
     EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
@@ -388,7 +436,14 @@ Json::Value AlipaySandboxClient::buildCommonParams() const
 {
     Json::Value params;
     params["app_id"] = appId_;
-    params["timestamp"] = std::to_string(std::time(nullptr));
+
+    // Format timestamp as "yyyy-MM-dd HH:mm:ss" for Alipay API
+    auto now = std::time(nullptr);
+    std::tm tm = *std::localtime(&now);
+    char timestamp[20];
+    std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &tm);
+    params["timestamp"] = std::string(timestamp);
+
     params["nonce"] = generateUUID();
     return params;
 }
