@@ -31,7 +31,7 @@
             "host": "127.0.0.1",
             "port": 6379,
             "username": "",
-            "passwd": "",
+            "passwd": "123456",
             "db": 0,
             "is_fast": false,
             "number_of_connections": 32,

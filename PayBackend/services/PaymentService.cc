@@ -474,14 +474,14 @@ void PaymentService::proceedCreatePayment(
                     };
 
                     // Route to appropriate payment client based on channel
-                    LOG_ERROR << "About to call payment client, channel: " << request.channel;
+                    LOG_DEBUG << "About to call payment client, channel: " << request.channel;
                     if (request.channel == "alipay") {
                         // Call Alipay Sandbox API to create trade
-                        LOG_ERROR << "Calling Alipay createTrade with payload: " << payload.toStyledString();
+                        LOG_DEBUG << "Calling Alipay createTrade with payload: " << payload.toStyledString();
                         alipayClient_->createTrade(payload, paymentCallback);
                     } else {
                         // Call WeChat Pay API to create transaction
-                        LOG_ERROR << "Calling WeChat createTransactionNative";
+                        LOG_DEBUG << "Calling WeChat createTransactionNative";
                         wechatClient_->createTransactionNative(payload, paymentCallback);
                     }
                 },

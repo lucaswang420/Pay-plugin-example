@@ -179,8 +179,8 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         std::string signature = sign(signData);
         commonParams["sign"] = signature;
 
-        LOG_ERROR << "Alipay request params: " << commonParams.toStyledString();
-        LOG_ERROR << "Sign data: " << signData;
+        LOG_DEBUG << "Alipay request params: " << commonParams.toStyledString();
+        LOG_DEBUG << "Sign data: " << signData;
 
         // Build request body (form format) - only include parameters that are in signature
         std::string requestBody;
@@ -192,7 +192,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         requestBody += "&sign=" + drogon::utils::urlEncode(signature);
 
         LOG_INFO << "Alipay request: " << method << ", URL: " << gatewayUrl_;
-        LOG_ERROR << "Request body: " << requestBody;
+        LOG_DEBUG << "Request body: " << requestBody;
 
         // Parse gateway URL to get base URL (without path)
         std::string baseUrl = gatewayUrl_;
@@ -201,7 +201,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
             baseUrl = baseUrl.substr(0, pathPos);
         }
 
-        LOG_ERROR << "Base URL: " << baseUrl;
+        LOG_DEBUG << "Base URL: " << baseUrl;
 
         auto client = drogon::HttpClient::newHttpClient(baseUrl);
 
@@ -359,7 +359,7 @@ std::string AlipaySandboxClient::sign(const std::string &data) const
     std::string signatureStr(bufferPtr->data, bufferPtr->length);
     BIO_free_all(b64);
 
-    LOG_ERROR << "Signature generated (Base64): " << signatureStr;
+    LOG_DEBUG << "Signature generated (Base64): " << signatureStr;
     LOG_DEBUG << "=== SIGN FUNCTION END ===";
 
     return signatureStr;
