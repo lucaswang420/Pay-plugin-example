@@ -215,6 +215,7 @@
                 "alipay_sandbox": {
                     "app_id": "__env_var:ALIPAY_SANDBOX_APP_ID__",
                     "seller_id": "__env_var:ALIPAY_SANDBOX_SELLER_ID__",
+                    "sandbox_buyer_id": "__env_var:ALIPAY_SANDBOX_BUYER_ID__",
                     "private_key_path": "__env_var:ALIPAY_SANDBOX_PRIVATE_KEY_PATH__",
                     "alipay_public_key_path": "__env_var:ALIPAY_SANDBOX_PUBLIC_KEY_PATH__",
                     "gateway_url": "__env_var:ALIPAY_SANDBOX_GATEWAY_URL__"

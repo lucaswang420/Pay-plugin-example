@@ -236,7 +236,11 @@ void PaymentService::proceedCreatePayment(
         payload["total_amount"] = totalAmountYuan;
         payload["subject"] = request.description;  // Alipay uses 'subject' instead of 'description'
         payload["out_trade_no"] = request.orderNo;
-        payload["buyer_id"] = "2088102146225135";  // Default sandbox buyer ID
+
+        // For sandbox testing, buyer_id should be obtained from Alipay sandbox console
+        // If not configured, leave it empty - Alipay will use default sandbox buyer
+        // TODO: Frontend should provide buyer_id for production use
+        // payload["buyer_id"] = "...";  // Uncomment and configure for testing
 
         if (!request.notifyUrl.empty()) {
             payload["notify_url"] = request.notifyUrl;

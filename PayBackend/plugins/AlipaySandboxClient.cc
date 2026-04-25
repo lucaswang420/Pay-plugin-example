@@ -32,7 +32,8 @@ void AlipaySandboxClient::createTrade(const Json::Value &payload, JsonCallback &
         if (!bizContent.isMember("out_trade_no")) bizContent["out_trade_no"] = generateUUID();
         if (!bizContent.isMember("total_amount")) bizContent["total_amount"] = "0.01";
         if (!bizContent.isMember("subject")) bizContent["subject"] = "测试订单";
-        if (!bizContent.isMember("buyer_id")) bizContent["buyer_id"] = "2088102146225135";
+        // buyer_id is optional - if not provided, Alipay will use the sandbox default
+        // For sandbox testing, you can obtain test buyer accounts from Alipay sandbox console
 
         sendRequest("alipay.trade.create", bizContent, std::move(callback));
     } catch (const std::exception &e) {
@@ -181,9 +182,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         LOG_ERROR << "Alipay request params: " << commonParams.toStyledString();
         LOG_ERROR << "Sign data: " << signData;
 
-        // Build request body (form format) - only include parameters required by Alipay
-        // Parameters to send: app_id, biz_content, method, sign_type, timestamp, sign
-        // Do NOT send: charset, nonce, version (they are not required for alipay.trade.create)
+        // Build request body (form format) - only include parameters that are in signature
         std::string requestBody;
         requestBody += "app_id=" + drogon::utils::urlEncode(commonParams["app_id"].asString());
         requestBody += "&biz_content=" + drogon::utils::urlEncode(commonParams["biz_content"].asString());
