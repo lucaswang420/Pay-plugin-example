@@ -152,18 +152,17 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         commonParams["version"] = "1.0";
         commonParams["sign_type"] = "RSA2";
 
-        // Build string to sign
+        // Build string to sign - only include required parameters per Alipay spec
         std::string signData;
         std::vector<std::string> keys;
 
-        for (const auto &key : commonParams.getMemberNames()) {
-            // Exclude sign and sign_type from signature calculation (Alipay requirement)
-            if (key != "sign" && key != "sign_type") {
-                keys.push_back(key);
-            }
-        }
-
-        std::sort(keys.begin(), keys.end());
+        // Only include these parameters in signature (in this order):
+        // app_id, biz_content, method, sign_type, timestamp
+        keys.push_back("app_id");
+        keys.push_back("biz_content");
+        keys.push_back("method");
+        keys.push_back("sign_type");
+        keys.push_back("timestamp");
 
         for (const auto &key : keys) {
             if (!commonParams[key].isNull()) {
@@ -182,20 +181,16 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         LOG_ERROR << "Alipay request params: " << commonParams.toStyledString();
         LOG_ERROR << "Sign data: " << signData;
 
-        // Build request body (form format) - use same keys as signature for consistency
+        // Build request body (form format) - only include parameters required by Alipay
+        // Parameters to send: app_id, biz_content, method, sign_type, timestamp, sign
+        // Do NOT send: charset, nonce, version (they are not required for alipay.trade.create)
         std::string requestBody;
-        for (const auto &key : keys) {
-            if (!commonParams[key].isNull()) {
-                if (!requestBody.empty()) {
-                    requestBody += "&";
-                }
-                requestBody += key + "=" + drogon::utils::urlEncode(commonParams[key].asString());
-            }
-        }
-        // Add sign at the end
-        requestBody += "&sign=" + drogon::utils::urlEncode(signature);
-        // Add sign_type at the end (not included in signature)
+        requestBody += "app_id=" + drogon::utils::urlEncode(commonParams["app_id"].asString());
+        requestBody += "&biz_content=" + drogon::utils::urlEncode(commonParams["biz_content"].asString());
+        requestBody += "&method=" + drogon::utils::urlEncode(commonParams["method"].asString());
         requestBody += "&sign_type=" + drogon::utils::urlEncode(commonParams["sign_type"].asString());
+        requestBody += "&timestamp=" + drogon::utils::urlEncode(commonParams["timestamp"].asString());
+        requestBody += "&sign=" + drogon::utils::urlEncode(signature);
 
         LOG_INFO << "Alipay request: " << method << ", URL: " << gatewayUrl_;
         LOG_ERROR << "Request body: " << requestBody;
@@ -216,6 +211,8 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         req->setPath("/gateway.do");
         req->setContentTypeCode(drogon::CT_APPLICATION_X_FORM);
         req->setBody(requestBody);
+        // Add charset to Content-Type header
+        req->addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
 
         client->sendRequest(req, [this, callback, method](drogon::ReqResult result,
                                                         const drogon::HttpResponsePtr &response) {
