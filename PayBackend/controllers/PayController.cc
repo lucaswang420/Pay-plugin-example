@@ -207,6 +207,8 @@ void PayController::queryOrder(
 
     // Get order_no from query parameter
     std::string orderNo = req->getParameter("order_no");
+    LOG_DEBUG << "[PAY_CONTROLLER] queryOrder called with order_no=" << orderNo;
+
     if (orderNo.empty())
     {
         Json::Value error;
@@ -224,7 +226,10 @@ void PayController::queryOrder(
 
     paymentService->queryOrder(
         orderNo,
-        [callback](const Json::Value& result, const std::error_code& error) {
+        [callback, orderNo](const Json::Value& result, const std::error_code& error) {
+            LOG_DEBUG << "[PAY_CONTROLLER] queryOrder response for " << orderNo
+                      << " - code=" << result.get("code", "?").asString()
+                      << " status=" << result.get("data", "status").asString();
             auto resp = HttpResponse::newHttpJsonResponse(result);
             if (error)
             {

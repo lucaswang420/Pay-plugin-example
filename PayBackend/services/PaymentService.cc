@@ -662,6 +662,9 @@ void PaymentService::queryOrder(
             data["user_id"] = static_cast<Json::Int64>(order.getValueOfUserId());
 
             const std::string channel = order.getValueOfChannel();
+            LOG_DEBUG << "[PAYMENT_SERVICE] queryOrder: order_no=" << orderNo
+                      << " channel=" << channel
+                      << " current_status=" << data["status"].asString();
 
             // Query real-time status from payment channel API
             if (channel == "wechat" && wechatClient_) {
@@ -701,11 +704,13 @@ void PaymentService::queryOrder(
                 });
             } else if (channel == "alipay" && alipayClient_) {
                 // Query trade from Alipay
+                LOG_DEBUG << "[PAYMENT_SERVICE] Querying Alipay API for order " << orderNo;
                 alipayClient_->queryTrade(
                     orderNo,
                     [this, orderNo, data, sharedCb](
                         const Json::Value &result, const std::string &error) {
                         if (!error.empty()) {
+                            LOG_ERROR << "[PAYMENT_SERVICE] Alipay query error for " << orderNo << ": " << error;
                             // Return database data with error header
                             Json::Value response = data;
                             response["alipay_query_error"] = error;
@@ -715,11 +720,17 @@ void PaymentService::queryOrder(
                             return;
                         }
 
+                        LOG_DEBUG << "[PAYMENT_SERVICE] Alipay response for " << orderNo
+                                  << " code=" << result.get("code", "?").asString()
+                                  << " trade_status=" << result.get("trade_status", "?").asString();
+
                         // Sync order status from Alipay response
                         syncOrderStatusFromAlipay(
                             orderNo,
                             result,
-                            [data, result, sharedCb](const std::string &status) {
+                            [data, result, sharedCb, orderNo](const std::string &status) {
+                                LOG_DEBUG << "[PAYMENT_SERVICE] syncOrderStatusFromAlipay returned status=" << status
+                                          << " for order " << orderNo;
                                 Json::Value response = data;
                                 if (!status.empty()) {
                                     response["status"] = status;
@@ -729,6 +740,8 @@ void PaymentService::queryOrder(
                                     response["trade_no"] = tradeNo;
                                 }
                                 response["alipay_response"] = result;
+                                LOG_DEBUG << "[PAYMENT_SERVICE] Final response status=" << response["status"].asString()
+                                          << " for order " << orderNo;
                                 if (*sharedCb) {
                                     (*sharedCb)(response, std::error_code());
                                 }
@@ -736,6 +749,8 @@ void PaymentService::queryOrder(
                     });
             } else {
                 // Channel not supported or client not available, return database data
+                LOG_DEBUG << "[PAYMENT_SERVICE] Using database data for order " << orderNo
+                          << " (channel=" << channel << " has_client=" << (alipayClient_ != nullptr || wechatClient_ != nullptr) << ")";
                 response["data"] = data;
                 if (*sharedCb) {
                     (*sharedCb)(response, std::error_code());
