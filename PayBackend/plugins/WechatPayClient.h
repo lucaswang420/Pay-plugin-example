@@ -50,6 +50,9 @@ class WechatPayClient
     const std::string &getAppId() const { return appId_; }
     const std::string &getMchId() const { return mchId_; }
 
+    // Check if client is properly configured with valid credentials
+    bool isConfigured() const;
+
   private:
     Json::Value config_;
     std::string appId_;

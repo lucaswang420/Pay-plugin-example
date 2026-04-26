@@ -105,6 +105,9 @@ class AlipaySandboxClient
     const std::string &getAppId() const { return appId_; }
     const std::string &getSellerId() const { return sellerId_; }
 
+    // Check if client is properly configured with valid credentials
+    bool isConfigured() const;
+
     /**
      * @brief Generate unique ID
      */

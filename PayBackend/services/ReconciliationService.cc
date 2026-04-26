@@ -70,18 +70,16 @@ bool ReconciliationService::isWeChatConfigured() const {
     if (!wechatClient_) {
         return false;
     }
-    // Check if WeChat client has necessary configuration
-    // You can add more specific checks here if needed
-    return true;
+    // Check if WeChat client has valid configuration (not placeholders)
+    return wechatClient_->isConfigured();
 }
 
 bool ReconciliationService::isAlipayConfigured() const {
     if (!alipayClient_) {
         return false;
     }
-    // Check if Alipay client has necessary configuration
-    // You can add more specific checks here if needed
-    return true;
+    // Check if Alipay client has valid configuration (not placeholders)
+    return alipayClient_->isConfigured();
 }
 
 void ReconciliationService::syncPendingWeChatOrders() {

@@ -692,3 +692,21 @@ bool WechatPayClient::decryptResource(const std::string &ciphertext,
     return decryptAesGcm(ciphertext, nonce, associatedData, apiV3Key_, plaintext,
                          error);
 }
+
+bool WechatPayClient::isConfigured() const
+{
+    // Helper function to check if a value is a placeholder
+    auto isPlaceholder = [](const std::string &value) -> bool {
+        return value.empty() || value.find("__env_var:") == 0;
+    };
+
+    // Check all required configuration fields
+    if (isPlaceholder(appId_) || isPlaceholder(mchId_) ||
+        isPlaceholder(serialNo_) || isPlaceholder(apiV3Key_) ||
+        isPlaceholder(privateKeyPath_))
+    {
+        return false;
+    }
+
+    return true;
+}

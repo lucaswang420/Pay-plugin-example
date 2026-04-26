@@ -481,3 +481,21 @@ Json::Value AlipaySandboxClient::buildCommonParams() const
     params["nonce"] = generateUUID();
     return params;
 }
+
+bool AlipaySandboxClient::isConfigured() const
+{
+    // Helper function to check if a value is a placeholder
+    auto isPlaceholder = [](const std::string &value) -> bool {
+        return value.empty() || value.find("__env_var:") == 0;
+    };
+
+    // Check all required configuration fields
+    if (isPlaceholder(appId_) || isPlaceholder(sellerId_) ||
+        isPlaceholder(privateKeyPath_) || isPlaceholder(alipayPublicKeyPath_) ||
+        isPlaceholder(gatewayUrl_))
+    {
+        return false;
+    }
+
+    return true;
+}
