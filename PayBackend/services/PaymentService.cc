@@ -702,10 +702,13 @@ void PaymentService::queryOrder(
                     const Json::Value &result, const std::string &error) {
                     if (!error.empty()) {
                         // Return database data with error header
-                        Json::Value response = data;
-                        response["wechat_query_error"] = error;
+                        Json::Value innerResponse;
+                        innerResponse["code"] = 0;
+                        innerResponse["message"] = "Order found (with query error)";
+                        innerResponse["data"] = data;
+                        innerResponse["data"]["wechat_query_error"] = error;
                         if (*sharedCb) {
-                            (*sharedCb)(response, std::error_code());
+                            (*sharedCb)(innerResponse, std::error_code());
                         }
                         return;
                     }
@@ -715,17 +718,21 @@ void PaymentService::queryOrder(
                         orderNo,
                         result,
                         [data, result, sharedCb](const std::string &status) {
-                            Json::Value response = data;
+                            Json::Value innerResponse;
+                            innerResponse["code"] = 0;
+                            innerResponse["message"] = "Order found";
+                            innerResponse["data"] = data;
+
                             if (!status.empty()) {
-                                response["status"] = status;
+                                innerResponse["data"]["status"] = status;
                             }
                             const auto channelRefundNo = result.get("refund_id", "").asString();
                             if (!channelRefundNo.empty()) {
-                                response["channel_refund_no"] = channelRefundNo;
+                                innerResponse["data"]["channel_refund_no"] = channelRefundNo;
                             }
-                            response["wechat_response"] = result;
+                            innerResponse["data"]["wechat_response"] = result;
                             if (*sharedCb) {
-                                (*sharedCb)(response, std::error_code());
+                                (*sharedCb)(innerResponse, std::error_code());
                             }
                         });
                 });
@@ -739,10 +746,13 @@ void PaymentService::queryOrder(
                         if (!error.empty()) {
                             LOG_ERROR << "[PAYMENT_SERVICE] Alipay query error for " << orderNo << ": " << error;
                             // Return database data with error header
-                            Json::Value response = data;
-                            response["alipay_query_error"] = error;
+                            Json::Value innerResponse;
+                            innerResponse["code"] = 0;
+                            innerResponse["message"] = "Order found (with query error)";
+                            innerResponse["data"] = data;
+                            innerResponse["data"]["alipay_query_error"] = error;
                             if (*sharedCb) {
-                                (*sharedCb)(response, std::error_code());
+                                (*sharedCb)(innerResponse, std::error_code());
                             }
                             return;
                         }
@@ -758,19 +768,24 @@ void PaymentService::queryOrder(
                             [data, result, sharedCb, orderNo](const std::string &status) {
                                 LOG_DEBUG << "[PAYMENT_SERVICE] syncOrderStatusFromAlipay returned status=" << status
                                           << " for order " << orderNo;
-                                Json::Value response = data;
+
+                                Json::Value innerResponse;
+                                innerResponse["code"] = 0;
+                                innerResponse["message"] = "Order found";
+                                innerResponse["data"] = data;
+
                                 if (!status.empty()) {
-                                    response["status"] = status;
+                                    innerResponse["data"]["status"] = status;
                                 }
                                 const auto tradeNo = result.get("trade_no", "").asString();
                                 if (!tradeNo.empty()) {
-                                    response["trade_no"] = tradeNo;
+                                    innerResponse["data"]["trade_no"] = tradeNo;
                                 }
-                                response["alipay_response"] = result;
-                                LOG_DEBUG << "[PAYMENT_SERVICE] Final response status=" << response["status"].asString()
+                                innerResponse["data"]["alipay_response"] = result;
+                                LOG_DEBUG << "[PAYMENT_SERVICE] Final response status=" << innerResponse["data"]["status"].asString()
                                           << " for order " << orderNo;
                                 if (*sharedCb) {
-                                    (*sharedCb)(response, std::error_code());
+                                    (*sharedCb)(innerResponse, std::error_code());
                                 }
                             });
                     });
