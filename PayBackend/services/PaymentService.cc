@@ -566,7 +566,7 @@ void PaymentService::createQRPayment(
     // Call Alipay precreate API
     alipayClient_->precreateTrade(
         payload,
-        [this, orderNo, sharedCb](const Json::Value& result, const std::string& error) {
+        [this, orderNo, amount, channel, subject, request, sharedCb](const Json::Value& result, const std::string& error) {
             if (!error.empty()) {
                 Json::Value response;
                 response["code"] = 500;
@@ -595,10 +595,6 @@ void PaymentService::createQRPayment(
             }
 
             // Alipay precreate response contains qr_code
-            Json::Value response;
-            response["code"] = 0;
-            response["message"] = "QR code created successfully";
-
             Json::Value data;
             data["order_no"] = orderNo;
 
@@ -610,8 +606,39 @@ void PaymentService::createQRPayment(
                 data["out_trade_no"] = result["out_trade_no"].asString();
             }
 
-            response["data"] = data;
-            (*sharedCb)(response, std::error_code());
+            // Save order to database
+            LOG_DEBUG << "Saving order to database: " << orderNo;
+            Mapper<PayOrderModel> orderMapper(dbClient_);
+            PayOrderModel newOrder;
+            newOrder.setOrderNo(orderNo);
+            newOrder.setAmount(amount);
+            newOrder.setCurrency("CNY");
+            newOrder.setStatus("PAYING");  // Initial status
+            newOrder.setChannel(channel);
+            newOrder.setTitle(subject);
+            newOrder.setUserId(request.get("user_id", "1").asInt64());
+
+            orderMapper.insert(
+                newOrder,
+                [this, orderNo, amount, channel, subject, data, sharedCb](
+                    const PayOrderModel &order) {
+                    LOG_DEBUG << "Order saved to database: " << orderNo
+                              << " with DB id: " << order.getValueOfId();
+
+                    Json::Value response;
+                    response["code"] = 0;
+                    response["message"] = "QR code created successfully";
+                    response["data"] = data;
+                    (*sharedCb)(response, std::error_code());
+                },
+                [sharedCb](const DrogonDbException &e) {
+                    LOG_ERROR << "Failed to save order to database: " << e.base().what();
+                    Json::Value errorResponse;
+                    errorResponse["code"] = 500;
+                    errorResponse["message"] = "Failed to save order: " + std::string(e.base().what());
+                    (*sharedCb)(errorResponse, std::make_error_code(std::errc::io_error));
+                }
+            );
         }
     );
 }
