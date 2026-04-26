@@ -910,6 +910,227 @@ void PaymentService::syncOrderStatusFromWechat(
             });
 }
 
+void PaymentService::syncOrderStatusFromAlipay(
+    const std::string& orderNo,
+    const Json::Value& result,
+    std::function<void(const std::string& status)>&& callback) {
+
+    const std::string responseCode = result.get("code", "").asString();
+    if (responseCode != "10000") {
+        // Alipay API call failed or trade not found
+        if (callback) {
+            callback("");
+        }
+        return;
+    }
+
+    const std::string tradeStatus = result.get("trade_status", "").asString();
+    if (tradeStatus.empty()) {
+        if (callback) {
+            callback("");
+        }
+        return;
+    }
+
+    // Map Alipay trade_status to order and payment status
+    std::string orderStatus;
+    std::string paymentStatus;
+
+    if (tradeStatus == "TRADE_SUCCESS" || tradeStatus == "TRADE_FINISHED") {
+        orderStatus = "PAID";
+        paymentStatus = "SUCCESS";
+    } else if (tradeStatus == "WAIT_BUYER_PAY") {
+        orderStatus = "PAYING";
+        paymentStatus = "PROCESSING";
+    } else if (tradeStatus == "TRADE_CLOSED") {
+        orderStatus = "FAILED";
+        paymentStatus = "FAILED";
+    } else {
+        // Unknown status
+        LOG_WARN << "Unknown Alipay trade_status: " << tradeStatus << " for order " << orderNo;
+        if (callback) {
+            callback("");
+        }
+        return;
+    }
+
+    const std::string transactionId = result.get("trade_no", "").asString();
+    const std::string responsePayload = pay::utils::toJsonString(result);
+
+    if (!dbClient_) {
+        if (callback) {
+            callback(orderStatus);
+        }
+        return;
+    }
+
+    LOG_DEBUG << "Sync order status from Alipay: order_no=" << orderNo
+              << " trade_status=" << tradeStatus
+              << " order_status=" << orderStatus
+              << " payment_status=" << paymentStatus;
+
+    // Find the latest payment record for this order
+    Mapper<PayPaymentModel> paymentMapper(dbClient_);
+    auto paymentCriteria = Criteria(
+        PayPaymentModel::Cols::_order_no,
+        CompareOperator::EQ,
+        orderNo);
+
+    paymentMapper.orderBy(PayPaymentModel::Cols::_created_at, SortOrder::DESC)
+        .limit(1)
+        .findBy(
+            paymentCriteria,
+            [this, orderNo, orderStatus, paymentStatus, transactionId, responsePayload, callback](
+                const std::vector<PayPaymentModel> &rows) {
+                if (rows.empty()) {
+                    if (callback) {
+                        callback(orderStatus);
+                    }
+                    return;
+                }
+
+                auto payment = rows.front();
+                const auto paymentNo = payment.getValueOfPaymentNo();
+
+                // Use transaction for atomic updates
+                dbClient_->newTransactionAsync(
+                    [this, orderNo, orderStatus, paymentStatus, transactionId, responsePayload,
+                     payment, paymentNo, callback](
+                        const std::shared_ptr<Transaction> &transPtr) mutable {
+                        auto rollbackDone = [callback, orderStatus, transPtr](
+                                                const DrogonDbException &e) {
+                            LOG_ERROR << "Alipay reconcile transaction error: " << e.base().what();
+                            transPtr->rollback();
+                            if (callback) {
+                                callback(orderStatus);
+                            }
+                        };
+
+                        auto transDb = std::static_pointer_cast<DbClient>(transPtr);
+
+                        // If payment is already SUCCESS, only update order
+                        if (payment.getValueOfStatus() == "SUCCESS") {
+                            Mapper<PayOrderModel> orderMapper(transPtr);
+                            auto orderCriteria = Criteria(
+                                PayOrderModel::Cols::_order_no,
+                                CompareOperator::EQ,
+                                orderNo);
+                            orderMapper.findOne(
+                                orderCriteria,
+                                [this, orderStatus, paymentNo, callback, transPtr, transDb](
+                                    PayOrderModel order) {
+                                    if (order.getValueOfStatus() != "PAID") {
+                                        const auto userId = order.getValueOfUserId();
+                                        const auto orderAmount = order.getValueOfAmount();
+                                        const auto orderNo = order.getValueOfOrderNo();
+                                        order.setStatus(orderStatus);
+                                        order.setUpdatedAt(trantor::Date::now());
+                                        Mapper<PayOrderModel> orderUpdater(transPtr);
+                                        orderUpdater.update(
+                                            order,
+                                            [userId, orderNo, paymentNo, orderAmount, orderStatus, transPtr, transDb](
+                                                const size_t) {
+                                                if (orderStatus == "PAID") {
+                                                    insertLedgerEntry(transDb, userId, orderNo,
+                                                                     paymentNo, "PAYMENT", orderAmount);
+                                                }
+                                            },
+                                            [callback, orderStatus, transPtr](
+                                                const DrogonDbException &e) {
+                                                LOG_ERROR << "Alipay reconcile order update error: "
+                                                          << e.base().what();
+                                                transPtr->rollback();
+                                                if (callback) {
+                                                    callback(orderStatus);
+                                                }
+                                            });
+                                    } else {
+                                        // Order already PAID, no update needed
+                                    }
+                                    if (callback) {
+                                        callback(orderStatus);
+                                    }
+                                },
+                                [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                                    LOG_ERROR << "Alipay reconcile order select error: " << e.base().what();
+                                    transPtr->rollback();
+                                    if (callback) {
+                                        callback(orderStatus);
+                                    }
+                                });
+                            return;
+                        }
+
+                        // Update payment status
+                        payment.setStatus(paymentStatus);
+                        payment.setChannelTradeNo(transactionId);
+                        payment.setResponsePayload(responsePayload);
+                        payment.setUpdatedAt(trantor::Date::now());
+                        Mapper<PayPaymentModel> paymentUpdater(transPtr);
+                        paymentUpdater.update(
+                            payment,
+                            [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
+                                const size_t) {
+                                // Update order status
+                                Mapper<PayOrderModel> orderMapper(transPtr);
+                                auto orderCriteria = Criteria(
+                                    PayOrderModel::Cols::_order_no,
+                                    CompareOperator::EQ,
+                                    orderNo);
+                                orderMapper.findOne(
+                                    orderCriteria,
+                                    [orderStatus, paymentNo, callback, transPtr, transDb](
+                                        PayOrderModel order) {
+                                        if (order.getValueOfStatus() == "PAID") {
+                                            if (callback) {
+                                                callback(orderStatus);
+                                            }
+                                            return;
+                                        }
+                                        const auto userId = order.getValueOfUserId();
+                                        const auto orderAmount = order.getValueOfAmount();
+                                        const auto orderNo = order.getValueOfOrderNo();
+                                        order.setStatus(orderStatus);
+                                        order.setUpdatedAt(trantor::Date::now());
+                                        Mapper<PayOrderModel> orderUpdater(transPtr);
+                                        orderUpdater.update(
+                                            order,
+                                            [callback, orderStatus, userId, orderNo, paymentNo,
+                                             orderAmount, transPtr, transDb](const size_t) {
+                                                if (orderStatus == "PAID") {
+                                                    insertLedgerEntry(transDb, userId, orderNo,
+                                                                     paymentNo, "PAYMENT", orderAmount);
+                                                }
+                                                if (callback) {
+                                                    callback(orderStatus);
+                                                }
+                                            },
+                                            [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                                                LOG_ERROR << "Alipay reconcile order update error: "
+                                                          << e.base().what();
+                                                transPtr->rollback();
+                                                if (callback) {
+                                                    callback(orderStatus);
+                                                }
+                                            });
+                                    },
+                                    [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                                        LOG_ERROR << "Alipay reconcile order select error: "
+                                                  << e.base().what();
+                                        transPtr->rollback();
+                                        if (callback) {
+                                            callback(orderStatus);
+                                        }
+                                    });
+                            },
+                            rollbackDone);
+                    });
+            },
+            [](const DrogonDbException &e) {
+                LOG_ERROR << "Alipay reconcile payment select error: " << e.base().what();
+            });
+}
+
 void PaymentService::reconcileSummary(
     const std::string& date,
     PaymentCallback&& callback) {

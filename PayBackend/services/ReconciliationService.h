@@ -52,8 +52,12 @@ public:
     );
 
 private:
-    void syncPendingOrders();
+    void syncPendingWeChatOrders();
+    void syncPendingAlipayOrders();
     void syncPendingRefunds();
+
+    bool isWeChatConfigured() const;
+    bool isAlipayConfigured() const;
 
     std::shared_ptr<PaymentService> paymentService_;
     std::shared_ptr<RefundService> refundService_;

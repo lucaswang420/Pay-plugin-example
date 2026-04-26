@@ -42,83 +42,127 @@ void ReconciliationService::reconcile(
     auto successCount = std::make_shared<int>(0);
     auto failedCount = std::make_shared<int>(0);
 
-    // Sync pending orders
-    syncPendingOrders();
+    // Sync pending WeChat Pay orders (only if configured)
+    if (isWeChatConfigured()) {
+        syncPendingWeChatOrders();
+    } else {
+        LOG_DEBUG << "WeChat Pay not configured, skipping WeChat order reconciliation";
+    }
 
-    // Sync pending refunds
-    syncPendingRefunds();
+    // Sync pending Alipay orders (only if configured)
+    if (isAlipayConfigured()) {
+        syncPendingAlipayOrders();
+    } else {
+        LOG_DEBUG << "Alipay not configured, skipping Alipay order reconciliation";
+    }
+
+    // Sync pending refunds (only if WeChat is configured)
+    if (isWeChatConfigured()) {
+        syncPendingRefunds();
+    } else {
+        LOG_DEBUG << "WeChat Pay not configured, skipping refund reconciliation";
+    }
 
     callback(*successCount, *failedCount);
 }
 
-void ReconciliationService::syncPendingOrders() {
+bool ReconciliationService::isWeChatConfigured() const {
+    if (!wechatClient_) {
+        return false;
+    }
+    // Check if WeChat client has necessary configuration
+    // You can add more specific checks here if needed
+    return true;
+}
+
+bool ReconciliationService::isAlipayConfigured() const {
+    if (!alipayClient_) {
+        return false;
+    }
+    // Check if Alipay client has necessary configuration
+    // You can add more specific checks here if needed
+    return true;
+}
+
+void ReconciliationService::syncPendingWeChatOrders() {
     if (!dbClient_) {
         return;
     }
 
-    // Sync WeChat Pay orders
-    if (wechatClient_) {
-        dbClient_->execSqlAsync(
-            "SELECT order_no FROM pay_order WHERE status = $1 AND channel = $2 "
-            "ORDER BY updated_at DESC LIMIT $3",
-            [this](const drogon::orm::Result &r) {
-                for (const auto &row : r) {
-                    const std::string orderNo = row["order_no"].as<std::string>();
-                    wechatClient_->queryTransaction(
-                        orderNo,
-                        [this, orderNo](const Json::Value &result,
-                                        const std::string &error) {
-                            if (!error.empty()) {
-                                LOG_WARN << "Wechat query failed for order " << orderNo << ": " << error;
-                                return;
-                            }
-                            paymentService_->syncOrderStatusFromWechat(
-                                orderNo,
-                                result,
-                                [](const std::string &) {});
-                        });
-                }
-            },
-            [](const drogon::orm::DrogonDbException &e) {
-                LOG_ERROR << "WeChat reconcile query error: " << e.base().what();
-            },
-            "PAYING", "wechat", reconcileBatchSize_);
+    if (!wechatClient_) {
+        return;
     }
 
-    // Sync Alipay orders
-    if (alipayClient_) {
-        dbClient_->execSqlAsync(
-            "SELECT order_no FROM pay_order WHERE status = $1 AND channel = $2 "
-            "ORDER BY updated_at DESC LIMIT $3",
-            [this](const drogon::orm::Result &r) {
-                for (const auto &row : r) {
-                    const std::string orderNo = row["order_no"].as<std::string>();
-                    alipayClient_->queryTrade(
-                        orderNo,
-                        [this, orderNo](const Json::Value &result,
-                                        const std::string &error) {
-                            if (!error.empty()) {
-                                LOG_WARN << "Alipay query failed for order " << orderNo << ": " << error;
-                                return;
-                            }
-                            // Parse Alipay response and sync order status
-                            if (result.isMember("code") && result["code"].asString() == "10000") {
-                                // Success - order paid
-                                LOG_INFO << "Alipay order " << orderNo << " is paid";
-                                // TODO: Update order status to PAID in database
-                            } else if (result.isMember("sub_code")) {
-                                // Failed or pending
-                                std::string subCode = result["sub_code"].asString();
-                                LOG_INFO << "Alipay order " << orderNo << " status: " << subCode;
-                            }
-                        });
-                }
-            },
-            [](const drogon::orm::DrogonDbException &e) {
-                LOG_ERROR << "Alipay reconcile query error: " << e.base().what();
-            },
-            "PAYING", "alipay", reconcileBatchSize_);
+    dbClient_->execSqlAsync(
+        "SELECT order_no FROM pay_order WHERE status = $1 AND channel = $2 "
+        "ORDER BY updated_at DESC LIMIT $3",
+        [this](const drogon::orm::Result &r) {
+            for (const auto &row : r) {
+                const std::string orderNo = row["order_no"].as<std::string>();
+                wechatClient_->queryTransaction(
+                    orderNo,
+                    [this, orderNo](const Json::Value &result,
+                                    const std::string &error) {
+                        if (!error.empty()) {
+                            LOG_WARN << "WeChat query failed for order " << orderNo << ": " << error;
+                            return;
+                        }
+                        paymentService_->syncOrderStatusFromWechat(
+                            orderNo,
+                            result,
+                            [](const std::string &) {});
+                    });
+            }
+        },
+        [](const drogon::orm::DrogonDbException &e) {
+            LOG_ERROR << "WeChat reconcile query error: " << e.base().what();
+        },
+        "PAYING", "wechat", reconcileBatchSize_);
+}
+
+void ReconciliationService::syncPendingAlipayOrders() {
+    if (!dbClient_) {
+        return;
     }
+
+    if (!alipayClient_) {
+        return;
+    }
+
+    dbClient_->execSqlAsync(
+        "SELECT order_no FROM pay_order WHERE status = $1 AND channel = $2 "
+        "ORDER BY updated_at DESC LIMIT $3",
+        [this](const drogon::orm::Result &r) {
+            for (const auto &row : r) {
+                const std::string orderNo = row["order_no"].as<std::string>();
+                alipayClient_->queryTrade(
+                    orderNo,
+                    [this, orderNo](const Json::Value &result,
+                                    const std::string &error) {
+                        if (!error.empty()) {
+                            LOG_WARN << "Alipay query failed for order " << orderNo << ": " << error;
+                            return;
+                        }
+                        // Sync order status from Alipay response
+                        paymentService_->syncOrderStatusFromAlipay(
+                            orderNo,
+                            result,
+                            [orderNo](const std::string &status) {
+                                if (!status.empty()) {
+                                    LOG_DEBUG << "Alipay order " << orderNo
+                                              << " status synced to: " << status;
+                                } else {
+                                    LOG_DEBUG << "Alipay order " << orderNo
+                                              << " status sync returned empty (no change)";
+                                }
+                            });
+                    });
+            }
+        },
+        [](const drogon::orm::DrogonDbException &e) {
+            LOG_ERROR << "Alipay reconcile query error: " << e.base().what();
+        },
+        "PAYING", "alipay", reconcileBatchSize_);
 }
 
 void ReconciliationService::syncPendingRefunds() {

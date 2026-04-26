@@ -79,6 +79,12 @@ public:
         std::function<void(const std::string& status)>&& callback
     );
 
+    void syncOrderStatusFromAlipay(
+        const std::string& orderNo,
+        const Json::Value& alipayResult,
+        std::function<void(const std::string& status)>&& callback
+    );
+
     void reconcileSummary(
         const std::string& date,
         PaymentCallback&& callback
