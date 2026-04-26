@@ -661,17 +661,12 @@ void PaymentService::queryOrder(
             data["title"] = order.getValueOfTitle();
             data["user_id"] = static_cast<Json::Int64>(order.getValueOfUserId());
 
-            // If not WeChat channel or WeChat client not available, return database data
-            if (!wechatClient_ || order.getValueOfChannel() != "wechat") {
-                response["data"] = data;
-                if (*sharedCb) {
-                    (*sharedCb)(response, std::error_code());
-                }
-                return;
-            }
+            const std::string channel = order.getValueOfChannel();
 
-            // Query transaction from WeChat Pay
-            wechatClient_->queryTransaction(
+            // Query real-time status from payment channel API
+            if (channel == "wechat" && wechatClient_) {
+                // Query transaction from WeChat Pay
+                wechatClient_->queryTransaction(
                 orderNo,
                 [this, orderNo, data, sharedCb](
                     const Json::Value &result, const std::string &error) {
@@ -704,6 +699,48 @@ void PaymentService::queryOrder(
                             }
                         });
                 });
+            } else if (channel == "alipay" && alipayClient_) {
+                // Query trade from Alipay
+                alipayClient_->queryTrade(
+                    orderNo,
+                    [this, orderNo, data, sharedCb](
+                        const Json::Value &result, const std::string &error) {
+                        if (!error.empty()) {
+                            // Return database data with error header
+                            Json::Value response = data;
+                            response["alipay_query_error"] = error;
+                            if (*sharedCb) {
+                                (*sharedCb)(response, std::error_code());
+                            }
+                            return;
+                        }
+
+                        // Sync order status from Alipay response
+                        syncOrderStatusFromAlipay(
+                            orderNo,
+                            result,
+                            [data, result, sharedCb](const std::string &status) {
+                                Json::Value response = data;
+                                if (!status.empty()) {
+                                    response["status"] = status;
+                                }
+                                const auto tradeNo = result.get("trade_no", "").asString();
+                                if (!tradeNo.empty()) {
+                                    response["trade_no"] = tradeNo;
+                                }
+                                response["alipay_response"] = result;
+                                if (*sharedCb) {
+                                    (*sharedCb)(response, std::error_code());
+                                }
+                            });
+                    });
+            } else {
+                // Channel not supported or client not available, return database data
+                response["data"] = data;
+                if (*sharedCb) {
+                    (*sharedCb)(response, std::error_code());
+                }
+            }
         },
         [sharedCb](const DrogonDbException &e) {
             if (*sharedCb) {

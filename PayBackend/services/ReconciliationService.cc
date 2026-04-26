@@ -195,7 +195,7 @@ void ReconciliationService::syncPendingRefunds() {
             }
         },
         [](const drogon::orm::DrogonDbException &e) {
-            LOG_ERROR << "Reconcile refund query error: "
+            LOG_ERROR << "WeChat refund reconcile query error: "
                       << e.base().what();
         },
         "REFUND_INIT",
