@@ -14,6 +14,11 @@ class PayController : public drogon::HttpController<PayController>
                   Post,
                   Options,
                   "PayAuthFilter");
+    ADD_METHOD_TO(PayController::createQRPayment,
+                  "/api/qrpay/create",
+                  Post,
+                  Options,
+                  "PayAuthFilter");
     ADD_METHOD_TO(PayController::queryOrder,
                   "/api/pay/query",
                   Get,
@@ -38,6 +43,9 @@ class PayController : public drogon::HttpController<PayController>
 
     void createPayment(const HttpRequestPtr &req,
                        std::function<void(const HttpResponsePtr &)> &&callback);
+
+    void createQRPayment(const HttpRequestPtr &req,
+                         std::function<void(const HttpResponsePtr &)> &&callback);
 
     void queryOrder(const HttpRequestPtr &req,
                     std::function<void(const HttpResponsePtr &)> &&callback);

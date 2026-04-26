@@ -44,6 +44,44 @@ void AlipaySandboxClient::createTrade(const Json::Value &payload, JsonCallback &
     }
 }
 
+void AlipaySandboxClient::precreateTrade(const Json::Value &payload, JsonCallback &&callback)
+{
+    try {
+        Json::Value bizContent = payload;
+
+        // Required parameters for alipay.trade.precreate:
+        // out_trade_no: Merchant order number
+        // total_amount: Payment amount
+        // subject: Order title/product name
+
+        if (!bizContent.isMember("out_trade_no")) {
+            Json::Value error;
+            error["error"] = "out_trade_no is required";
+            callback(Json::Value(), error.asString());
+            return;
+        }
+        if (!bizContent.isMember("total_amount")) {
+            Json::Value error;
+            error["error"] = "total_amount is required";
+            callback(Json::Value(), error.asString());
+            return;
+        }
+        if (!bizContent.isMember("subject")) {
+            bizContent["subject"] = "Payment Order";
+        }
+
+        // Optional: QR code expiration time (default 2 hours, max 24 hours)
+        // bizContent["timeout_express"] = "90m";  // 90 minutes
+
+        sendRequest("alipay.trade.precreate", bizContent, std::move(callback));
+    } catch (const std::exception &e) {
+        LOG_ERROR << "precreateTrade error: " << e.what();
+        Json::Value error;
+        error["error"] = e.what();
+        callback(Json::Value(), error.asString());
+    }
+}
+
 void AlipaySandboxClient::queryTrade(const std::string &outTradeNo, JsonCallback &&callback)
 {
     try {

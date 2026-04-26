@@ -63,6 +63,11 @@ public:
         PaymentCallback&& callback
     );
 
+    void createQRPayment(
+        const Json::Value& request,
+        PaymentCallback&& callback
+    );
+
     void queryOrder(
         const std::string& orderNo,
         PaymentCallback&& callback

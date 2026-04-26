@@ -115,6 +115,85 @@ void PayController::createPayment(
     );
 }
 
+void PayController::createQRPayment(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    if (req->method() == Options)
+    {
+        auto resp = HttpResponse::newHttpResponse();
+        callback(resp);
+        return;
+    }
+
+    // Parse request body
+    auto json = req->getJsonObject();
+    if (!json)
+    {
+        Json::Value error;
+        error["code"] = 400;
+        error["message"] = "Invalid JSON";
+        auto resp = HttpResponse::newHttpJsonResponse(error);
+        resp->setStatusCode(k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    // Validate required fields
+    if (!json->isMember("order_no") || !json->isMember("amount") ||
+        !json->isMember("channel") || !json->isMember("user_id"))
+    {
+        Json::Value error;
+        error["code"] = 400;
+        error["message"] = "Missing required fields: order_no, amount, channel, user_id";
+        auto resp = HttpResponse::newHttpJsonResponse(error);
+        resp->setStatusCode(k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    // Build payment request
+    Json::Value request;
+    request["order_no"] = (*json)["order_no"].asString();
+    request["amount"] = (*json)["amount"].asString();
+    request["channel"] = (*json)["channel"].asString();
+    request["user_id"] = (*json)["user_id"].asInt();
+
+    if (json->isMember("description"))
+    {
+        request["description"] = (*json)["description"].asString();
+    }
+    else
+    {
+        request["description"] = "";
+    }
+
+    if (json->isMember("product_name"))
+    {
+        request["subject"] = (*json)["product_name"].asString();
+    }
+    else
+    {
+        request["subject"] = "Payment";
+    }
+
+    // Get service and call QR payment
+    auto plugin = drogon::app().getPlugin<PayPlugin>();
+    auto paymentService = plugin->paymentService();
+
+    paymentService->createQRPayment(
+        request,
+        [callback](const Json::Value& result, const std::error_code& error) {
+            auto resp = HttpResponse::newHttpJsonResponse(result);
+            if (error)
+            {
+                resp->setStatusCode(k500InternalServerError);
+            }
+            callback(resp);
+        }
+    );
+}
+
 void PayController::queryOrder(
     const HttpRequestPtr &req,
     std::function<void(const HttpResponsePtr &)> &&callback)

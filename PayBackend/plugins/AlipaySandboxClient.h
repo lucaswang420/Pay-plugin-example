@@ -45,6 +45,15 @@ class AlipaySandboxClient
                     JsonCallback &&callback);
 
     /**
+     * @brief Precreate payment order (QR code payment)
+     *
+     * @param payload Payment request parameters
+     * @param callback Callback function
+     */
+    void precreateTrade(const Json::Value &payload,
+                       JsonCallback &&callback);
+
+    /**
      * @brief Query order status
      *
      * @param outTradeNo Merchant order number

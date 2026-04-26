@@ -512,6 +512,73 @@ void PaymentService::proceedCreatePayment(
     }
 }
 
+void PaymentService::createQRPayment(
+    const Json::Value& request,
+    PaymentCallback&& callback) {
+
+    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
+    auto sharedCb = std::make_shared<PaymentCallback>(std::move(callback));
+
+    // Extract parameters
+    std::string orderNo = request.get("order_no", "").asString();
+    std::string amount = request.get("amount", "").asString();
+    std::string channel = request.get("channel", "alipay").asString();
+    std::string subject = request.get("subject", "Payment").asString();
+
+    if (orderNo.empty() || amount.empty()) {
+        Json::Value response;
+        response["code"] = 400;
+        response["message"] = "Missing required parameters: order_no, amount";
+        (*sharedCb)(response, std::make_error_code(std::errc::invalid_argument));
+        return;
+    }
+
+    // Build QR payment payload for Alipay
+    Json::Value payload;
+    payload["out_trade_no"] = orderNo;
+    payload["total_amount"] = amount;
+    payload["subject"] = subject;
+
+    if (request.isMember("buyer_id")) {
+        payload["buyer_id"] = request["buyer_id"].asString();
+    }
+
+    LOG_DEBUG << "Creating QR payment, channel: " << channel << ", order: " << orderNo;
+
+    // Call Alipay precreate API
+    alipayClient_->precreateTrade(
+        payload,
+        [this, orderNo, sharedCb](const Json::Value& result, const std::string& error) {
+            if (!error.empty()) {
+                Json::Value response;
+                response["code"] = 500;
+                response["message"] = "QR payment creation failed: " + error;
+                (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                return;
+            }
+
+            // Alipay precreate response contains qr_code
+            Json::Value response;
+            response["code"] = 0;
+            response["message"] = "QR code created successfully";
+
+            Json::Value data;
+            data["order_no"] = orderNo;
+
+            // Extract qr_code from Alipay response
+            if (result.isMember("qr_code")) {
+                data["qr_code"] = result["qr_code"].asString();
+            }
+            if (result.isMember("out_trade_no")) {
+                data["out_trade_no"] = result["out_trade_no"].asString();
+            }
+
+            response["data"] = data;
+            (*sharedCb)(response, std::error_code());
+        }
+    );
+}
+
 void PaymentService::queryOrder(
     const std::string& orderNo,
     PaymentCallback&& callback) {
