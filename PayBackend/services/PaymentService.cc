@@ -145,6 +145,24 @@ void PaymentService::createPayment(
     const std::string& idempotencyKey,
     PaymentCallback&& callback) {
 
+    // For Alipay QR code payment, directly use precreate API
+    if (request.channel == "alipay") {
+        createQRPayment(
+            [&request]() {
+                Json::Value req;
+                req["order_no"] = request.orderNo;
+                req["amount"] = request.amount;
+                req["channel"] = request.channel;
+                req["user_id"] = request.userId;
+                req["subject"] = request.description.empty() ? "Payment" : request.description;
+                return req;
+            }(),
+            std::move(callback)
+        );
+        return;
+    }
+
+    // Original createTrade logic for WeChat or other channels
     // Calculate request hash for idempotency
     std::string requestStr = Json::writeString(Json::StreamWriterBuilder(),
         [&request]() {
@@ -553,6 +571,25 @@ void PaymentService::createQRPayment(
                 Json::Value response;
                 response["code"] = 500;
                 response["message"] = "QR payment creation failed: " + error;
+                (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                return;
+            }
+
+            // Check Alipay response code
+            std::string alipayCode = result.get("code", "").asString();
+            if (alipayCode != "10000") {
+                // Alipay business error
+                Json::Value response;
+                response["code"] = 500;
+                std::string subMsg = result.get("sub_msg", "").asString();
+                std::string msg = result.get("msg", "").asString();
+                std::string fullMessage = "Alipay error: " + msg;
+                if (!subMsg.empty()) {
+                    fullMessage += " - " + subMsg;
+                }
+                response["message"] = fullMessage;
+                response["alipay_code"] = alipayCode;
+                response["alipay_sub_code"] = result.get("sub_code", "").asString();
                 (*sharedCb)(response, std::make_error_code(std::errc::io_error));
                 return;
             }
