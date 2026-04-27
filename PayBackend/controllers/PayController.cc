@@ -393,6 +393,107 @@ void PayController::queryRefund(
     );
 }
 
+void PayController::queryOrderList(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    if (req->method() == Options)
+    {
+        auto resp = HttpResponse::newHttpResponse();
+        callback(resp);
+        return;
+    }
+
+    // Get query parameters
+    std::string status = req->getParameter("status");
+    std::string userIdStr = req->getParameter("user_id");
+    std::string limitStr = req->getParameter("limit");
+    std::string offsetStr = req->getParameter("offset");
+
+    // Parse parameters with defaults
+    int64_t userId = 0;  // 0 means no filter
+    if (!userIdStr.empty())
+    {
+        try
+        {
+            userId = std::stoll(userIdStr);
+        }
+        catch (const std::exception&)
+        {
+            Json::Value error;
+            error["code"] = 400;
+            error["message"] = "Invalid user_id parameter";
+            auto resp = HttpResponse::newHttpJsonResponse(error);
+            resp->setStatusCode(k400BadRequest);
+            callback(resp);
+            return;
+        }
+    }
+
+    size_t limit = 50;  // Default limit
+    if (!limitStr.empty())
+    {
+        try
+        {
+            limit = std::stoul(limitStr);
+            if (limit > 100) limit = 100;  // Max limit
+        }
+        catch (const std::exception&)
+        {
+            Json::Value error;
+            error["code"] = 400;
+            error["message"] = "Invalid limit parameter";
+            auto resp = HttpResponse::newHttpJsonResponse(error);
+            resp->setStatusCode(k400BadRequest);
+            callback(resp);
+            return;
+        }
+    }
+
+    size_t offset = 0;  // Default offset
+    if (!offsetStr.empty())
+    {
+        try
+        {
+            offset = std::stoul(offsetStr);
+        }
+        catch (const std::exception&)
+        {
+            Json::Value error;
+            error["code"] = 400;
+            error["message"] = "Invalid offset parameter";
+            auto resp = HttpResponse::newHttpJsonResponse(error);
+            resp->setStatusCode(k400BadRequest);
+            callback(resp);
+            return;
+        }
+    }
+
+    LOG_DEBUG << "[PAY_CONTROLLER] queryOrderList called with status=" << status
+              << ", userId=" << userId
+              << ", limit=" << limit
+              << ", offset=" << offset;
+
+    // Get service and call
+    auto plugin = drogon::app().getPlugin<PayPlugin>();
+    auto paymentService = plugin->paymentService();
+
+    paymentService->queryOrderList(
+        status,
+        userId,
+        limit,
+        offset,
+        [callback](const Json::Value& result, const std::error_code& error) {
+            auto resp = HttpResponse::newHttpJsonResponse(result);
+            if (error)
+            {
+                resp->setStatusCode(k500InternalServerError);
+            }
+            callback(resp);
+        }
+    );
+}
+
 void PayController::reconcileSummary(
     const HttpRequestPtr &req,
     std::function<void(const HttpResponsePtr &)> &&callback)

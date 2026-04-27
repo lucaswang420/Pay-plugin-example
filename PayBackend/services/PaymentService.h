@@ -73,6 +73,14 @@ public:
         PaymentCallback&& callback
     );
 
+    void queryOrderList(
+        const std::string& status,
+        const int64_t userId,
+        const size_t limit,
+        const size_t offset,
+        PaymentCallback&& callback
+    );
+
     void syncOrderStatusFromWechat(
         const std::string& orderNo,
         const Json::Value& wechatResult,

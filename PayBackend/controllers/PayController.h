@@ -34,6 +34,11 @@ class PayController : public drogon::HttpController<PayController>
                   Get,
                   Options,
                   "PayAuthFilter");
+    ADD_METHOD_TO(PayController::queryOrderList,
+                  "/api/pay/orders",
+                  Get,
+                  Options,
+                  "PayAuthFilter");
     ADD_METHOD_TO(PayController::reconcileSummary,
                   "/api/pay/reconcile/summary",
                   Get,
@@ -55,6 +60,9 @@ class PayController : public drogon::HttpController<PayController>
 
     void queryRefund(const HttpRequestPtr &req,
                      std::function<void(const HttpResponsePtr &)> &&callback);
+
+    void queryOrderList(const HttpRequestPtr &req,
+                       std::function<void(const HttpResponsePtr &)> &&callback);
 
     void reconcileSummary(
         const HttpRequestPtr &req,
