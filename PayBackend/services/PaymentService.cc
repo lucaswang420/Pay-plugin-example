@@ -782,8 +782,17 @@ void PaymentService::queryOrder(
                                     innerResponse["data"]["trade_no"] = tradeNo;
                                 }
                                 innerResponse["data"]["alipay_response"] = result;
-                                LOG_DEBUG << "[PAYMENT_SERVICE] Final response status=" << innerResponse["data"]["status"].asString()
-                                          << " for order " << orderNo;
+
+                                // Safely access status field for logging
+                                const auto& finalStatus = innerResponse["data"]["status"];
+                                if (finalStatus.isString()) {
+                                    LOG_DEBUG << "[PAYMENT_SERVICE] Final response status=" << finalStatus.asString()
+                                              << " for order " << orderNo;
+                                } else {
+                                    LOG_DEBUG << "[PAYMENT_SERVICE] Final response status=<non-string type>"
+                                              << " for order " << orderNo;
+                                }
+
                                 if (*sharedCb) {
                                     (*sharedCb)(innerResponse, std::error_code());
                                 }

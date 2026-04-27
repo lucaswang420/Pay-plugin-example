@@ -228,8 +228,20 @@ void PayController::queryOrder(
         orderNo,
         [callback, orderNo](const Json::Value& result, const std::error_code& error) {
             LOG_DEBUG << "[PAY_CONTROLLER] queryOrder response for " << orderNo
-                      << " - code=" << result.get("code", "?").asString()
-                      << " status=" << result.get("data", "status").asString();
+                      << " - code=" << result.get("code", "?").asString();
+
+            // Safely access status field
+            if (result.isMember("data") && result["data"].isMember("status")) {
+                const auto& status = result["data"]["status"];
+                if (status.isString()) {
+                    LOG_DEBUG << " status=" << status.asString();
+                } else {
+                    LOG_DEBUG << " status=<non-string type>";
+                }
+            } else {
+                LOG_DEBUG << " status=<not found>";
+            }
+
             auto resp = HttpResponse::newHttpJsonResponse(result);
             if (error)
             {
