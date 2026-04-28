@@ -51,6 +51,8 @@ class PayRefund
         static const std::string _status;
         static const std::string _amount;
         static const std::string _channel_refund_no;
+        static const std::string _request_payload;
+        static const std::string _response_payload;
         static const std::string _created_at;
         static const std::string _updated_at;
     };
@@ -167,6 +169,26 @@ class PayRefund
     void setChannelRefundNo(std::string &&pChannelRefundNo) noexcept;
     void setChannelRefundNoToNull() noexcept;
 
+    /**  For column request_payload  */
+    ///Get the value of the column request_payload, returns the default value if the column is null
+    const std::string &getValueOfRequestPayload() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<std::string> &getRequestPayload() const noexcept;
+    ///Set the value of the column request_payload
+    void setRequestPayload(const std::string &pRequestPayload) noexcept;
+    void setRequestPayload(std::string &&pRequestPayload) noexcept;
+    void setRequestPayloadToNull() noexcept;
+
+    /**  For column response_payload  */
+    ///Get the value of the column response_payload, returns the default value if the column is null
+    const std::string &getValueOfResponsePayload() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<std::string> &getResponsePayload() const noexcept;
+    ///Set the value of the column response_payload
+    void setResponsePayload(const std::string &pResponsePayload) noexcept;
+    void setResponsePayload(std::string &&pResponsePayload) noexcept;
+    void setResponsePayloadToNull() noexcept;
+
     /**  For column created_at  */
     ///Get the value of the column created_at, returns the default value if the column is null
     const ::trantor::Date &getValueOfCreatedAt() const noexcept;
@@ -184,7 +206,7 @@ class PayRefund
     void setUpdatedAt(const ::trantor::Date &pUpdatedAt) noexcept;
 
 
-    static size_t getColumnNumber() noexcept {  return 9;  }
+    static size_t getColumnNumber() noexcept {  return 11;  }
     static const std::string &getColumnName(size_t index) noexcept(false);
 
     Json::Value toJson() const;
@@ -213,6 +235,8 @@ class PayRefund
     std::shared_ptr<std::string> status_;
     std::shared_ptr<std::string> amount_;
     std::shared_ptr<std::string> channelRefundNo_;
+    std::shared_ptr<std::string> requestPayload_;
+    std::shared_ptr<std::string> responsePayload_;
     std::shared_ptr<::trantor::Date> createdAt_;
     std::shared_ptr<::trantor::Date> updatedAt_;
     struct MetaData
@@ -226,7 +250,7 @@ class PayRefund
         const bool notNull_;
     };
     static const std::vector<MetaData> metaData_;
-    bool dirtyFlag_[9]={ false };
+    bool dirtyFlag_[11]={ false };
   public:
     static const std::string &sqlForFindingByPrimaryKey()
     {
@@ -277,15 +301,25 @@ class PayRefund
             sql += "channel_refund_no,";
             ++parametersCount;
         }
+        if(dirtyFlag_[7])
+        {
+            sql += "request_payload,";
+            ++parametersCount;
+        }
+        if(dirtyFlag_[8])
+        {
+            sql += "response_payload,";
+            ++parametersCount;
+        }
         sql += "created_at,";
         ++parametersCount;
-        if(!dirtyFlag_[7])
+        if(!dirtyFlag_[9])
         {
             needSelection=true;
         }
         sql += "updated_at,";
         ++parametersCount;
-        if(!dirtyFlag_[8])
+        if(!dirtyFlag_[10])
         {
             needSelection=true;
         }
@@ -341,11 +375,21 @@ class PayRefund
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
         }
+        if(dirtyFlag_[8])
+        {
+            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
+            sql.append(placeholderStr, n);
+        }
+        if(dirtyFlag_[9])
+        {
+            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
+            sql.append(placeholderStr, n);
+        }
         else
         {
             sql +="default,";
         }
-        if(dirtyFlag_[8])
+        if(dirtyFlag_[10])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);

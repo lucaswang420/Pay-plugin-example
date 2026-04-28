@@ -120,6 +120,8 @@ class AlipaySandboxClient
     std::string privateKeyPath_;        // Application private key file path
     std::string alipayPublicKeyPath_;   // Alipay public key file path
     std::string gatewayUrl_;            // Sandbox gateway URL
+    std::string notifyUrl_;             // Async callback URL
+    int timeoutMs_;                     // HTTP request timeout in milliseconds
 
     // Load private key for signing
     std::string loadPrivateKey() const;

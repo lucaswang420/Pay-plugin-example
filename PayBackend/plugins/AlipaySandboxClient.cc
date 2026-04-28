@@ -21,8 +21,14 @@ AlipaySandboxClient::AlipaySandboxClient(const Json::Value &config)
     privateKeyPath_ = config.get("private_key_path", "").asString();
     alipayPublicKeyPath_ = config.get("alipay_public_key_path", "").asString();
     gatewayUrl_ = config.get("gateway_url", "https://openapi.alipaydev.com/gateway.do").asString();
+    notifyUrl_ = config.get("notify_url", "").asString();
 
-    LOG_INFO << "AlipaySandboxClient initialized with AppID: " << appId_;
+    // Get timeout from config, default to 30 seconds
+    timeoutMs_ = config.get("timeout_ms", 30000).asInt();
+
+    LOG_INFO << "AlipaySandboxClient initialized with AppID: " << appId_
+             << ", notify_url: " << notifyUrl_
+             << ", timeout: " << timeoutMs_ << "ms";
 }
 
 void AlipaySandboxClient::createTrade(const Json::Value &payload, JsonCallback &&callback)
@@ -68,6 +74,12 @@ void AlipaySandboxClient::precreateTrade(const Json::Value &payload, JsonCallbac
         }
         if (!bizContent.isMember("subject")) {
             bizContent["subject"] = "Payment Order";
+        }
+
+        // Add notify_url if configured and not provided in payload
+        if (!notifyUrl_.empty() && !bizContent.isMember("notify_url")) {
+            bizContent["notify_url"] = notifyUrl_;
+            LOG_DEBUG << "Added notify_url to precreate request: " << notifyUrl_;
         }
 
         // Optional: QR code expiration time (default 2 hours, max 24 hours)
@@ -320,7 +332,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
                 error["error"] = e.what();
                 callback(Json::Value(), error.asString());
             }
-        });
+        }, timeoutMs_);  // Set timeout in milliseconds
 
     } catch (const std::exception &e) {
         LOG_ERROR << "AlipaySandboxClient::sendRequest error: " << e.what();

@@ -63,8 +63,14 @@ void PayController::createPayment(
         }
         catch (const std::exception&)
         {
-            // For API key authentication, use default user_id = 0
-            request.userId = 0;
+            // For API key authentication, user_id is required
+            Json::Value error;
+            error["code"] = 401;
+            error["message"] = "User ID required. Please provide user_id in request body.";
+            auto resp = HttpResponse::newHttpJsonResponse(error);
+            resp->setStatusCode(k401Unauthorized);
+            callback(resp);
+            return;
         }
     }
 

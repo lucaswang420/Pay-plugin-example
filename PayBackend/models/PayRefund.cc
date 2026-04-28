@@ -20,6 +20,8 @@ const std::string PayRefund::Cols::_payment_no = "\"payment_no\"";
 const std::string PayRefund::Cols::_status = "\"status\"";
 const std::string PayRefund::Cols::_amount = "\"amount\"";
 const std::string PayRefund::Cols::_channel_refund_no = "\"channel_refund_no\"";
+const std::string PayRefund::Cols::_request_payload = "\"request_payload\"";
+const std::string PayRefund::Cols::_response_payload = "\"response_payload\"";
 const std::string PayRefund::Cols::_created_at = "\"created_at\"";
 const std::string PayRefund::Cols::_updated_at = "\"updated_at\"";
 const std::string PayRefund::primaryKeyName = "id";
@@ -34,6 +36,8 @@ const std::vector<typename PayRefund::MetaData> PayRefund::metaData_={
 {"status","std::string","character varying",32,0,0,1},
 {"amount","std::string","character varying",32,0,0,1},
 {"channel_refund_no","std::string","character varying",64,0,0,0},
+{"request_payload","std::string","text",0,0,0,0},
+{"response_payload","std::string","text",0,0,0,0},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,1},
 {"updated_at","::trantor::Date","timestamp without time zone",0,0,0,1}
 };
@@ -73,6 +77,14 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
         if(!r["channel_refund_no"].isNull())
         {
             channelRefundNo_=std::make_shared<std::string>(r["channel_refund_no"].as<std::string>());
+        }
+        if(!r["request_payload"].isNull())
+        {
+            requestPayload_=std::make_shared<std::string>(r["request_payload"].as<std::string>());
+        }
+        if(!r["response_payload"].isNull())
+        {
+            responsePayload_=std::make_shared<std::string>(r["response_payload"].as<std::string>());
         }
         if(!r["created_at"].isNull())
         {
@@ -122,7 +134,7 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
     else
     {
         size_t offset = (size_t)indexOffset;
-        if(offset + 9 > r.size())
+        if(offset + 11 > r.size())
         {
             LOG_FATAL << "Invalid SQL result for this model";
             return;
@@ -166,6 +178,16 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 7;
         if(!r[index].isNull())
         {
+            requestPayload_=std::make_shared<std::string>(r[index].as<std::string>());
+        }
+        index = offset + 8;
+        if(!r[index].isNull())
+        {
+            responsePayload_=std::make_shared<std::string>(r[index].as<std::string>());
+        }
+        index = offset + 9;
+        if(!r[index].isNull())
+        {
             auto timeStr = r[index].as<std::string>();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
@@ -186,7 +208,7 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
                 createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
-        index = offset + 8;
+        index = offset + 10;
         if(!r[index].isNull())
         {
             auto timeStr = r[index].as<std::string>();
@@ -215,7 +237,7 @@ PayRefund::PayRefund(const Row &r, const ssize_t indexOffset) noexcept
 
 PayRefund::PayRefund(const Json::Value &pJson, const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 11)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -281,7 +303,23 @@ PayRefund::PayRefund(const Json::Value &pJson, const std::vector<std::string> &p
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            auto timeStr = pJson[pMasqueradingVector[7]].asString();
+            requestPayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
+        }
+    }
+    if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
+    {
+        dirtyFlag_[8] = true;
+        if(!pJson[pMasqueradingVector[8]].isNull())
+        {
+            responsePayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[8]].asString());
+        }
+    }
+    if(!pMasqueradingVector[9].empty() && pJson.isMember(pMasqueradingVector[9]))
+    {
+        dirtyFlag_[9] = true;
+        if(!pJson[pMasqueradingVector[9]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[9]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -302,12 +340,12 @@ PayRefund::PayRefund(const Json::Value &pJson, const std::vector<std::string> &p
             }
         }
     }
-    if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
+    if(!pMasqueradingVector[10].empty() && pJson.isMember(pMasqueradingVector[10]))
     {
-        dirtyFlag_[8] = true;
-        if(!pJson[pMasqueradingVector[8]].isNull())
+        dirtyFlag_[10] = true;
+        if(!pJson[pMasqueradingVector[10]].isNull())
         {
-            auto timeStr = pJson[pMasqueradingVector[8]].asString();
+            auto timeStr = pJson[pMasqueradingVector[10]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -388,9 +426,25 @@ PayRefund::PayRefund(const Json::Value &pJson) noexcept(false)
             channelRefundNo_=std::make_shared<std::string>(pJson["channel_refund_no"].asString());
         }
     }
-    if(pJson.isMember("created_at"))
+    if(pJson.isMember("request_payload"))
     {
         dirtyFlag_[7]=true;
+        if(!pJson["request_payload"].isNull())
+        {
+            requestPayload_=std::make_shared<std::string>(pJson["request_payload"].asString());
+        }
+    }
+    if(pJson.isMember("response_payload"))
+    {
+        dirtyFlag_[8]=true;
+        if(!pJson["response_payload"].isNull())
+        {
+            responsePayload_=std::make_shared<std::string>(pJson["response_payload"].asString());
+        }
+    }
+    if(pJson.isMember("created_at"))
+    {
+        dirtyFlag_[9]=true;
         if(!pJson["created_at"].isNull())
         {
             auto timeStr = pJson["created_at"].asString();
@@ -416,7 +470,7 @@ PayRefund::PayRefund(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("updated_at"))
     {
-        dirtyFlag_[8]=true;
+        dirtyFlag_[10]=true;
         if(!pJson["updated_at"].isNull())
         {
             auto timeStr = pJson["updated_at"].asString();
@@ -445,7 +499,7 @@ PayRefund::PayRefund(const Json::Value &pJson) noexcept(false)
 void PayRefund::updateByMasqueradedJson(const Json::Value &pJson,
                                             const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 11)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -510,7 +564,23 @@ void PayRefund::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            auto timeStr = pJson[pMasqueradingVector[7]].asString();
+            requestPayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
+        }
+    }
+    if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
+    {
+        dirtyFlag_[8] = true;
+        if(!pJson[pMasqueradingVector[8]].isNull())
+        {
+            responsePayload_=std::make_shared<std::string>(pJson[pMasqueradingVector[8]].asString());
+        }
+    }
+    if(!pMasqueradingVector[9].empty() && pJson.isMember(pMasqueradingVector[9]))
+    {
+        dirtyFlag_[9] = true;
+        if(!pJson[pMasqueradingVector[9]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[9]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -531,12 +601,12 @@ void PayRefund::updateByMasqueradedJson(const Json::Value &pJson,
             }
         }
     }
-    if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
+    if(!pMasqueradingVector[10].empty() && pJson.isMember(pMasqueradingVector[10]))
     {
-        dirtyFlag_[8] = true;
-        if(!pJson[pMasqueradingVector[8]].isNull())
+        dirtyFlag_[10] = true;
+        if(!pJson[pMasqueradingVector[10]].isNull())
         {
-            auto timeStr = pJson[pMasqueradingVector[8]].asString();
+            auto timeStr = pJson[pMasqueradingVector[10]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -616,9 +686,25 @@ void PayRefund::updateByJson(const Json::Value &pJson) noexcept(false)
             channelRefundNo_=std::make_shared<std::string>(pJson["channel_refund_no"].asString());
         }
     }
-    if(pJson.isMember("created_at"))
+    if(pJson.isMember("request_payload"))
     {
         dirtyFlag_[7] = true;
+        if(!pJson["request_payload"].isNull())
+        {
+            requestPayload_=std::make_shared<std::string>(pJson["request_payload"].asString());
+        }
+    }
+    if(pJson.isMember("response_payload"))
+    {
+        dirtyFlag_[8] = true;
+        if(!pJson["response_payload"].isNull())
+        {
+            responsePayload_=std::make_shared<std::string>(pJson["response_payload"].asString());
+        }
+    }
+    if(pJson.isMember("created_at"))
+    {
+        dirtyFlag_[9] = true;
         if(!pJson["created_at"].isNull())
         {
             auto timeStr = pJson["created_at"].asString();
@@ -644,7 +730,7 @@ void PayRefund::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("updated_at"))
     {
-        dirtyFlag_[8] = true;
+        dirtyFlag_[10] = true;
         if(!pJson["updated_at"].isNull())
         {
             auto timeStr = pJson["updated_at"].asString();
@@ -829,6 +915,60 @@ void PayRefund::setChannelRefundNoToNull() noexcept
     dirtyFlag_[6] = true;
 }
 
+const std::string &PayRefund::getValueOfRequestPayload() const noexcept
+{
+    static const std::string defaultValue = std::string();
+    if(requestPayload_)
+        return *requestPayload_;
+    return defaultValue;
+}
+const std::shared_ptr<std::string> &PayRefund::getRequestPayload() const noexcept
+{
+    return requestPayload_;
+}
+void PayRefund::setRequestPayload(const std::string &pRequestPayload) noexcept
+{
+    requestPayload_ = std::make_shared<std::string>(pRequestPayload);
+    dirtyFlag_[7] = true;
+}
+void PayRefund::setRequestPayload(std::string &&pRequestPayload) noexcept
+{
+    requestPayload_ = std::make_shared<std::string>(std::move(pRequestPayload));
+    dirtyFlag_[7] = true;
+}
+void PayRefund::setRequestPayloadToNull() noexcept
+{
+    requestPayload_.reset();
+    dirtyFlag_[7] = true;
+}
+
+const std::string &PayRefund::getValueOfResponsePayload() const noexcept
+{
+    static const std::string defaultValue = std::string();
+    if(responsePayload_)
+        return *responsePayload_;
+    return defaultValue;
+}
+const std::shared_ptr<std::string> &PayRefund::getResponsePayload() const noexcept
+{
+    return responsePayload_;
+}
+void PayRefund::setResponsePayload(const std::string &pResponsePayload) noexcept
+{
+    responsePayload_ = std::make_shared<std::string>(pResponsePayload);
+    dirtyFlag_[8] = true;
+}
+void PayRefund::setResponsePayload(std::string &&pResponsePayload) noexcept
+{
+    responsePayload_ = std::make_shared<std::string>(std::move(pResponsePayload));
+    dirtyFlag_[8] = true;
+}
+void PayRefund::setResponsePayloadToNull() noexcept
+{
+    responsePayload_.reset();
+    dirtyFlag_[8] = true;
+}
+
 const ::trantor::Date &PayRefund::getValueOfCreatedAt() const noexcept
 {
     static const ::trantor::Date defaultValue = ::trantor::Date();
@@ -843,7 +983,7 @@ const std::shared_ptr<::trantor::Date> &PayRefund::getCreatedAt() const noexcept
 void PayRefund::setCreatedAt(const ::trantor::Date &pCreatedAt) noexcept
 {
     createdAt_ = std::make_shared<::trantor::Date>(pCreatedAt);
-    dirtyFlag_[7] = true;
+    dirtyFlag_[9] = true;
 }
 
 const ::trantor::Date &PayRefund::getValueOfUpdatedAt() const noexcept
@@ -860,7 +1000,7 @@ const std::shared_ptr<::trantor::Date> &PayRefund::getUpdatedAt() const noexcept
 void PayRefund::setUpdatedAt(const ::trantor::Date &pUpdatedAt) noexcept
 {
     updatedAt_ = std::make_shared<::trantor::Date>(pUpdatedAt);
-    dirtyFlag_[8] = true;
+    dirtyFlag_[10] = true;
 }
 
 void PayRefund::updateId(const uint64_t id)
@@ -876,6 +1016,8 @@ const std::vector<std::string> &PayRefund::insertColumns() noexcept
         "status",
         "amount",
         "channel_refund_no",
+        "request_payload",
+        "response_payload",
         "created_at",
         "updated_at"
     };
@@ -952,6 +1094,28 @@ void PayRefund::outputArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[7])
     {
+        if(getRequestPayload())
+        {
+            binder << getValueOfRequestPayload();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[8])
+    {
+        if(getResponsePayload())
+        {
+            binder << getValueOfResponsePayload();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[9])
+    {
         if(getCreatedAt())
         {
             binder << getValueOfCreatedAt();
@@ -961,7 +1125,7 @@ void PayRefund::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[8])
+    if(dirtyFlag_[10])
     {
         if(getUpdatedAt())
         {
@@ -1008,6 +1172,14 @@ const std::vector<std::string> PayRefund::updateColumns() const
     if(dirtyFlag_[8])
     {
         ret.push_back(getColumnName(8));
+    }
+    if(dirtyFlag_[9])
+    {
+        ret.push_back(getColumnName(9));
+    }
+    if(dirtyFlag_[10])
+    {
+        ret.push_back(getColumnName(10));
     }
     return ret;
 }
@@ -1082,6 +1254,28 @@ void PayRefund::updateArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[7])
     {
+        if(getRequestPayload())
+        {
+            binder << getValueOfRequestPayload();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[8])
+    {
+        if(getResponsePayload())
+        {
+            binder << getValueOfResponsePayload();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[9])
+    {
         if(getCreatedAt())
         {
             binder << getValueOfCreatedAt();
@@ -1091,7 +1285,7 @@ void PayRefund::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[8])
+    if(dirtyFlag_[10])
     {
         if(getUpdatedAt())
         {
@@ -1162,6 +1356,22 @@ Json::Value PayRefund::toJson() const
     {
         ret["channel_refund_no"]=Json::Value();
     }
+    if(getRequestPayload())
+    {
+        ret["request_payload"]=getValueOfRequestPayload();
+    }
+    else
+    {
+        ret["request_payload"]=Json::Value();
+    }
+    if(getResponsePayload())
+    {
+        ret["response_payload"]=getValueOfResponsePayload();
+    }
+    else
+    {
+        ret["response_payload"]=Json::Value();
+    }
     if(getCreatedAt())
     {
         ret["created_at"]=getCreatedAt()->toDbStringLocal();
@@ -1190,7 +1400,7 @@ Json::Value PayRefund::toMasqueradedJson(
     const std::vector<std::string> &pMasqueradingVector) const
 {
     Json::Value ret;
-    if(pMasqueradingVector.size() == 9)
+    if(pMasqueradingVector.size() == 11)
     {
         if(!pMasqueradingVector[0].empty())
         {
@@ -1271,9 +1481,9 @@ Json::Value PayRefund::toMasqueradedJson(
         }
         if(!pMasqueradingVector[7].empty())
         {
-            if(getCreatedAt())
+            if(getRequestPayload())
             {
-                ret[pMasqueradingVector[7]]=getCreatedAt()->toDbStringLocal();
+                ret[pMasqueradingVector[7]]=getValueOfRequestPayload();
             }
             else
             {
@@ -1282,13 +1492,35 @@ Json::Value PayRefund::toMasqueradedJson(
         }
         if(!pMasqueradingVector[8].empty())
         {
-            if(getUpdatedAt())
+            if(getResponsePayload())
             {
-                ret[pMasqueradingVector[8]]=getUpdatedAt()->toDbStringLocal();
+                ret[pMasqueradingVector[8]]=getValueOfResponsePayload();
             }
             else
             {
                 ret[pMasqueradingVector[8]]=Json::Value();
+            }
+        }
+        if(!pMasqueradingVector[9].empty())
+        {
+            if(getCreatedAt())
+            {
+                ret[pMasqueradingVector[9]]=getCreatedAt()->toDbStringLocal();
+            }
+            else
+            {
+                ret[pMasqueradingVector[9]]=Json::Value();
+            }
+        }
+        if(!pMasqueradingVector[10].empty())
+        {
+            if(getUpdatedAt())
+            {
+                ret[pMasqueradingVector[10]]=getUpdatedAt()->toDbStringLocal();
+            }
+            else
+            {
+                ret[pMasqueradingVector[10]]=Json::Value();
             }
         }
         return ret;
@@ -1349,6 +1581,22 @@ Json::Value PayRefund::toMasqueradedJson(
     else
     {
         ret["channel_refund_no"]=Json::Value();
+    }
+    if(getRequestPayload())
+    {
+        ret["request_payload"]=getValueOfRequestPayload();
+    }
+    else
+    {
+        ret["request_payload"]=Json::Value();
+    }
+    if(getResponsePayload())
+    {
+        ret["response_payload"]=getValueOfResponsePayload();
+    }
+    else
+    {
+        ret["response_payload"]=Json::Value();
     }
     if(getCreatedAt())
     {
@@ -1426,14 +1674,24 @@ bool PayRefund::validateJsonForCreation(const Json::Value &pJson, std::string &e
         if(!validJsonOfField(6, "channel_refund_no", pJson["channel_refund_no"], err, true))
             return false;
     }
+    if(pJson.isMember("request_payload"))
+    {
+        if(!validJsonOfField(7, "request_payload", pJson["request_payload"], err, true))
+            return false;
+    }
+    if(pJson.isMember("response_payload"))
+    {
+        if(!validJsonOfField(8, "response_payload", pJson["response_payload"], err, true))
+            return false;
+    }
     if(pJson.isMember("created_at"))
     {
-        if(!validJsonOfField(7, "created_at", pJson["created_at"], err, true))
+        if(!validJsonOfField(9, "created_at", pJson["created_at"], err, true))
             return false;
     }
     if(pJson.isMember("updated_at"))
     {
-        if(!validJsonOfField(8, "updated_at", pJson["updated_at"], err, true))
+        if(!validJsonOfField(10, "updated_at", pJson["updated_at"], err, true))
             return false;
     }
     return true;
@@ -1442,7 +1700,7 @@ bool PayRefund::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                                                    const std::vector<std::string> &pMasqueradingVector,
                                                    std::string &err)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 11)
     {
         err = "Bad masquerading vector";
         return false;
@@ -1540,6 +1798,22 @@ bool PayRefund::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                   return false;
           }
       }
+      if(!pMasqueradingVector[9].empty())
+      {
+          if(pJson.isMember(pMasqueradingVector[9]))
+          {
+              if(!validJsonOfField(9, pMasqueradingVector[9], pJson[pMasqueradingVector[9]], err, true))
+                  return false;
+          }
+      }
+      if(!pMasqueradingVector[10].empty())
+      {
+          if(pJson.isMember(pMasqueradingVector[10]))
+          {
+              if(!validJsonOfField(10, pMasqueradingVector[10], pJson[pMasqueradingVector[10]], err, true))
+                  return false;
+          }
+      }
     }
     catch(const Json::LogicError &e)
     {
@@ -1590,14 +1864,24 @@ bool PayRefund::validateJsonForUpdate(const Json::Value &pJson, std::string &err
         if(!validJsonOfField(6, "channel_refund_no", pJson["channel_refund_no"], err, false))
             return false;
     }
+    if(pJson.isMember("request_payload"))
+    {
+        if(!validJsonOfField(7, "request_payload", pJson["request_payload"], err, false))
+            return false;
+    }
+    if(pJson.isMember("response_payload"))
+    {
+        if(!validJsonOfField(8, "response_payload", pJson["response_payload"], err, false))
+            return false;
+    }
     if(pJson.isMember("created_at"))
     {
-        if(!validJsonOfField(7, "created_at", pJson["created_at"], err, false))
+        if(!validJsonOfField(9, "created_at", pJson["created_at"], err, false))
             return false;
     }
     if(pJson.isMember("updated_at"))
     {
-        if(!validJsonOfField(8, "updated_at", pJson["updated_at"], err, false))
+        if(!validJsonOfField(10, "updated_at", pJson["updated_at"], err, false))
             return false;
     }
     return true;
@@ -1606,7 +1890,7 @@ bool PayRefund::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
                                                  const std::vector<std::string> &pMasqueradingVector,
                                                  std::string &err)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 11)
     {
         err = "Bad masquerading vector";
         return false;
@@ -1660,6 +1944,16 @@ bool PayRefund::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
       if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
       {
           if(!validJsonOfField(8, pMasqueradingVector[8], pJson[pMasqueradingVector[8]], err, false))
+              return false;
+      }
+      if(!pMasqueradingVector[9].empty() && pJson.isMember(pMasqueradingVector[9]))
+      {
+          if(!validJsonOfField(9, pMasqueradingVector[9], pJson[pMasqueradingVector[9]], err, false))
+              return false;
+      }
+      if(!pMasqueradingVector[10].empty() && pJson.isMember(pMasqueradingVector[10]))
+      {
+          if(!validJsonOfField(10, pMasqueradingVector[10], pJson[pMasqueradingVector[10]], err, false))
               return false;
       }
     }
@@ -1817,6 +2111,28 @@ bool PayRefund::validJsonOfField(size_t index,
         case 7:
             if(pJson.isNull())
             {
+                return true;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            break;
+        case 8:
+            if(pJson.isNull())
+            {
+                return true;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            break;
+        case 9:
+            if(pJson.isNull())
+            {
                 err="The " + fieldName + " column cannot be null";
                 return false;
             }
@@ -1826,7 +2142,7 @@ bool PayRefund::validJsonOfField(size_t index,
                 return false;
             }
             break;
-        case 8:
+        case 10:
             if(pJson.isNull())
             {
                 err="The " + fieldName + " column cannot be null";

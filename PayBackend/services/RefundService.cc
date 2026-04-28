@@ -392,7 +392,7 @@ void RefundService::proceedWithAmountCheck(
                     data["refund_no"] = r.front()["refund_no"].as<std::string>();
                     data["order_no"] = r.front()["order_no"].as<std::string>();
                     data["payment_no"] = paymentNo;
-                    data["amount"] = amount;
+                    data["refund_amount"] = amount;
                     data["status"] = r.front()["status"].as<std::string>();
                     if (!r.front()["channel_refund_no"].isNull()) {
                         data["channel_refund_no"] =
@@ -479,7 +479,7 @@ void RefundService::proceedWithInsert(
 
     // Check total refunded amount doesn't exceed paid amount
     dbClient_->execSqlAsync(
-        "SELECT COALESCE(SUM(amount), 0) AS sum_amount "
+        "SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) AS sum_amount "
         "FROM pay_refund WHERE order_no = $1 "
         "AND status IN ($2, $3, $4)",
         [this, request, refundNo, orderNo, paymentNo, amount, refundFen, totalFen,
@@ -538,91 +538,205 @@ void RefundService::proceedWithRefundInsert(
     // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
     auto sharedCb = std::make_shared<RefundCallback>(std::move(callback));
 
-    Mapper<PayRefundModel> refundMapper(dbClient_);
-    PayRefundModel refund;
-    refund.setRefundNo(refundNo);
-    refund.setOrderNo(orderNo);
-    refund.setPaymentNo(paymentNo);
-    refund.setStatus("REFUND_INIT");
-    refund.setAmount(amount);
-    refund.setCreatedAt(trantor::Date::now());
-    refund.setUpdatedAt(trantor::Date::now());
+    // First, query the order to get the payment channel
+    Mapper<PayOrderModel> orderMapper(dbClient_);
+    auto orderCriteria = Criteria(PayOrderModel::Cols::_order_no, CompareOperator::EQ, orderNo);
+    orderMapper.findOne(
+        orderCriteria,
+        [this, request, refundNo, orderNo, paymentNo, amount, refundFen, totalFen, currency, reason, sharedCb](
+            const PayOrderModel& order) mutable {
 
-    refundMapper.insert(
-        refund,
-        [this, request, refundNo, orderNo, paymentNo, amount, refundFen, totalFen,
-         currency, reason, sharedCb](const PayRefundModel &) mutable {
-            if (!wechatClient_) {
-                if (*sharedCb) {
-                    const std::string errorMessage = "WeChat client not ready";
-                    Json::Value error;
-                    error["code"] = 1501;
-                    error["message"] = errorMessage;
-                    error["data"]["refund_no"] = refundNo;
-                    error["data"]["order_no"] = orderNo;
-                    error["data"]["payment_no"] = paymentNo;
-                    error["data"]["amount"] = amount;
-                    error["data"]["status"] = "REFUND_FAIL";
-                    (*sharedCb)(error, std::error_code(1501, std::system_category()));
-                }
-                return;
-            }
+            std::string channel = order.getValueOfChannel();
+            LOG_DEBUG << "Refund for order " << orderNo << " using channel: " << channel;
 
-            Json::Value payload;
-            payload["out_trade_no"] = orderNo;
-            payload["out_refund_no"] = refundNo;
-            if (!reason.empty()) {
-                payload["reason"] = reason;
-            }
-            if (!request.notifyUrl.empty()) {
-                payload["notify_url"] = request.notifyUrl;
-            }
-            if (!request.fundsAccount.empty()) {
-                payload["funds_account"] = request.fundsAccount;
-            }
-            payload["amount"]["refund"] = static_cast<Json::Int64>(refundFen);
-            payload["amount"]["total"] = static_cast<Json::Int64>(totalFen);
-            payload["amount"]["currency"] = currency;
+            // Insert refund record
+            Mapper<PayRefundModel> refundMapper(dbClient_);
+            PayRefundModel refund;
+            refund.setRefundNo(refundNo);
+            refund.setOrderNo(orderNo);
+            refund.setPaymentNo(paymentNo);
+            refund.setStatus("REFUND_INIT");
+            refund.setAmount(amount);
+            refund.setCreatedAt(trantor::Date::now());
+            refund.setUpdatedAt(trantor::Date::now());
 
-            wechatClient_->refund(
-                payload,
-                [this, refundNo, orderNo, paymentNo, amount, sharedCb](
-                    const Json::Value &result, const std::string &error) mutable {
-                    if (!error.empty()) {
-                        const std::string errorMessage = "WeChat error: " + error;
-                        Json::Value errJson;
-                        errJson["error"] = errorMessage;
-                        updateRefundWithError(refundNo, errorMessage, errJson);
-                        if (*sharedCb) {
-                            Json::Value response;
-                            response["code"] = 1502;
-                            response["message"] = errorMessage;
-                            response["data"]["refund_no"] = refundNo;
-                            response["data"]["order_no"] = orderNo;
-                            response["data"]["payment_no"] = paymentNo;
-                            response["data"]["amount"] = amount;
-                            response["data"]["status"] = "REFUND_FAIL";
-                            response["data"]["error"] = errorMessage;
-                            response["data"]["wechat_response"] = errJson;
-                            (*sharedCb)(response, std::error_code(1502, std::system_category()));
+            refundMapper.insert(
+                refund,
+                [this, channel, request, refundNo, orderNo, paymentNo, amount, refundFen, totalFen,
+                 currency, reason, sharedCb](const PayRefundModel &) mutable {
+
+                    // Route to appropriate payment client based on channel
+                    if (channel == "alipay") {
+                        // Alipay refund
+                        if (!alipayClient_) {
+                            if (*sharedCb) {
+                                Json::Value error;
+                                error["code"] = 1501;
+                                error["message"] = "Alipay client not ready";
+                                error["data"]["refund_no"] = refundNo;
+                                error["data"]["order_no"] = orderNo;
+                                error["data"]["payment_no"] = paymentNo;
+                                error["data"]["refund_amount"] = amount;
+                                error["data"]["status"] = "REFUND_FAIL";
+                                (*sharedCb)(error, std::error_code(1501, std::system_category()));
+                            }
+                            return;
                         }
-                        return;
-                    }
 
-                    std::string refundStatus = "REFUNDING";
-                    const std::string wechatStatus = result.get("status", "").asString();
-                    const std::string refundId = result.get("refund_id", "").asString();
-                    if (wechatStatus == "SUCCESS") {
-                        refundStatus = "REFUND_SUCCESS";
-                    } else if (wechatStatus == "CLOSED") {
-                        refundStatus = "REFUND_FAIL";
-                    }
+                        Json::Value payload;
+                        payload["out_trade_no"] = orderNo;
+                        payload["refund_amount"] = amount;
+                        if (!reason.empty()) {
+                            payload["refund_reason"] = reason;
+                        }
 
-                    updateRefundWithSuccess(refundNo, refundStatus, refundId, result,
-                                           orderNo, paymentNo, amount, std::move(*sharedCb));
+                        alipayClient_->refund(
+                            payload,
+                            [this, refundNo, orderNo, paymentNo, amount, sharedCb](
+                                const Json::Value& result, const std::string& error) mutable {
+                                if (!error.empty()) {
+                                    const std::string errorMessage = "Alipay error: " + error;
+                                    Json::Value errJson;
+                                    errJson["error"] = errorMessage;
+                                    updateRefundWithError(refundNo, errorMessage, errJson);
+                                    if (*sharedCb) {
+                                        Json::Value response;
+                                        response["code"] = 1502;
+                                        response["message"] = errorMessage;
+                                        response["data"]["refund_no"] = refundNo;
+                                        response["data"]["order_no"] = orderNo;
+                                        response["data"]["payment_no"] = paymentNo;
+                                        response["data"]["refund_amount"] = amount;
+                                        response["data"]["status"] = "REFUND_FAIL";
+                                        response["data"]["error"] = errorMessage;
+                                        response["data"]["alipay_response"] = errJson;
+                                        (*sharedCb)(response, std::error_code(1502, std::system_category()));
+                                    }
+                                    return;
+                                }
+
+                                // Check Alipay response
+                                std::string alipayCode = result.get("code", "").asString();
+                                if (alipayCode != "10000") {
+                                    const std::string errorMessage = "Alipay refund failed: " +
+                                        result.get("msg", "").asString();
+                                    updateRefundWithError(refundNo, errorMessage, result);
+                                    if (*sharedCb) {
+                                        Json::Value response;
+                                        response["code"] = 1502;
+                                        response["message"] = errorMessage;
+                                        response["data"]["refund_no"] = refundNo;
+                                        response["data"]["order_no"] = orderNo;
+                                        response["data"]["payment_no"] = paymentNo;
+                                        response["data"]["refund_amount"] = amount;
+                                        response["data"]["status"] = "REFUND_FAIL";
+                                        (*sharedCb)(response, std::error_code(1502, std::system_category()));
+                                    }
+                                    return;
+                                }
+
+                                std::string refundStatus = "REFUND_SUCCESS";
+                                const std::string refundId = result.get("refund_id", "").asString();
+                                updateRefundWithSuccess(refundNo, refundStatus, refundId, result,
+                                                       orderNo, paymentNo, amount, std::move(*sharedCb));
+                            });
+
+                    } else if (channel == "wechat") {
+                        // WeChat refund
+                        if (!wechatClient_) {
+                            if (*sharedCb) {
+                                Json::Value error;
+                                error["code"] = 1501;
+                                error["message"] = "WeChat client not ready";
+                                error["data"]["refund_no"] = refundNo;
+                                error["data"]["order_no"] = orderNo;
+                                error["data"]["payment_no"] = paymentNo;
+                                error["data"]["refund_amount"] = amount;
+                                error["data"]["status"] = "REFUND_FAIL";
+                                (*sharedCb)(error, std::error_code(1501, std::system_category()));
+                            }
+                            return;
+                        }
+
+                        Json::Value payload;
+                        payload["out_trade_no"] = orderNo;
+                        payload["out_refund_no"] = refundNo;
+                        if (!reason.empty()) {
+                            payload["reason"] = reason;
+                        }
+                        if (!request.notifyUrl.empty()) {
+                            payload["notify_url"] = request.notifyUrl;
+                        }
+                        if (!request.fundsAccount.empty()) {
+                            payload["funds_account"] = request.fundsAccount;
+                        }
+                        payload["amount"]["refund"] = static_cast<Json::Int64>(refundFen);
+                        payload["amount"]["total"] = static_cast<Json::Int64>(totalFen);
+                        payload["amount"]["currency"] = currency;
+
+                        wechatClient_->refund(
+                            payload,
+                            [this, refundNo, orderNo, paymentNo, amount, sharedCb](
+                                const Json::Value &result, const std::string &error) mutable {
+                                if (!error.empty()) {
+                                    const std::string errorMessage = "WeChat error: " + error;
+                                    Json::Value errJson;
+                                    errJson["error"] = errorMessage;
+                                    updateRefundWithError(refundNo, errorMessage, errJson);
+                                    if (*sharedCb) {
+                                        Json::Value response;
+                                        response["code"] = 1502;
+                                        response["message"] = errorMessage;
+                                        response["data"]["refund_no"] = refundNo;
+                                        response["data"]["order_no"] = orderNo;
+                                        response["data"]["payment_no"] = paymentNo;
+                                        response["data"]["refund_amount"] = amount;
+                                        response["data"]["status"] = "REFUND_FAIL";
+                                        response["data"]["error"] = errorMessage;
+                                        response["data"]["wechat_response"] = errJson;
+                                        (*sharedCb)(response, std::error_code(1502, std::system_category()));
+                                    }
+                                    return;
+                                }
+
+                                std::string refundStatus = "REFUNDING";
+                                const std::string wechatStatus = result.get("status", "").asString();
+                                const std::string refundId = result.get("refund_id", "").asString();
+                                if (wechatStatus == "SUCCESS") {
+                                    refundStatus = "REFUND_SUCCESS";
+                                } else if (wechatStatus == "CLOSED") {
+                                    refundStatus = "REFUND_FAIL";
+                                }
+
+                                updateRefundWithSuccess(refundNo, refundStatus, refundId, result,
+                                                       orderNo, paymentNo, amount, std::move(*sharedCb));
+                            });
+
+                    } else {
+                        // Unknown channel
+                        if (*sharedCb) {
+                            Json::Value error;
+                            error["code"] = 1500;
+                            error["message"] = "Unknown payment channel: " + channel;
+                            error["data"]["refund_no"] = refundNo;
+                            error["data"]["order_no"] = orderNo;
+                            error["data"]["payment_no"] = paymentNo;
+                            error["data"]["refund_amount"] = amount;
+                            error["data"]["status"] = "REFUND_FAIL";
+                            (*sharedCb)(error, std::error_code(1500, std::system_category()));
+                        }
+                    }
+                },
+                [sharedCb](const DrogonDbException& e) {
+                    if (*sharedCb) {
+                        Json::Value error;
+                        error["code"] = 1500;
+                        error["message"] = std::string("Database error: ") + e.base().what();
+                        (*sharedCb)(error, std::error_code(1500, std::system_category()));
+                    }
                 });
         },
-        [sharedCb](const DrogonDbException &e) {
+        [sharedCb](const DrogonDbException& e) {
             if (*sharedCb) {
                 Json::Value error;
                 error["code"] = 1500;
@@ -699,22 +813,54 @@ void RefundService::updateRefundWithSuccess(
                         "WHERE refund_no = $2",
                         [this, refundNo, refundStatus, refundId, result, orderNo, paymentNo, amount, sharedCb](
                             const Result &) {
-                            if (*sharedCb) {
-                                Json::Value response;
-                                response["code"] = 0;
-                                response["message"] = "Refund created successfully";
-                                Json::Value data;
-                                data["refund_no"] = refundNo;
-                                data["order_no"] = orderNo;
-                                data["payment_no"] = paymentNo;
-                                data["amount"] = amount;
-                                data["status"] = refundStatus;
-                                data["channel_refund_no"] = refundId;
-                                data["wechat_response"] = result;
-                                response["data"] = data;
-                                (*sharedCb)(response, std::error_code());
-                            }
-                        },
+                                // Update order status to REFUNDED after successful refund
+                                Mapper<PayOrderModel> orderMapper(dbClient_);
+                                auto orderCriteria = Criteria(PayOrderModel::Cols::_order_no, CompareOperator::EQ, orderNo);
+                                orderMapper.findOne(
+                                    orderCriteria,
+                                    [this, refundNo, refundStatus, refundId, result, orderNo, paymentNo, amount, sharedCb](
+                                        PayOrderModel order) mutable {
+                                        order.setStatus("REFUNDED");
+                                        order.setUpdatedAt(trantor::Date::now());
+                                        Mapper<PayOrderModel> orderUpdater(dbClient_);
+                                        orderUpdater.update(
+                                            order,
+                                            [this, refundNo, refundStatus, refundId, result, orderNo, paymentNo, amount, sharedCb](
+                                                const size_t) {
+                                                if (*sharedCb) {
+                                                    Json::Value response;
+                                                    response["code"] = 0;
+                                                    response["message"] = "Refund created successfully";
+                                                    Json::Value data;
+                                                    data["refund_no"] = refundNo;
+                                                    data["order_no"] = orderNo;
+                                                    data["payment_no"] = paymentNo;
+                                                    data["refund_amount"] = amount;
+                                                    data["status"] = refundStatus;
+                                                    data["channel_refund_no"] = refundId;
+                                                    data["wechat_response"] = result;
+                                                    response["data"] = data;
+                                                    (*sharedCb)(response, std::error_code());
+                                                }
+                                            },
+                                            [sharedCb](const DrogonDbException &e) {
+                                                if (*sharedCb) {
+                                                    Json::Value error;
+                                                    error["code"] = 1500;
+                                                    error["message"] = std::string("Database error: ") + e.base().what();
+                                                    (*sharedCb)(error, std::error_code(1500, std::system_category()));
+                                                }
+                                            });
+                                    },
+                                    [sharedCb](const DrogonDbException &e) {
+                                        if (*sharedCb) {
+                                            Json::Value error;
+                                            error["code"] = 1500;
+                                            error["message"] = std::string("Database error: ") + e.base().what();
+                                            (*sharedCb)(error, std::error_code(1500, std::system_category()));
+                                        }
+                                    });
+                            },
                         [sharedCb](const DrogonDbException &e) {
                             if (*sharedCb) {
                                 Json::Value error;
@@ -766,7 +912,7 @@ void RefundService::queryRefund(
             data["order_no"] = refund.getValueOfOrderNo();
             data["payment_no"] = refund.getValueOfPaymentNo();
             data["status"] = refund.getValueOfStatus();
-            data["amount"] = refund.getValueOfAmount();
+            data["refund_amount"] = refund.getValueOfAmount();
             data["channel_refund_no"] = refund.getValueOfChannelRefundNo();
             data["updated_at"] = toRfc3339Utc(refund.getValueOfUpdatedAt());
             response["data"] = data;

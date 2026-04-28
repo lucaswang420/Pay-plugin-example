@@ -218,7 +218,9 @@
                     "sandbox_buyer_id": "__env_var:ALIPAY_SANDBOX_BUYER_ID__",
                     "private_key_path": "__env_var:ALIPAY_SANDBOX_PRIVATE_KEY_PATH__",
                     "alipay_public_key_path": "__env_var:ALIPAY_SANDBOX_PUBLIC_KEY_PATH__",
-                    "gateway_url": "__env_var:ALIPAY_SANDBOX_GATEWAY_URL__"
+                    "gateway_url": "__env_var:ALIPAY_SANDBOX_GATEWAY_URL__",
+                    "notify_url": "http://localhost:5566/api/pay/notify/alipay",
+                    "timeout_ms": 30000
                 }
             }
         }

@@ -145,24 +145,6 @@ void PaymentService::createPayment(
     const std::string& idempotencyKey,
     PaymentCallback&& callback) {
 
-    // For Alipay QR code payment, directly use precreate API
-    if (request.channel == "alipay") {
-        createQRPayment(
-            [&request]() {
-                Json::Value req;
-                req["order_no"] = request.orderNo;
-                req["amount"] = request.amount;
-                req["channel"] = request.channel;
-                req["user_id"] = request.userId;
-                req["subject"] = request.description.empty() ? "Payment" : request.description;
-                return req;
-            }(),
-            std::move(callback)
-        );
-        return;
-    }
-
-    // Original createTrade logic for WeChat or other channels
     // Calculate request hash for idempotency
     std::string requestStr = Json::writeString(Json::StreamWriterBuilder(),
         [&request]() {
@@ -247,8 +229,11 @@ void PaymentService::proceedCreatePayment(
     if (request.channel == "alipay") {
         // Alipay API format
         // Convert fen to yuan for Alipay (string format)
+        // Use integer arithmetic to avoid floating point precision issues
+        const int64_t yuan = totalFen / 100;
+        const int64_t cents = totalFen % 100;
         std::ostringstream yuanStream;
-        yuanStream << std::fixed << std::setprecision(2) << (totalFen / 100.0);
+        yuanStream << yuan << "." << (cents < 10 ? "0" : "") << cents;
         const std::string totalAmountYuan = yuanStream.str();
 
         payload["total_amount"] = totalAmountYuan;
@@ -287,6 +272,7 @@ void PaymentService::proceedCreatePayment(
         orderMapper.insert(
             order,
             [this, request, paymentNo, payload, requestPayload, sharedCb](const PayOrderModel &) {
+                LOG_INFO << "Order record inserted successfully: " << request.orderNo << ", creating payment record: " << paymentNo;
                 // Create payment record
                 Mapper<PayPaymentModel> paymentMapper(dbClient_);
                 PayPaymentModel payment;
@@ -301,6 +287,7 @@ void PaymentService::proceedCreatePayment(
             paymentMapper.insert(
                 payment,
                 [this, request, paymentNo, payload, sharedCb](const PayPaymentModel &) {
+                    LOG_INFO << "Payment record inserted successfully: " << paymentNo;
                     // Helper lambda to handle payment client response
                     auto paymentCallback = [this, request, paymentNo, sharedCb](
                         const Json::Value &result, const std::string &error) {
@@ -494,9 +481,9 @@ void PaymentService::proceedCreatePayment(
                     // Route to appropriate payment client based on channel
                     LOG_DEBUG << "About to call payment client, channel: " << request.channel;
                     if (request.channel == "alipay") {
-                        // Call Alipay Sandbox API to create trade
-                        LOG_DEBUG << "Calling Alipay createTrade with payload: " << payload.toStyledString();
-                        alipayClient_->createTrade(payload, paymentCallback);
+                        // Call Alipay Sandbox precreate API for QR code payment
+                        LOG_DEBUG << "Calling Alipay precreateTrade with payload: " << payload.toStyledString();
+                        alipayClient_->precreateTrade(payload, paymentCallback);
                     } else {
                         // Call WeChat Pay API to create transaction
                         LOG_DEBUG << "Calling WeChat createTransactionNative";
@@ -504,6 +491,7 @@ void PaymentService::proceedCreatePayment(
                     }
                 },
                 [sharedCb](const DrogonDbException &e) {
+                    LOG_ERROR << "Failed to insert payment record: " << e.base().what();
                     if (*sharedCb) {
                         Json::Value response;
                         response["code"] = 1003;

@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS pay_refund (
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
     amount VARCHAR(32) NOT NULL,
     channel_refund_no VARCHAR(64),
+    request_payload TEXT,
+    response_payload TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
