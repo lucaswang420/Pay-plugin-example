@@ -1362,7 +1362,7 @@ void PaymentService::queryOrderList(
     // Build SQL query with simple pagination
     std::string sql = "SELECT po.order_no, po.user_id, po.amount, po.currency, "
                       "po.status, po.channel, po.title, po.created_at, po.updated_at, "
-                      "pp.payment_no, pp.trade_no, pp.paid_at, pp.channel_response "
+                      "pp.payment_no, pp.channel_trade_no, pp.response_payload "
                       "FROM pay_order po "
                       "LEFT JOIN pay_payment pp ON po.order_no = pp.order_no "
                       "WHERE 1=1";
@@ -1419,18 +1419,18 @@ void PaymentService::queryOrderList(
                     if (!row["payment_no"].isNull()) {
                         order["payment_no"] = row["payment_no"].as<std::string>();
                     }
-                    if (!row["trade_no"].isNull()) {
-                        order["trade_no"] = row["trade_no"].as<std::string>();
+                    if (!row["channel_trade_no"].isNull()) {
+                        order["trade_no"] = row["channel_trade_no"].as<std::string>();
                     }
-                    if (!row["paid_at"].isNull()) {
-                        order["paid_at"] = row["paid_at"].as<std::string>();
+                    if (!row["updated_at"].isNull()) {
+                        order["paid_at"] = row["updated_at"].as<std::string>();
                     }
-                    if (!row["channel_response"].isNull()) {
-                        // Parse JSON from channel_response
+                    if (!row["response_payload"].isNull()) {
+                        // Parse JSON from response_payload
                         try {
                             Json::Value channelResponse;
                             Json::Reader reader;
-                            reader.parse(row["channel_response"].as<std::string>(), channelResponse);
+                            reader.parse(row["response_payload"].as<std::string>(), channelResponse);
                             order["channel_response"] = channelResponse;
                         } catch (...) {
                             // If parsing fails, skip channel_response
