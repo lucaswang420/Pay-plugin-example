@@ -774,9 +774,17 @@ void PaymentService::queryOrder(
                                 innerResponse["message"] = "Order found";
                                 innerResponse["data"] = data;
 
+                                // Always update status if Alipay returns valid status
                                 if (!status.empty()) {
                                     innerResponse["data"]["status"] = status;
+                                    LOG_DEBUG << "[PAYMENT_SERVICE] Updated order status to: " << status;
+                                } else {
+                                    // If Alipay query failed or returned unknown status,
+                                    // keep the database status
+                                    LOG_DEBUG << "[PAYMENT_SERVICE] Alipay query failed, keeping database status: "
+                                              << data["status"].asString();
                                 }
+
                                 const auto tradeNo = result.get("trade_no", "").asString();
                                 if (!tradeNo.empty()) {
                                     innerResponse["data"]["trade_no"] = tradeNo;
