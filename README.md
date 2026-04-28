@@ -8,7 +8,7 @@
 [![Performance](https://img.shields.io/badge/performance-⭐⭐⭐⭐⭐-success)](PayBackend/docs/)
 [![Documentation](https://img.shields.io/badge/docs-complete-blue)](PayBackend/docs/)
 
-基于 [Drogon](https://github.com/drogonframework/drogon) 框架的企业级支付处理插件，支持微信支付等多种支付平台，采用现代化的服务架构设计。
+基于 [Drogon](https://github.com/drogonframework/drogon) 框架的企业级支付处理插件，支持支付宝沙箱、微信支付等多种支付平台，采用现代化的服务架构设计，配备完整的前端管理界面。
 
 [特性](#-核心特性) • [架构](#-架构设计) • [快速开始](#-快速开始) • [文档](#-文档) • [性能](#-性能指标) • [贡献](#-贡献)
 
@@ -18,7 +18,7 @@
 
 ## 🎯 项目概述
 
-Pay Plugin 是一个生产级的支付处理系统，展示了如何在 C++ Drogon 环境下集成第三方支付平台（微信支付等）。项目采用服务导向架构（SOA），实现了高内聚、低耦合的代码组织，具备完整的测试覆盖、监控告警和运维自动化能力。
+Pay Plugin 是一个生产级的支付处理系统，展示了如何在 C++ Drogon 环境下集成第三方支付平台（支付宝、微信支付等）。项目采用服务导向架构（SOA），实现了高内聚、低耦合的代码组织，配备完整的 Vue 3 前端管理界面，具备完整的测试覆盖、监控告警和运维自动化能力。
 
 ### 关键成就
 
@@ -33,18 +33,21 @@ Pay Plugin 是一个生产级的支付处理系统，展示了如何在 C++ Drog
 ## ✨ 核心特性
 
 ### 支付能力
-- 💳 **多支付渠道：** 微信支付、易扩展支持其他平台
+- 💳 **多支付渠道：** 支付宝沙箱、微信支付、易扩展支持其他平台
 - 🔄 **幂等性保护：** 防止重复支付和退款
 - 💰 **完整退款流程：** 支持部分退款和全额退款
 - 📱 **支付回调处理：** 异步回调验证和处理
 - 📊 **对账功能：** 自动对账和报表生成
+- 🎨 **前端管理界面：** Vue 3 + Element Plus，完整的支付流程管理
 
 ### 技术特性
+
 - 🏗️ **服务架构：** 清晰的服务边界和职责分离
 - 🔐 **API认证：** 基于API Key和Scope的权限控制
 - 📈 **可观测性：** Prometheus指标 + Grafana仪表板
 - 🛡️ **安全加固：** 完整的安全检查清单和最佳实践
 - 🚀 **高性能：** 异步处理 + 连接池优化
+- ⚙️ **环境配置：** 支持.env文件配置，无硬编码敏感信息
 
 ### 开发体验
 - 🧪 **测试覆盖：** 单元测试 + 集成测试 + E2E测试
@@ -72,6 +75,7 @@ PayPlugin (入口)
 
 ### 技术栈
 
+**后端：**
 - **框架：** [Drogon](https://github.com/drogonframework/drogon) (C++ Web Framework)
 - **数据库：** PostgreSQL 13+
 - **缓存：** Redis 6.0+
@@ -79,24 +83,42 @@ PayPlugin (入口)
 - **测试：** Google Test
 - **监控：** Prometheus + Grafana
 
+**前端：**
+- **框架：** Vue 3 (Composition API)
+- **UI组件：** Element Plus
+- **状态管理：** Pinia
+- **HTTP客户端：** Axios
+- **构建工具：** Vite
+
 ### 项目结构
 
 ```
 Pay-plugin-example/
-├── PayBackend/              # 核心应用
+├── PayBackend/              # C++ 后端应用
 │   ├── controllers/         # HTTP 路由层
-│   ├── services/            # 业务服务层 ✨ NEW
-│   ├── plugins/             # Drogon 插件
+│   ├── services/            # 业务服务层
+│   ├── plugins/             # Drogon 插件 (支付宝/微信)
 │   ├── models/              # ORM 模型
 │   ├── filters/             # 认证过滤器
 │   ├── utils/               # 工具类
 │   ├── test/                # 测试 (107+ tests)
-│   ├── deploy/              # 部署配置和脚本
-│   ├── docs/                # 项目文档
-│   └── config.json          # 应用配置
-├── scripts/                 # 构建脚本
-├── .github/workflows/       # CI/CD 管道
+│   ├── sql/                 # 数据库迁移脚本
+│   ├── scripts/             # 构建和部署脚本
+│   ├── docs/                # 后端文档
+│   ├── config.json          # 应用配置
+│   └── .env                 # 环境变量 (本地开发)
+├── PayFrontend/             # Vue 3 前端应用
+│   ├── src/
+│   │   ├── views/           # 页面组件
+│   │   ├── components/      # 可复用组件
+│   │   ├── api/             # API 客户端
+│   │   └── stores/          # Pinia 状态管理
+│   ├── public/              # 静态资源
+│   └── .env.local           # 前端环境变量
 ├── docs/                    # 项目级文档
+│   └── superpowers/         # 开发计划和报告
+├── scripts/                 # 构建脚本
+├── certs/                   # 证书目录 (不提交)
 └── README.md                # 本文件
 ```
 
@@ -160,7 +182,34 @@ CREATE USER pay_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE pay_production TO pay_user;
 ```
 
-#### 5. 启动服务
+#### 5. 配置环境变量
+
+创建 `.env` 文件（参考 `.env.example`）：
+
+```bash
+# 数据库配置
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=pay_production
+DB_USER=pay_user
+DB_PASSWORD=your_password
+
+# Redis配置
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# API配置
+API_KEY=your_api_key_here
+
+# 支付宝沙箱配置
+ALIPAY_APP_ID=your_app_id
+ALIPAY_SELLER_ID=your_seller_id
+ALIPAY_PRIVATE_KEY_PATH=./certs/alipay_private_key.pem
+ALIPAY_PUBLIC_KEY_PATH=./certs/alipay_public_key.pem
+ALIPAY_GATEWAY_URL=https://openapi.alipaydev.com/gateway.do
+```
+
+#### 6. 启动后端服务
 
 ```bash
 # Windows
@@ -170,7 +219,17 @@ GRANT ALL PRIVILEGES ON DATABASE pay_production TO pay_user;
 ./build/PayServer
 ```
 
-#### 6. 验证部署
+#### 7. 启动前端界面
+
+```bash
+cd PayFrontend
+npm install
+npm run dev
+```
+
+前端访问地址：http://localhost:5173
+
+#### 8. 验证部署
 
 ```bash
 curl http://localhost:5566/health
@@ -233,12 +292,14 @@ curl http://localhost:5566/health
 cd PayBackend
 
 # 运行所有测试
-./build/Release/test_payplugin.exe
+build/test/Release/PayBackendTests.exe
 
 # 运行特定测试
-./build/Release/test_payplugin.exe --gtest_filter="*Payment*"
-./build/Release/test_payplugin.exe --gtest_filter="*Refund*"
+build/test/Release/PayBackendTests.exe -r PaymentService
+build/test/Release/PayBackendTests.exe -r RefundService
 ```
+
+**注意：** 测试需要 PostgreSQL 和 Redis 服务运行。构建脚本会自动复制配置文件到测试目录。
 
 ---
 
@@ -250,6 +311,7 @@ cd PayBackend
 - **[运维手册](PayBackend/docs/operations_manual.md)** - 日常操作、故障处理、备份恢复
 - **[监控配置](PayBackend/docs/monitoring_setup.md)** - Prometheus + Grafana 配置
 - **[安全检查清单](PayBackend/docs/security_checklist.md)** - 安全最佳实践
+- **[前端使用指南](PayFrontend/README.md)** - 前端界面使用说明
 
 ### 技术文档
 
