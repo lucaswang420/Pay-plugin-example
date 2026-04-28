@@ -72,13 +72,32 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Copy config.json to build directory
+REM Copy config.json, .env, and certs to build directory
 echo Copying configuration files...
-robocopy .. %BUILD_TYPE% config.json /NFL /NDL /NJH /NJS /NP
+robocopy .. %BUILD_TYPE% config.json .env /NFL /NDL /NJH /NJS /NP
 if %ERRORLEVEL% GEQ 8 (
-    echo Error: Failed to copy config.json
+    echo Error: Failed to copy config files
     cd /d "%~dp0.."
     exit /b 1
+)
+
+REM Copy certs directory if it exists
+if exist "..\certs" (
+    robocopy ..\certs %BUILD_TYPE%\certs\ /E /NFL /NDL /NJH /NJS /NP
+    if %ERRORLEVEL% GEQ 8 (
+        echo Error: Failed to copy certs directory
+        cd /d "%~dp0.."
+        exit /b 1
+    )
+)
+
+REM Also copy to test directory
+echo Copying configuration files to test directory...
+if exist "%BUILD_TYPE%\PayServer.exe" (
+    robocopy .. test\%BUILD_TYPE% config.json .env /NFL /NDL /NJH /NJS /NP
+    if exist "..\certs" (
+        robocopy ..\certs test\%BUILD_TYPE%\certs\ /E /NFL /NDL /NJH /NJS /NP
+    )
 )
 
 echo ========================================
