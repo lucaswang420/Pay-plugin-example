@@ -45,7 +45,9 @@ void insertLedgerEntry(
     {
         drogon::orm::Mapper<PayLedgerModel> mapper(dbClient);
         mapper.insert(ledger);
-        LOG_DEBUG << "Ledger entry inserted: " << entryType << " " << amount;
+        LOG_INFO << "[CallbackService] Ledger entry inserted: entry_type=" << entryType
+                 << ", order_no=" << orderNo << ", payment_no=" << paymentNo
+                 << ", amount=" << amount;
     }
     catch (const drogon::orm::DrogonDbException &e)
     {

@@ -122,12 +122,17 @@ void IdempotencyService::checkDatabase(
                             cacheStr.c_str()
                         );
                     } else {
+                        LOG_INFO << "[IdempotencyService] Idempotency hit: key=" << idempotencyKey
+                                 << ", returning cached response";
                         if (*sharedCb) {
                             (*sharedCb)(true, response);
                         }
                     }
                 } else {
                     // Different request - conflict
+                    LOG_INFO << "[IdempotencyService] Idempotency conflict: key=" << idempotencyKey
+                             << ", cached_hash=" << cachedHash.substr(0, 8) << "..."
+                             << ", request_hash=" << requestHash.substr(0, 8) << "...";
                     if (*sharedCb) {
                         (*sharedCb)(false, Json::Value());
                     }

@@ -147,11 +147,11 @@ void ReconciliationService::syncPendingAlipayOrders() {
                             result,
                             [orderNo](const std::string &status) {
                                 if (!status.empty()) {
-                                    LOG_DEBUG << "Alipay order " << orderNo
-                                              << " status synced to: " << status;
+                                    LOG_INFO << "[ReconciliationService] Order status synced: order_no=" << orderNo
+                                             << ", status=" << status << ", source=alipay";
                                 } else {
-                                    LOG_DEBUG << "Alipay order " << orderNo
-                                              << " status sync returned empty (no change)";
+                                    LOG_DEBUG << "[ReconciliationService] Order " << orderNo
+                                              << " status unchanged (no sync needed)";
                                 }
                             });
                     });

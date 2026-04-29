@@ -547,7 +547,9 @@ void RefundService::proceedWithRefundInsert(
             const PayOrderModel& order) mutable {
 
             std::string channel = order.getValueOfChannel();
-            LOG_DEBUG << "Refund for order " << orderNo << " using channel: " << channel;
+            LOG_INFO << "[RefundService] Processing refund: order_no=" << orderNo
+                     << ", payment_no=" << paymentNo << ", refund_no=" << refundNo
+                     << ", channel=" << channel << ", amount=" << amount;
 
             // Insert refund record
             Mapper<PayRefundModel> refundMapper(dbClient_);
@@ -827,6 +829,9 @@ void RefundService::updateRefundWithSuccess(
                                             order,
                                             [this, refundNo, refundStatus, refundId, result, orderNo, paymentNo, amount, sharedCb](
                                                 const size_t) {
+                                                LOG_INFO << "[RefundService] Refund completed: refund_no=" << refundNo
+                                                         << ", order_no=" << orderNo << ", status=" << refundStatus
+                                                         << ", amount=" << amount;
                                                 if (*sharedCb) {
                                                     Json::Value response;
                                                     response["code"] = 0;

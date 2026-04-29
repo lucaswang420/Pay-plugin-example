@@ -86,6 +86,9 @@ void AlipayCallbackController::notify(
             response["code"] = "SUCCESS";
             response["message"] = "OK";
 
+            LOG_INFO << "[AlipayCallback] Callback processed successfully: order_no=" << outTradeNo
+                     << ", trade_status=" << tradeStatus << ", synced_status=" << status;
+
             auto resp = HttpResponse::newHttpJsonResponse(response);
             resp->setContentTypeString("application/json");
             resp->addHeader("Content-Type", "application/json; charset=utf-8");
