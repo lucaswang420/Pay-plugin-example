@@ -272,7 +272,9 @@ void PaymentService::proceedCreatePayment(
         orderMapper.insert(
             order,
             [this, request, paymentNo, payload, requestPayload, sharedCb](const PayOrderModel &) {
-                LOG_INFO << "Order record inserted successfully: " << request.orderNo << ", creating payment record: " << paymentNo;
+                LOG_INFO << "[PaymentService] Order created: order_no=" << request.orderNo
+                         << ", user_id=" << request.userId << ", amount=" << request.amount
+                         << ", creating payment_no=" << paymentNo;
                 // Create payment record
                 Mapper<PayPaymentModel> paymentMapper(dbClient_);
                 PayPaymentModel payment;
@@ -287,7 +289,8 @@ void PaymentService::proceedCreatePayment(
             paymentMapper.insert(
                 payment,
                 [this, request, paymentNo, payload, sharedCb](const PayPaymentModel &) {
-                    LOG_INFO << "Payment record inserted successfully: " << paymentNo;
+                    LOG_INFO << "[PaymentService] Payment record created: payment_no=" << paymentNo
+                             << ", order_no=" << request.orderNo << ", channel=" << request.channel;
                     // Helper lambda to handle payment client response
                     auto paymentCallback = [this, request, paymentNo, sharedCb](
                         const Json::Value &result, const std::string &error) {
@@ -479,14 +482,15 @@ void PaymentService::proceedCreatePayment(
                     };
 
                     // Route to appropriate payment client based on channel
-                    LOG_DEBUG << "About to call payment client, channel: " << request.channel;
+                    LOG_INFO << "[PaymentService] Calling payment client: channel=" << request.channel
+                             << ", order_no=" << request.orderNo << ", payment_no=" << paymentNo;
                     if (request.channel == "alipay") {
                         // Call Alipay Sandbox precreate API for QR code payment
-                        LOG_DEBUG << "Calling Alipay precreateTrade with payload: " << payload.toStyledString();
+                        LOG_DEBUG << "[PaymentService] Calling Alipay precreateTrade API for order: " << request.orderNo;
                         alipayClient_->precreateTrade(payload, paymentCallback);
                     } else {
                         // Call WeChat Pay API to create transaction
-                        LOG_DEBUG << "Calling WeChat createTransactionNative";
+                        LOG_DEBUG << "[PaymentService] Calling WeChat Pay createTransactionNative API";
                         wechatClient_->createTransactionNative(payload, paymentCallback);
                     }
                 },
@@ -549,7 +553,8 @@ void PaymentService::createQRPayment(
         payload["buyer_id"] = request["buyer_id"].asString();
     }
 
-    LOG_DEBUG << "Creating QR payment, channel: " << channel << ", order: " << orderNo;
+    LOG_INFO << "[PaymentService] Creating QR payment: channel=" << channel
+             << ", order_no=" << orderNo << ", amount=" << amount;
 
     // Call Alipay precreate API
     alipayClient_->precreateTrade(
@@ -595,7 +600,7 @@ void PaymentService::createQRPayment(
             }
 
             // Save order to database
-            LOG_DEBUG << "Saving order to database: " << orderNo;
+            LOG_INFO << "[PaymentService] Saving order to database: order_no=" << orderNo;
             Mapper<PayOrderModel> orderMapper(dbClient_);
             PayOrderModel newOrder;
             newOrder.setOrderNo(orderNo);
@@ -610,8 +615,8 @@ void PaymentService::createQRPayment(
                 newOrder,
                 [this, orderNo, amount, channel, subject, data, sharedCb](
                     const PayOrderModel &order) {
-                    LOG_DEBUG << "Order saved to database: " << orderNo
-                              << " with DB id: " << order.getValueOfId();
+                    LOG_INFO << "[PaymentService] Order saved successfully: order_no=" << orderNo
+                             << ", db_id=" << order.getValueOfId();
 
                     Json::Value response;
                     response["code"] = 0;

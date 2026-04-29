@@ -229,8 +229,9 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         std::string signature = sign(signData);
         commonParams["sign"] = signature;
 
-        LOG_DEBUG << "Alipay request params: " << commonParams.toStyledString();
-        LOG_DEBUG << "Sign data: " << signData;
+        LOG_DEBUG << "[AlipayClient] Request: method=" << method << ", app_id=" << appId_
+                 << ", timestamp=" << commonParams["timestamp"].asString();
+        LOG_DEBUG << "[AlipayClient] Signing data length: " << signData.length() << " bytes";
 
         // Build request body (form format) - only include parameters that are in signature
         std::string requestBody;
@@ -241,8 +242,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
         requestBody += "&timestamp=" + drogon::utils::urlEncode(commonParams["timestamp"].asString());
         requestBody += "&sign=" + drogon::utils::urlEncode(signature);
 
-        LOG_INFO << "Alipay request: " << method << ", URL: " << gatewayUrl_;
-        LOG_DEBUG << "Request body: " << requestBody;
+        LOG_INFO << "[AlipayClient] API request: method=" << method << ", url=" << gatewayUrl_;
 
         // Parse gateway URL to get base URL (without path)
         std::string baseUrl = gatewayUrl_;
@@ -251,7 +251,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
             baseUrl = baseUrl.substr(0, pathPos);
         }
 
-        LOG_DEBUG << "Base URL: " << baseUrl;
+        // Base URL removed from log for security
 
         auto client = drogon::HttpClient::newHttpClient(baseUrl);
 
@@ -344,8 +344,7 @@ void AlipaySandboxClient::sendRequest(const std::string &method,
 
 std::string AlipaySandboxClient::sign(const std::string &data) const
 {
-    LOG_DEBUG << "=== SIGN FUNCTION CALLED ===";
-    LOG_DEBUG << "Data to sign: " << data;
+    LOG_DEBUG << "[AlipayClient] Generating signature for " << data.length() << " bytes of data";
 
     std::string privateKeyPem;
 
@@ -408,9 +407,6 @@ std::string AlipaySandboxClient::sign(const std::string &data) const
 
     std::string signatureStr(bufferPtr->data, bufferPtr->length);
     BIO_free_all(b64);
-
-    LOG_DEBUG << "Signature generated (Base64): " << signatureStr;
-    LOG_DEBUG << "=== SIGN FUNCTION END ===";
 
     return signatureStr;
 }
