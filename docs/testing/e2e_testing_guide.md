@@ -328,7 +328,7 @@ jobs:
 ## 📚 相关文档
 
 - [Pay API Examples](pay-api-examples.md) - API 使用示例
-- [TDD Tests Update Final Report](tdd_tests_update_final_report.md) - 测试更新总结
+- [Test Update Progress](../history/reports/test_update_progress.md) - 测试更新进度
 - [Validation Report](validation_report.md) - 重构验证报告
 
 ---

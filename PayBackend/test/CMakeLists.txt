@@ -21,7 +21,6 @@ set(TEST_SRC
     WechatCallbackIntegrationTest.cc  # ✅ Updated to new API (Phase 3)
     RefundQueryTest.cc  # ✅ Updated to new API (Phase 3)
     ReconcileSummaryTest.cc  # ✅ Updated to new API (Phase 3)
-    # TDD_SimpleTest.cc  # TODO: Fix gtest headers
 )
 
 add_executable(

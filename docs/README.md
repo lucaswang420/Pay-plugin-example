@@ -120,7 +120,6 @@ docs/
 
 #### Archive
 - [archive/legacy_docs/](history/archive/legacy_docs/) - Legacy documentation
-- [archive/tdd_reports/](history/archive/tdd_reports/) - TDD execution reports
 - [archive/*.backup](history/archive/) - Test file backups
 
 ## 🤝 Contributing
