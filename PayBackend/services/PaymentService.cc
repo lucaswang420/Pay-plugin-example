@@ -1274,12 +1274,29 @@ void PaymentService::syncOrderStatusFromWechat(
                 payment.setStatus(paymentStatus);
                 payment.setChannelTradeNo(transactionId);
                 payment.setResponsePayload(responsePayload);
-                Mapper<PayPaymentModel> paymentUpdater(transPtr);
-                paymentUpdater.update(
-                  payment,
+                // CAS-style status transition: only update if still non-final, so a
+                // concurrent callback/reconcile that already advanced this payment
+                // is not overwritten (lost-update prevention).
+                transPtr->execSqlAsync(
+                  "UPDATE pay_payment "
+                  "SET status = $1, channel_trade_no = $2, response_payload = $3 "
+                  "WHERE payment_no = $4 "
+                  "AND status NOT IN ('SUCCESS', 'REFUNDED')",
                   [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
-                    const size_t
+                    const Result &casResult
                   ) {
+                      if (casResult.affectedRows() == 0)
+                      {
+                          LOG_INFO << "[PaymentService] Reconcile: payment already advanced by "
+                                      "concurrent txn: "
+                                   << paymentNo << ", skipping";
+                          transPtr->rollback();
+                          if (callback)
+                          {
+                              callback(orderStatus);
+                          }
+                          return;
+                      }
                       // Update order status
                       Mapper<PayOrderModel> orderMapper(transPtr);
                       auto orderCriteria =
@@ -1341,7 +1358,11 @@ void PaymentService::syncOrderStatusFromWechat(
                         }
                       );
                   },
-                  rollbackDone
+                  rollbackDone,
+                  paymentStatus,
+                  transactionId,
+                  responsePayload,
+                  paymentNo
                 );
             });
         },
@@ -1560,12 +1581,27 @@ void PaymentService::syncOrderStatusFromAlipay(
                 payment.setStatus(paymentStatus);
                 payment.setChannelTradeNo(transactionId);
                 payment.setResponsePayload(responsePayload);
-                Mapper<PayPaymentModel> paymentUpdater(transPtr);
-                paymentUpdater.update(
-                  payment,
+                // CAS-style status transition (mirrors WeChat reconcile path).
+                transPtr->execSqlAsync(
+                  "UPDATE pay_payment "
+                  "SET status = $1, channel_trade_no = $2, response_payload = $3 "
+                  "WHERE payment_no = $4 "
+                  "AND status NOT IN ('SUCCESS', 'REFUNDED')",
                   [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
-                    const size_t
+                    const Result &casResult
                   ) {
+                      if (casResult.affectedRows() == 0)
+                      {
+                          LOG_INFO << "[PaymentService] Alipay reconcile: payment already advanced "
+                                      "by concurrent txn: "
+                                   << paymentNo << ", skipping";
+                          transPtr->rollback();
+                          if (callback)
+                          {
+                              callback(orderStatus);
+                          }
+                          return;
+                      }
                       // Update order status
                       Mapper<PayOrderModel> orderMapper(transPtr);
                       auto orderCriteria =
@@ -1628,7 +1664,11 @@ void PaymentService::syncOrderStatusFromAlipay(
                         }
                       );
                   },
-                  rollbackDone
+                  rollbackDone,
+                  paymentStatus,
+                  transactionId,
+                  responsePayload,
+                  paymentNo
                 );
             });
         },
