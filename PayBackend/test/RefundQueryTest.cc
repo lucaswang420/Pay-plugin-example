@@ -3159,3 +3159,182 @@ DROGON_TEST(PayPlugin_QueryRefund_WechatAbnormal)
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
 }
+
+// ============================================================================
+// P0-2 regression: cumulative refund amount must not exceed paid amount.
+//
+// Seeds a pre-existing REFUND_SUCCESS refund, then attempts a second refund
+// whose amount would push the cumulative total above the paid amount. The
+// second refund must be rejected and no extra refund row may be persisted.
+//
+// Scope note (honest limitation): this is a SEQUENTIAL test. It verifies that
+// the cumulative SUM check in RefundService::proceedWithInsert correctly
+// accounts for already-committed refunds and rejects the over-refund. It does
+// NOT by itself reproduce the original concurrent race (two refunds passing the
+// SUM check simultaneously), because under sequential execution even the
+// pre-fix code rejects the second refund. The concurrent-race correctness is
+// guaranteed by the PostgreSQL SELECT ... FOR UPDATE row lock on pay_payment
+// (database-engine semantics, not application logic), which serializes
+// concurrent refund transactions on the same payment. A true concurrency test
+// would require multi-threaded simultaneous createRefund calls synchronized via
+// a barrier, which is brittle under Drogon's single-loop async model and was
+// intentionally omitted to avoid CI flakiness.
+// ============================================================================
+DROGON_TEST(PayPlugin_Refund_CumulativeAmountDoesNotExceedPaid)
+{
+    Json::Value root;
+    CHECK(loadConfig(root));
+    CHECK(root.isMember("db_clients"));
+    CHECK(root["db_clients"].isArray());
+    CHECK(!root["db_clients"].empty());
+
+    const auto &db = root["db_clients"][0];
+    const std::string connInfo = buildPgConnInfo(db);
+    CHECK(!connInfo.empty());
+
+    auto client = drogon::orm::DbClient::newPgClient(connInfo, 1);
+    CHECK(client != nullptr);
+
+    // Ensure tables exist (idempotent, mirrors other tests).
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_order ("
+      "id BIGSERIAL PRIMARY KEY,"
+      "order_no VARCHAR(64) UNIQUE NOT NULL,"
+      "user_id BIGINT NOT NULL,"
+      "amount VARCHAR(32) NOT NULL,"
+      "currency VARCHAR(8) NOT NULL DEFAULT 'CNY',"
+      "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+      "channel VARCHAR(32) NOT NULL DEFAULT 'alipay',"
+      "title VARCHAR(512),"
+      "expire_at TIMESTAMP,"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_payment ("
+      "id BIGSERIAL PRIMARY KEY,"
+      "payment_no VARCHAR(64) UNIQUE NOT NULL,"
+      "order_no VARCHAR(64) NOT NULL,"
+      "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+      "amount VARCHAR(32) NOT NULL,"
+      "request_payload TEXT,"
+      "response_payload TEXT,"
+      "channel_trade_no VARCHAR(64),"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_refund ("
+      "id BIGSERIAL PRIMARY KEY,"
+      "refund_no VARCHAR(64) UNIQUE NOT NULL,"
+      "order_no VARCHAR(64) NOT NULL,"
+      "payment_no VARCHAR(64) NOT NULL,"
+      "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+      "amount VARCHAR(32) NOT NULL,"
+      "channel_refund_no VARCHAR(64),"
+      "request_payload TEXT,"
+      "response_payload TEXT,"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+
+    const std::string orderNo = "ord_" + drogon::utils::getUuid();
+    const std::string paymentNo = "pay_" + drogon::utils::getUuid();
+    const std::string paidAmount = "10.00";
+
+    // Seed a fully-paid order + successful payment.
+    using PayOrder = drogon_model::pay_test::PayOrder;
+    drogon::orm::Mapper<PayOrder> orderMapper(client);
+    PayOrder order;
+    order.setOrderNo(orderNo);
+    order.setUserId(30010);
+    order.setAmount(paidAmount);
+    order.setCurrency("CNY");
+    order.setStatus("PAID");
+    order.setChannel("wechat");
+    order.setTitle("Cumulative refund cap");
+    order.setCreatedAt(trantor::Date::now());
+    order.setUpdatedAt(trantor::Date::now());
+    orderMapper.insert(order);
+
+    using PayPayment = drogon_model::pay_test::PayPayment;
+    drogon::orm::Mapper<PayPayment> paymentMapper(client);
+    PayPayment payment;
+    payment.setOrderNo(orderNo);
+    payment.setPaymentNo(paymentNo);
+    payment.setStatus("SUCCESS");
+    payment.setAmount(paidAmount);
+    payment.setCreatedAt(trantor::Date::now());
+    payment.setUpdatedAt(trantor::Date::now());
+    paymentMapper.insert(payment);
+
+    // Seed an already-successful refund of 6.00 (60% of paid).
+    const std::string priorRefundNo = "rfd_prior_" + drogon::utils::getUuid();
+    using PayRefund = drogon_model::pay_test::PayRefund;
+    drogon::orm::Mapper<PayRefund> refundMapper(client);
+    PayRefund priorRefund;
+    priorRefund.setRefundNo(priorRefundNo);
+    priorRefund.setOrderNo(orderNo);
+    priorRefund.setPaymentNo(paymentNo);
+    priorRefund.setStatus("REFUND_SUCCESS");
+    priorRefund.setAmount("6.00");
+    priorRefund.setCreatedAt(trantor::Date::now());
+    priorRefund.setUpdatedAt(trantor::Date::now());
+    refundMapper.insert(priorRefund);
+
+    PayPlugin plugin;
+    plugin.setTestClients(nullptr, nullptr, client);
+
+    // Attempt a second refund of 6.00. Cumulative would be 12.00 > 10.00 paid,
+    // so this MUST be rejected with 409 (refund amount exceeds paid).
+    CreateRefundRequest request;
+    request.orderNo = orderNo;
+    request.paymentNo = paymentNo;
+    request.amount = "5.00";  // 5.00 + prior 6.00 = 11.00 > 10.00 paid (over); differs
+                              // from the prior 6.00 so the duplicate-success early-out
+                              // in proceedWithAmountCheck does not fire.
+    request.refundNo = "";  // Auto-generated
+
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto refundService = plugin.refundService();
+    refundService->createRefund(
+      request,
+      "",  // No idempotency key
+      [&resultPromise, &errorPromise](const Json::Value &result, const std::error_code &error) {
+          resultPromise.set_value(result);
+          errorPromise.set_value(error);
+      }
+    );
+
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+    CHECK(resultFuture.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    // The over-refund must be rejected. A successful refund returns code 0 with
+    // a "data" object; rejection is signalled by a non-zero error code or a
+    // non-zero response code with no data. The core assertion is simply that
+    // the over-refund did NOT succeed.
+    const bool succeeded = (!error && result.isMember("data") &&
+                            (!result.isMember("code") || result["code"].asInt() == 0));
+    CHECK(!succeeded);
+
+    // No second refund row must have been persisted for this attempt.
+    const auto countResult = client->execSqlSync(
+      "SELECT count(*) AS n FROM pay_refund WHERE order_no = $1 AND refund_no <> $2",
+      orderNo,
+      priorRefundNo
+    );
+    CHECK(countResult[0]["n"].as<long>() == 0);
+
+    // Cleanup
+    client->execSqlSync("DELETE FROM pay_refund WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
+}

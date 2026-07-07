@@ -214,13 +214,18 @@ void IdempotencyService::updateResult(
   const std::string &idempotencyKey,
   const std::string &requestHash,
   const Json::Value &response,
-  UpdateCallback &&callback
+  UpdateCallback &&callback,
+  std::shared_ptr<drogon::orm::DbClient> txnClient
 )
 {
     auto onceCb = pay::utils::makeOnceCallback<void(bool)>(std::move(callback));
     auto sharedCb = std::make_shared<pay::utils::OnceCallback<void(bool)>>(onceCb);
-    auto dbClient = dbClient_;
-    auto redisClient = redisClient_;
+    // When a transaction client is supplied, the UPDATE runs inside it and the
+    // Redis write is skipped (Redis cannot participate in a PG transaction).
+    // Otherwise fall back to the service's own client and write through Redis.
+    const bool inTransaction = (txnClient != nullptr);
+    auto dbClient = inTransaction ? txnClient : dbClient_;
+    auto redisClient = inTransaction ? drogon::nosql::RedisClientPtr{} : redisClient_;
     const auto ttlSeconds = ttlSeconds_;
 
     // Build cache structure for Redis
@@ -231,7 +236,8 @@ void IdempotencyService::updateResult(
 
     LOG_INFO << "[IdempotencyService] Saving to DB: key=" << idempotencyKey
              << ", hash=" << requestHash.substr(0, 8)
-             << "..., has_response_data=" << response.isMember("data");
+             << "..., has_response_data=" << response.isMember("data")
+             << ", in_transaction=" << inTransaction;
 
     // Use INSERT ... ON CONFLICT UPDATE to handle both insert and update cases
     dbClient->execSqlAsync(
@@ -248,7 +254,7 @@ void IdempotencyService::updateResult(
               return;
           }
 
-          // Update Redis cache if available
+          // Update Redis cache if available (skipped inside a transaction)
           if (redisClient)
           {
               std::string redisKey = "idempotency:" + idempotencyKey;
@@ -284,7 +290,8 @@ void IdempotencyService::updateResult(
 void IdempotencyService::clearReservation(
   const std::string &idempotencyKey,
   const std::string &requestHash,
-  UpdateCallback &&callback
+  UpdateCallback &&callback,
+  std::shared_ptr<drogon::orm::DbClient> txnClient
 )
 {
     auto onceCb = pay::utils::makeOnceCallback<void(bool)>(std::move(callback));
@@ -296,7 +303,7 @@ void IdempotencyService::clearReservation(
         return;
     }
 
-    auto dbClient = dbClient_;
+    auto dbClient = (txnClient != nullptr) ? txnClient : dbClient_;
 
     dbClient->execSqlAsync(
       "DELETE FROM pay_idempotency "

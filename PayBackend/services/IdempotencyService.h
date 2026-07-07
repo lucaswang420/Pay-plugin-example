@@ -75,22 +75,30 @@ class IdempotencyService
       StatusCallback &&callback
     );
 
-    // Update result after successful operation
+    // Update result after successful operation. When `txnClient` is null (the
+    // default) the UPDATE runs on the service's own db client and additionally
+    // writes through to Redis. When a transaction client is supplied, the
+    // UPDATE runs inside that transaction (so it commits/rolls back with the
+    // caller's business operation) and the Redis write is skipped because Redis
+    // cannot participate in a PostgreSQL transaction.
     void updateResult(
       const std::string &idempotencyKey,
       const std::string &requestHash,
       const Json::Value &response,
-      UpdateCallback &&callback = [](bool) {}
+      UpdateCallback &&callback = [](bool) {},
+      std::shared_ptr<drogon::orm::DbClient> txnClient = nullptr
     );
 
     // Release an in-flight reservation when the operation failed before a
     // response snapshot was stored, so the key is not reported as InProgress on
     // the next retry. Only deletes rows whose response_snapshot is still NULL,
-    // leaving completed entries intact. No-op for an empty key.
+    // leaving completed entries intact. No-op for an empty key. When
+    // `txnClient` is supplied the DELETE runs inside that transaction.
     void clearReservation(
       const std::string &idempotencyKey,
       const std::string &requestHash,
-      UpdateCallback &&callback = [](bool) {}
+      UpdateCallback &&callback = [](bool) {},
+      std::shared_ptr<drogon::orm::DbClient> txnClient = nullptr
     );
 
   private:
