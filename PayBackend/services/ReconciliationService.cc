@@ -79,6 +79,27 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
         LOG_DEBUG << "WeChat Pay not configured, skipping refund reconciliation";
     }
 
+    // Garbage-collect expired idempotency rows so pay_idempotency does not grow
+    // unbounded (P2). The read path already filters expired rows out, but they
+    // still accumulate on disk; this periodic purge reclaims them. Fire-and-
+    // forget: GC failures must not block reconciliation.
+    if (dbClient_)
+    {
+        dbClient_->execSqlAsync(
+          "DELETE FROM pay_idempotency WHERE expire_at IS NOT NULL AND expire_at < NOW()",
+          [](const drogon::orm::Result &r) {
+              if (r.affectedRows() > 0)
+              {
+                  LOG_INFO << "[ReconciliationService] Purged " << r.affectedRows()
+                           << " expired idempotency rows";
+              }
+          },
+          [](const drogon::orm::DrogonDbException &e) {
+              LOG_ERROR << "[ReconciliationService] Idempotency purge error: " << e.base().what();
+          }
+        );
+    }
+
     callback(*successCount, *failedCount);
 }
 

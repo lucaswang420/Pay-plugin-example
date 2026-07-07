@@ -234,17 +234,7 @@
         },
         "pay": {
             "api_keys": [],
-            "api_key_scopes": {
-                "test_key_123456": [
-                    "read",
-                    "write",
-                    "admin",
-                    "order_query",
-                    "refund_query",
-                    "refund",
-                    "reconcile"
-                ]
-            },
+            "api_key_scopes": {},
             "api_key_default_scopes": [
                 "read"
             ],
