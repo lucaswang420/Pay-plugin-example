@@ -11,6 +11,7 @@ set -e  # Exit on error
 DB_NAME="${DB_NAME:-pay_production}"
 DB_USER="${DB_USER:-pay_user}"
 DB_ADMIN="${DB_ADMIN:-postgres}"
+SERVICE_NAME="${SERVICE_NAME:-payserver}"
 BACKUP_FILE="${1:-}"
 
 # ============================================================================
@@ -60,12 +61,12 @@ confirm "Are you sure you want to continue?" || error_exit "Restore aborted by u
 # Stop Application
 # ============================================================================
 
-log "Stopping PayPlugin service..."
-if systemctl is-active --quiet payplugin; then
-    sudo systemctl stop payplugin || error_exit "Failed to stop payplugin service"
-    log "PayPlugin service stopped"
+log "Stopping $SERVICE_NAME service..."
+if systemctl is-active --quiet "$SERVICE_NAME"; then
+    sudo systemctl stop "$SERVICE_NAME" || error_exit "Failed to stop $SERVICE_NAME service"
+    log "$SERVICE_NAME service stopped"
 else
-    log "PayPlugin service is not running"
+    log "$SERVICE_NAME service is not running"
 fi
 
 # ============================================================================
@@ -102,9 +103,9 @@ log "Tables in database: $TABLE_COUNT"
 # Start Application
 # ============================================================================
 
-log "Starting PayPlugin service..."
-sudo systemctl start payplugin || error_exit "Failed to start payplugin service"
-log "PayPlugin service started"
+log "Starting $SERVICE_NAME service..."
+sudo systemctl start "$SERVICE_NAME" || error_exit "Failed to start $SERVICE_NAME service"
+log "$SERVICE_NAME service started"
 
 # Wait for service to be ready
 sleep 5
