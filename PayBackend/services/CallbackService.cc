@@ -447,6 +447,7 @@ void CallbackService::handlePaymentCallback(
                         paymentMapper
                           .orderBy(PayPaymentModel::Cols::_created_at, drogon::orm::SortOrder::DESC)
                           .limit(1)
+                          .forUpdate()
                           .findBy(
                             paymentCriteria,
                             [this,
@@ -612,26 +613,47 @@ void CallbackService::handlePaymentCallback(
                                                 transPtr
                                               );
 
-                                            payment.setStatus(paymentStatus);
-                                            payment.setChannelTradeNo(transactionId);
-                                            payment.setResponsePayload(plaintext);
-                                            drogon::orm::Mapper<PayPaymentModel> paymentUpdater(
-                                              transPtr
-                                            );
-                                            LOG_INFO << "[CallbackService] About to update payment "
-                                                        "record for order: "
-                                                     << orderNo;
-                                            paymentUpdater.update(
-                                              payment,
-                                              [cbPtr,
+                                            // CAS-style status transition: only update if the
+                                            // payment is still in a non-final state. This closes
+                                            // the TOCTOU window between the in-application status
+                                            // check above and the write, so a concurrent callback
+                                            // (or reconcile) that already advanced this payment to
+                                            // SUCCESS/REFUNDED causes affectedRows()==0 and we skip
+                                            // the downstream order/ledger writes instead of
+                                            // overwriting and double-ledgering.
+                                            transPtr->execSqlAsync(
+                                              "UPDATE pay_payment "
+                                              "SET status = $1, channel_trade_no = $2, "
+                                              "response_payload = $3 "
+                                              "WHERE payment_no = $4 "
+                                              "AND status NOT IN ('SUCCESS', 'REFUNDED')",
+                                              [this,
+                                               cbPtr,
                                                orderStatus,
                                                paymentNo,
                                                transDb,
                                                orderNo,
+                                               transactionId,
+                                               plaintext,
+                                               payment,
                                                order,
-                                               transPtr](const size_t) mutable {
-                                                  LOG_INFO << "[CallbackService] Payment update "
-                                                              "callback fired for order: "
+                                               transPtr,
+                                               respondDbError](const drogon::orm::Result &r) mutable {
+                                                  if (r.affectedRows() == 0)
+                                                  {
+                                                      LOG_INFO << "[CallbackService] Payment "
+                                                                  "already advanced by a concurrent "
+                                                                  "transaction for order: "
+                                                               << orderNo << ", skipping";
+                                                      transPtr->rollback();
+                                                      Json::Value ok;
+                                                      ok["code"] = "SUCCESS";
+                                                      ok["message"] = "OK";
+                                                      (*cbPtr)(ok, std::error_code());
+                                                      return;
+                                                  }
+                                                  LOG_INFO << "[CallbackService] Payment updated "
+                                                              "via CAS for order: "
                                                            << orderNo;
                                                   drogon::orm::Mapper<PayOrderModel> orderUpdater(
                                                     transPtr
@@ -787,7 +809,11 @@ void CallbackService::handlePaymentCallback(
                                                     }
                                                   );
                                               },
-                                              respondDbError
+                                              respondDbError,
+                                              paymentStatus,
+                                              transactionId,
+                                              plaintext,
+                                              paymentNo
                                             );
                                         },
                                         respondDbError
@@ -1264,6 +1290,7 @@ void CallbackService::handleRefundCallback(
                                                                 cbPtr,
                                                                 refundStatus,
                                                                 refundAmount,
+                                                                refundId,
                                                                 orderNo,
                                                                 paymentNo,
                                                                 order,
@@ -1290,13 +1317,23 @@ void CallbackService::handleRefundCallback(
                                           );
                                       };
 
-                                    drogon::orm::Mapper<PayRefundModel> refundUpdater(transPtr);
-                                    refundUpdater.update(
-                                      refund,
+                                    // CAS-style refund status transition: only update if the
+                                    // refund is still in a non-final state. The refund row was
+                                    // read outside this transaction, so without a CAS guard a
+                                    // concurrent callback could overwrite a REFUND_SUCCESS that
+                                    // another transaction just wrote. affectedRows()==0 means a
+                                    // concurrent transaction already advanced this refund; we
+                                    // treat it as already-processed and return success.
+                                    transPtr->execSqlAsync(
+                                      "UPDATE pay_refund "
+                                      "SET status = $1, channel_refund_no = $2 "
+                                      "WHERE refund_no = $3 "
+                                      "AND status NOT IN ('REFUND_SUCCESS', 'REFUND_FAIL')",
                                       [this,
                                        cbPtr,
                                        refundStatus,
                                        refundAmount,
+                                       refundId,
                                        orderNo,
                                        paymentNo,
                                        order,
@@ -1305,7 +1342,19 @@ void CallbackService::handleRefundCallback(
                                        body,
                                        refundNo,
                                        plaintext,
-                                       transPtr](const size_t) {
+                                       transPtr](const drogon::orm::Result &casResult) {
+                                          if (casResult.affectedRows() == 0)
+                                          {
+                                              LOG_INFO << "[CallbackService] Refund already "
+                                                          "advanced by a concurrent transaction: "
+                                                       << refundNo << ", skipping";
+                                              transPtr->rollback();
+                                              Json::Value ok;
+                                              ok["code"] = "SUCCESS";
+                                              ok["message"] = "OK";
+                                              (*cbPtr)(ok, std::error_code());
+                                              return;
+                                          }
                                           transPtr->execSqlAsync(
                                             "UPDATE pay_refund "
                                             "SET response_payload = $1 "
@@ -1426,7 +1475,10 @@ void CallbackService::handleRefundCallback(
                                               insertCallbackAndFinish();
                                           }
                                       },
-                                      respondDbError
+                                      respondDbError,
+                                      refundStatus,
+                                      refundId,
+                                      refundNo
                                     );
                                 });
                             },
