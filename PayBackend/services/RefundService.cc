@@ -367,27 +367,17 @@ void RefundService::proceedRefund(
         return;
     }
 
-    // Enhanced URL validation
+    // Validate notify_url (shared helper, also used by PaymentService).
     if (!request.notifyUrl.empty())
     {
-        if (request.notifyUrl.find("http://") != 0 && request.notifyUrl.find("https://") != 0)
+        std::string urlError;
+        if (!pay::utils::validateNotifyUrl(request.notifyUrl, urlError))
         {
             if (*sharedCb)
             {
                 Json::Value error;
                 error["code"] = 1400;
-                error["message"] = "invalid notify_url (must start with http:// or https://)";
-                (*sharedCb)(error, std::error_code(1400, std::system_category()));
-            }
-            return;
-        }
-        if (request.notifyUrl.length() > 512)
-        {
-            if (*sharedCb)
-            {
-                Json::Value error;
-                error["code"] = 1400;
-                error["message"] = "notify_url too long (max 512 characters)";
+                error["message"] = urlError;
                 (*sharedCb)(error, std::error_code(1400, std::system_category()));
             }
             return;

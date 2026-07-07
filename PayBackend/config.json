@@ -149,7 +149,7 @@
             "config": {
                 "algorithm": "token_bucket",
                 "urls": [
-                    "^/pay/.*",
+                    "^/api/pay/.*",
                     "^/api/.*"
                 ],
                 "time_unit": 60,
@@ -166,7 +166,7 @@
                 "sub_limits": [
                     {
                         "urls": [
-                            "^/pay/create$"
+                            "^/api/pay/create$"
                         ],
                         "capacity": 0,
                         "ip_capacity": 20,
@@ -174,7 +174,7 @@
                     },
                     {
                         "urls": [
-                            "^/pay/refund$"
+                            "^/api/pay/refund$"
                         ],
                         "capacity": 0,
                         "ip_capacity": 10,
