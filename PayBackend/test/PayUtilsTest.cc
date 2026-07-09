@@ -90,3 +90,61 @@ DROGON_TEST(PayUtils_ToJsonString)
     CHECK(json.find("\"order_id\"") != std::string::npos);
     CHECK(json.find("\"amount\"") != std::string::npos);
 }
+
+// P1-3 SSRF: validateNotifyUrl must reject private/loopback/link-local hosts
+// that an attacker could set as the channel callback target.
+DROGON_TEST(PayUtils_ValidateNotifyUrl)
+{
+    std::string err;
+
+    // Empty URL is allowed (channel falls back to its configured default).
+    CHECK(pay::utils::validateNotifyUrl("", err));
+    CHECK(err.empty());
+
+    // Public https URL is allowed.
+    CHECK(pay::utils::validateNotifyUrl("https://example.com/callback", err));
+    CHECK(pay::utils::validateNotifyUrl("http://203.0.113.10/cb", err));
+
+    // Scheme + length checks.
+    CHECK(!pay::utils::validateNotifyUrl("ftp://example.com/cb", err));
+    CHECK(pay::utils::validateNotifyUrl("http://example.com/cb", err));
+    // Oversize.
+    std::string longUrl = "https://example.com/" + std::string(600, 'x');
+    CHECK(!pay::utils::validateNotifyUrl(longUrl, err));
+
+    // Loopback IPv4 literals (127/8).
+    CHECK(!pay::utils::validateNotifyUrl("http://127.0.0.1/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://127.1.2.3:8080/cb", err));
+
+    // Link-local / cloud metadata (169.254/16).
+    CHECK(!pay::utils::validateNotifyUrl("http://169.254.169.254/latest/meta-data/", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://169.254.0.1/cb", err));
+
+    // RFC1918 private ranges.
+    CHECK(!pay::utils::validateNotifyUrl("http://10.0.0.1/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://172.16.0.1/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://172.31.255.255/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://192.168.1.1/cb", err));
+
+    // 0.0.0.0/8 and CGNAT 100.64/10.
+    CHECK(!pay::utils::validateNotifyUrl("http://0.0.0.0/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://100.64.0.1/cb", err));
+
+    // A public IPv4 just outside private ranges must pass.
+    CHECK(pay::utils::validateNotifyUrl("http://11.0.0.1/cb", err));
+    CHECK(pay::utils::validateNotifyUrl("http://172.32.0.1/cb", err));
+
+    // "localhost" domain.
+    CHECK(!pay::utils::validateNotifyUrl("http://localhost/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://LOCALHOST:9000/cb", err));
+
+    // IPv6 loopback and link-local / unique-local (bracketed literals).
+    CHECK(!pay::utils::validateNotifyUrl("http://[::1]/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://[fe80::1]/cb", err));
+    CHECK(!pay::utils::validateNotifyUrl("http://[fc00::1]/cb", err));
+    // A public IPv6 literal must pass.
+    CHECK(pay::utils::validateNotifyUrl("http://[2606:4700::1]/cb", err));
+
+    // Plain public domain is allowed (DNS rebinding is an accepted limitation).
+    CHECK(pay::utils::validateNotifyUrl("https://merchant.example.com/pay/notify", err));
+}

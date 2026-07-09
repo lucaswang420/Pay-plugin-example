@@ -73,10 +73,88 @@ void insertLedgerEntry(
 
 CallbackService::CallbackService(
   std::shared_ptr<WechatPayClient> wechatClient,
-  std::shared_ptr<drogon::orm::DbClient> dbClient
+  std::shared_ptr<drogon::orm::DbClient> dbClient,
+  drogon::nosql::RedisClientPtr redisClient
 )
-    : wechatClient_(wechatClient), dbClient_(dbClient)
+    : wechatClient_(wechatClient), dbClient_(dbClient), redisClient_(redisClient)
 {
+}
+
+bool CallbackService::isTimestampFresh(const std::string &timestamp, std::string &errorMsg)
+{
+    int64_t cbTime = 0;
+    try
+    {
+        cbTime = std::stoll(timestamp);
+    }
+    catch (...)
+    {
+        errorMsg = "invalid timestamp";
+        return false;
+    }
+    const auto nowSec =
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      ).count();
+    constexpr int64_t kMaxSkewSeconds = 300;  // 5 minutes
+    if (std::llabs(nowSec - cbTime) > kMaxSkewSeconds)
+    {
+        LOG_WARN << "[CallbackService] Callback timestamp out of window: cb=" << cbTime
+                 << " now=" << nowSec;
+        errorMsg = "timestamp out of acceptable window";
+        return false;
+    }
+    return true;
+}
+
+void CallbackService::checkNonce(
+  const std::string &nonce,
+  std::function<void(bool firstSight)> proceed
+)
+{
+    if (!redisClient_)
+    {
+        // Fail-open: no Redis configured. The DB idempotency table still dedupes
+        // duplicate processing; the nonce cache is an optimization layer.
+        LOG_WARN << "[CallbackService] Redis unavailable, skipping nonce replay check";
+        proceed(true);
+        return;
+    }
+    if (nonce.empty())
+    {
+        // No nonce to track (malformed request); let downstream validation
+        // decide. Treat as first sight.
+        proceed(true);
+        return;
+    }
+    auto sharedProceed = std::make_shared<std::function<void(bool)>>(std::move(proceed));
+    std::string redisKey = "cb:nonce:" + nonce;
+    // SET NX EX 360: reserves the nonce for 360s (slightly > the 300s timestamp
+    // window). Returns "OK" on first sight, nil if the nonce was already seen.
+    redisClient_->execCommandAsync(
+      [sharedProceed](const nosql::RedisResult &result) {
+          if (result.isNil())
+          {
+              // Nonce already present within the window -> replay.
+              LOG_WARN << "[CallbackService] Replay detected: nonce already seen";
+              (*sharedProceed)(false);
+          }
+          else
+          {
+              (*sharedProceed)(true);
+          }
+      },
+      [sharedProceed](const nosql::RedisException &e) {
+          // Fail-open on Redis errors: do not drop a legitimate callback because
+          // the cache layer is transiently unavailable. DB idempotency guards
+          // duplicate processing.
+          LOG_WARN << "[CallbackService] Redis nonce check error, failing open: "
+                   << e.what();
+          (*sharedProceed)(true);
+      },
+      "SET %s 1 NX EX 360",
+      redisKey.c_str()
+    );
 }
 
 void CallbackService::handlePaymentCallback(
@@ -121,38 +199,18 @@ void CallbackService::handlePaymentCallback(
     }
     LOG_INFO << "[CallbackService] Signature verified successfully";
 
-    // Replay protection: reject callbacks whose timestamp is outside a ±5 minute
-    // window (P1-1). The signature covers timestamp+nonce+body, so without a
-    // freshness check a captured valid callback could be replayed indefinitely.
-    // The idempotency table prevents duplicate *processing*, but a timestamp
-    // gate is the correct first-line defense and avoids DB work on stale replays.
+    // Replay protection (P1-1): freshness window. The nonce cache check gates
+    // the expensive DB transaction at the bottom of this function (see the
+    // checkNonce call wrapping proceedWithDb); body parsing is cheap and runs
+    // synchronously first.
     {
-        int64_t cbTime = 0;
-        try
-        {
-            cbTime = std::stoll(timestamp);
-        }
-        catch (...)
+        std::string tsError;
+        if (!isTimestampFresh(timestamp, tsError))
         {
             Json::Value error;
             error["code"] = "FAIL";
-            error["message"] = "invalid timestamp";
-            respond(error, "invalid timestamp");
-            return;
-        }
-        const auto nowSec =
-          std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()
-          ).count();
-        constexpr int64_t kMaxSkewSeconds = 300;  // 5 minutes
-        if (std::llabs(nowSec - cbTime) > kMaxSkewSeconds)
-        {
-            LOG_WARN << "[CallbackService] Callback timestamp out of window: cb=" << cbTime
-                     << " now=" << nowSec;
-            Json::Value error;
-            error["code"] = "FAIL";
-            error["message"] = "timestamp out of acceptable window";
-            respond(error, "timestamp out of acceptable window");
+            error["message"] = tsError;
+            respond(error, tsError);
             return;
         }
     }
@@ -880,9 +938,23 @@ void CallbackService::handlePaymentCallback(
         );
     };
 
-    // Skip Redis idempotency for now (simpler implementation)
+    // Replay protection (P1-1): gate the DB transaction behind the nonce cache.
+    // checkNonce is async (Redis); proceedWithDb (which holds all captured state
+    // via shared pointers) is invoked only on first sight of this nonce. On a
+    // replay it returns FAIL without touching the DB. Fail-open if Redis is
+    // unavailable (see checkNonce).
     LOG_INFO << "[CallbackService] About to call proceedWithDb() for order: " << orderNo;
-    proceedWithDb();
+    checkNonce(nonce, [proceedWithDb, respond](bool firstSight) mutable {
+        if (!firstSight)
+        {
+            Json::Value error;
+            error["code"] = "FAIL";
+            error["message"] = "replay detected";
+            respond(error, "replay detected");
+            return;
+        }
+        proceedWithDb();
+    });
 }
 
 void CallbackService::handleRefundCallback(
@@ -927,38 +999,18 @@ void CallbackService::handleRefundCallback(
     }
     LOG_INFO << "[CallbackService] Signature verified successfully";
 
-    // Replay protection: reject callbacks whose timestamp is outside a ±5 minute
-    // window (P1-1). The signature covers timestamp+nonce+body, so without a
-    // freshness check a captured valid callback could be replayed indefinitely.
-    // The idempotency table prevents duplicate *processing*, but a timestamp
-    // gate is the correct first-line defense and avoids DB work on stale replays.
+    // Replay protection (P1-1): freshness window. The nonce cache check gates
+    // the expensive DB transaction at the bottom of this function (see the
+    // checkNonce call wrapping proceedWithDb); body parsing is cheap and runs
+    // synchronously first.
     {
-        int64_t cbTime = 0;
-        try
-        {
-            cbTime = std::stoll(timestamp);
-        }
-        catch (...)
+        std::string tsError;
+        if (!isTimestampFresh(timestamp, tsError))
         {
             Json::Value error;
             error["code"] = "FAIL";
-            error["message"] = "invalid timestamp";
-            respond(error, "invalid timestamp");
-            return;
-        }
-        const auto nowSec =
-          std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()
-          ).count();
-        constexpr int64_t kMaxSkewSeconds = 300;  // 5 minutes
-        if (std::llabs(nowSec - cbTime) > kMaxSkewSeconds)
-        {
-            LOG_WARN << "[CallbackService] Callback timestamp out of window: cb=" << cbTime
-                     << " now=" << nowSec;
-            Json::Value error;
-            error["code"] = "FAIL";
-            error["message"] = "timestamp out of acceptable window";
-            respond(error, "timestamp out of acceptable window");
+            error["message"] = tsError;
+            respond(error, tsError);
             return;
         }
     }
@@ -1584,8 +1636,19 @@ void CallbackService::handleRefundCallback(
         );
     };
 
-    // Skip Redis idempotency for now (simpler implementation)
-    proceedRefundDb();
+    // Replay protection (P1-1): gate the DB transaction behind the nonce cache.
+    // Mirrors the payment-callback path. Fail-open if Redis is unavailable.
+    checkNonce(nonce, [proceedRefundDb, respond](bool firstSight) mutable {
+        if (!firstSight)
+        {
+            Json::Value error;
+            error["code"] = "FAIL";
+            error["message"] = "replay detected";
+            respond(error, "replay detected");
+            return;
+        }
+        proceedRefundDb();
+    });
 }
 
 bool CallbackService::verifySignature(

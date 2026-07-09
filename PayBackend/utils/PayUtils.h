@@ -20,8 +20,10 @@ void mapTradeState(
 std::string mapRefundStatus(const std::string &wechatStatus);
 
 // Validate a callback notify URL. Returns true if the URL is empty (no notify
-// URL supplied is allowed) or passes scheme + length checks. On failure, sets
-// errorMessage. Used by both PaymentService (create) and RefundService to
-// guard against SSRF via an attacker-controlled notify_url (P1-3).
+// URL supplied is allowed) or passes scheme + length + host checks. On failure,
+// sets errorMessage. The host check rejects private/loopback/link-local
+// addresses (RFC1918, 127/8, 169.254/16 incl. cloud metadata, IPv6 ::1, etc.)
+// and "localhost" to prevent SSRF via an attacker-controlled notify_url (P1-3).
+// Used by both PaymentService (create) and RefundService.
 bool validateNotifyUrl(const std::string &url, std::string &errorMessage);
 }  // namespace pay::utils

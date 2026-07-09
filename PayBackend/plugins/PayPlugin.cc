@@ -95,7 +95,7 @@ void PayPlugin::initAndStart(const Json::Value &config)
       std::make_shared<RefundService>(wechatClient_, alipayClient_, dbClient_, idempotencyService_);
     LOG_INFO << "RefundService created";
 
-    callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_);
+    callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_, redisClient_);
     LOG_INFO << "CallbackService created";
 
     // 5. Create and start ReconciliationService (depends on PaymentService and RefundService)
@@ -145,7 +145,7 @@ std::shared_ptr<CallbackService> PayPlugin::callbackService()
 {
     if (!callbackService_)
     {
-        callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_);
+        callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_, redisClient_);
     }
     return callbackService_;
 }
@@ -184,7 +184,7 @@ void PayPlugin::setTestClients(
     refundService_ =
       std::make_shared<RefundService>(wechatClient_, alipayClient_, dbClient_, idempotencyService_);
 
-    callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_);
+    callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_, nullptr);
 
     // Note: ReconciliationService is NOT created for tests
     // (it would start background timers)
