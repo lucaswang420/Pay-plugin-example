@@ -1,6 +1,7 @@
 #include "PayAuthFilter.h"
 #include "PayAuthMetrics.h"
 #include <drogon/drogon.h>
+#include <openssl/crypto.h>
 #include <algorithm>
 #include <cstdlib>
 #include <sstream>
@@ -9,6 +10,33 @@
 
 namespace
 {
+// Constant-time string comparison to prevent timing attacks on API key
+// validation. std::string::operator== (used by std::find) short-circuits on
+// the first differing byte, allowing an attacker to recover a valid key
+// byte-by-byte by measuring response time (P1-2). Length is compared first;
+// only equal-length comparisons go through CRYPTO_memcmp (length itself is
+// not secret in practice — only the content must be compared in constant time).
+bool constantTimeEquals(const std::string &a, const std::string &b)
+{
+    if (a.size() != b.size())
+    {
+        return false;
+    }
+    return CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
+}
+
+bool containsKeyConstantTime(const std::vector<std::string> &keys, const std::string &key)
+{
+    for (const auto &allowed : keys)
+    {
+        if (constantTimeEquals(allowed, key))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string trim(const std::string &value)
 {
     const auto start = value.find_first_not_of(" \t");
@@ -56,17 +84,25 @@ std::string extractApiKey(const drogon::HttpRequestPtr &req)
 std::string resolveScope(const drogon::HttpRequestPtr &req)
 {
     const auto &path = req->path();
-    if (path.rfind("/pay/refund/query", 0) == 0)
+    // Route prefix is /api/pay (matches PayController). The previous code
+    // matched /pay/..., which never matched the real routes, so resolveScope
+    // always returned {} and the scope check in doFilter was skipped entirely
+    // (P1-4): any valid key could refund/reconcile regardless of its scopes.
+    if (path.rfind("/api/pay/refund/query", 0) == 0)
     {
         return "refund_query";
     }
-    if (path.rfind("/pay/refund", 0) == 0)
+    if (path.rfind("/api/pay/refund", 0) == 0)
     {
         return "refund";
     }
-    if (path.rfind("/pay/query", 0) == 0)
+    if (path.rfind("/api/pay/query", 0) == 0)
     {
         return "order_query";
+    }
+    if (path.rfind("/api/pay/reconcile", 0) == 0)
+    {
+        return "reconcile";
     }
     return {};
 }
@@ -139,7 +175,7 @@ void PayAuthFilter::doFilter(
         return;
     }
 
-    const auto match = std::find(allowedKeys.begin(), allowedKeys.end(), key) != allowedKeys.end();
+    const auto match = containsKeyConstantTime(allowedKeys, key);
     if (!match)
     {
         auto resp = drogon::HttpResponse::newHttpResponse();

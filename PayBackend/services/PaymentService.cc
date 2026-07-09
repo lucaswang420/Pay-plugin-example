@@ -288,6 +288,31 @@ void PaymentService::createPayment(
               sharedCb->call(error, ec);
               return;
           }
+          // Validate notify_url before it reaches the channel request. Without
+          // this check an attacker-controlled notify_url is forwarded verbatim
+          // to the provider, enabling SSRF (P1-3). RefundService already does
+          // this; both now share pay::utils::validateNotifyUrl.
+          {
+              std::string urlError;
+              if (!pay::utils::validateNotifyUrl(request.notifyUrl, urlError))
+              {
+                  Json::Value error;
+                  error["code"] = 1001;
+                  error["message"] = urlError;
+                  auto ec = pay::makePayError(1001, urlError);
+                  if (!idempotencyKey.empty())
+                  {
+                      idempotencyService->clearReservation(
+                        idempotencyKey,
+                        requestHash,
+                        [sharedCb, error, ec](bool) { sharedCb->call(error, ec); }
+                      );
+                      return;
+                  }
+                  sharedCb->call(error, ec);
+                  return;
+              }
+          }
 
           auto wrappedCb = [idempotencyService, idempotencyKey, requestHash, sharedCb](
                              const Json::Value &result, const std::error_code &error

@@ -27,8 +27,19 @@ void PayPlugin::initAndStart(const Json::Value &config)
     // 2. Create WechatPayClient
     try
     {
-        wechatClient_ = std::make_shared<WechatPayClient>(config["wechat"]);
-        LOG_INFO << "WechatPayClient created";
+        // Config key is "wechat_pay" (matches config.json). The previous code
+        // read config["wechat"], which never exists, so WechatPayClient was
+        // always constructed from an empty config and isConfigured() returned
+        // false — silently disabling the entire WeChat channel (P0-3).
+        if (!config.isMember("wechat_pay") || !config["wechat_pay"].isObject())
+        {
+            LOG_ERROR << "Missing 'wechat_pay' config block; WeChat channel disabled";
+        }
+        else
+        {
+            wechatClient_ = std::make_shared<WechatPayClient>(config["wechat_pay"]);
+            LOG_INFO << "WechatPayClient created";
+        }
     }
     catch (const std::exception &e)
     {
@@ -57,7 +68,19 @@ void PayPlugin::initAndStart(const Json::Value &config)
     }
 
     // 3. Create IdempotencyService (no dependencies)
-    int64_t idempotencyTtl = config["idempotency"].get("ttl", 604800).asInt64();
+    // Config key is the scalar "idempotency_ttl_seconds" (matches config.json).
+    // The previous code read config["idempotency"].get("ttl", ...), which never
+    // matched, so the configured TTL was silently ignored and the hardcoded
+    // 604800 default was always used (P0-3).
+    int64_t idempotencyTtl = 604800;  // 7 days default
+    if (config.isMember("idempotency_ttl_seconds") && config["idempotency_ttl_seconds"].isInt64())
+    {
+        idempotencyTtl = config["idempotency_ttl_seconds"].asInt64();
+    }
+    else
+    {
+        LOG_WARN << "'idempotency_ttl_seconds' not set, using default " << idempotencyTtl << "s";
+    }
     idempotencyService_ =
       std::make_shared<IdempotencyService>(dbClient_, redisClient_, idempotencyTtl);
     LOG_INFO << "IdempotencyService created";
@@ -130,6 +153,11 @@ std::shared_ptr<CallbackService> PayPlugin::callbackService()
 std::shared_ptr<IdempotencyService> PayPlugin::idempotencyService()
 {
     return idempotencyService_;
+}
+
+std::shared_ptr<AlipaySandboxClient> PayPlugin::alipayClient()
+{
+    return alipayClient_;
 }
 
 void PayPlugin::setTestClients(

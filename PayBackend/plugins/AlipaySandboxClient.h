@@ -122,11 +122,12 @@ class AlipaySandboxClient
     std::string notifyUrl_;            // Async callback URL
     int timeoutMs_;                    // HTTP request timeout in milliseconds
 
-    // Load private key for signing
-    std::string loadPrivateKey() const;
-
-    // Load Alipay public key for signature verification
-    std::string loadAlipayPublicKey() const;
+    // PEM contents loaded once at construction (B3: previously the key files
+    // were re-read and re-parsed on every request, costing disk I/O per call
+    // and exposing a TOCTOU window where the file could be swapped between the
+    // stat and the read).
+    std::string privateKeyPem_;
+    std::string alipayPublicKeyPem_;
 
     // RSA signing
     std::string sign(const std::string &data) const;

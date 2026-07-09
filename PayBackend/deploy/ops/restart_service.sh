@@ -8,7 +8,7 @@ set -e  # Exit on error
 # ============================================================================
 # Configuration
 # ============================================================================
-SERVICE_NAME="${SERVICE_NAME:-payplugin}"
+SERVICE_NAME="${SERVICE_NAME:-payserver}"
 HEALTH_CHECK_URL="${HEALTH_CHECK_URL:-http://localhost:5566/health}"
 MAX_WAIT="${MAX_WAIT:-60}"
 

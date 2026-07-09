@@ -8,6 +8,8 @@
 #include "../models/PayIdempotency.h"
 #include "../models/PayLedger.h"
 #include <drogon/drogon.h>
+#include <chrono>
+#include <cstdlib>
 #include <sstream>
 
 using namespace drogon;
@@ -118,6 +120,42 @@ void CallbackService::handlePaymentCallback(
         return;
     }
     LOG_INFO << "[CallbackService] Signature verified successfully";
+
+    // Replay protection: reject callbacks whose timestamp is outside a ±5 minute
+    // window (P1-1). The signature covers timestamp+nonce+body, so without a
+    // freshness check a captured valid callback could be replayed indefinitely.
+    // The idempotency table prevents duplicate *processing*, but a timestamp
+    // gate is the correct first-line defense and avoids DB work on stale replays.
+    {
+        int64_t cbTime = 0;
+        try
+        {
+            cbTime = std::stoll(timestamp);
+        }
+        catch (...)
+        {
+            Json::Value error;
+            error["code"] = "FAIL";
+            error["message"] = "invalid timestamp";
+            respond(error, "invalid timestamp");
+            return;
+        }
+        const auto nowSec =
+          std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+          ).count();
+        constexpr int64_t kMaxSkewSeconds = 300;  // 5 minutes
+        if (std::llabs(nowSec - cbTime) > kMaxSkewSeconds)
+        {
+            LOG_WARN << "[CallbackService] Callback timestamp out of window: cb=" << cbTime
+                     << " now=" << nowSec;
+            Json::Value error;
+            error["code"] = "FAIL";
+            error["message"] = "timestamp out of acceptable window";
+            respond(error, "timestamp out of acceptable window");
+            return;
+        }
+    }
 
     // Parse callback body
     Json::CharReaderBuilder builder;
@@ -888,6 +926,42 @@ void CallbackService::handleRefundCallback(
         return;
     }
     LOG_INFO << "[CallbackService] Signature verified successfully";
+
+    // Replay protection: reject callbacks whose timestamp is outside a ±5 minute
+    // window (P1-1). The signature covers timestamp+nonce+body, so without a
+    // freshness check a captured valid callback could be replayed indefinitely.
+    // The idempotency table prevents duplicate *processing*, but a timestamp
+    // gate is the correct first-line defense and avoids DB work on stale replays.
+    {
+        int64_t cbTime = 0;
+        try
+        {
+            cbTime = std::stoll(timestamp);
+        }
+        catch (...)
+        {
+            Json::Value error;
+            error["code"] = "FAIL";
+            error["message"] = "invalid timestamp";
+            respond(error, "invalid timestamp");
+            return;
+        }
+        const auto nowSec =
+          std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+          ).count();
+        constexpr int64_t kMaxSkewSeconds = 300;  // 5 minutes
+        if (std::llabs(nowSec - cbTime) > kMaxSkewSeconds)
+        {
+            LOG_WARN << "[CallbackService] Callback timestamp out of window: cb=" << cbTime
+                     << " now=" << nowSec;
+            Json::Value error;
+            error["code"] = "FAIL";
+            error["message"] = "timestamp out of acceptable window";
+            respond(error, "timestamp out of acceptable window");
+            return;
+        }
+    }
 
     // Parse callback body
     Json::CharReaderBuilder builder;

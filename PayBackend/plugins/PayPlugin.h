@@ -33,6 +33,9 @@ class PayPlugin : public drogon::Plugin<PayPlugin>
     std::shared_ptr<CallbackService> callbackService();
     std::shared_ptr<IdempotencyService> idempotencyService();
 
+    // Client accessors (needed by controllers that verify callbacks)
+    std::shared_ptr<AlipaySandboxClient> alipayClient();
+
     // Test support: Initialize services with test clients
     // NOTE: This method is for integration testing only
     void setTestClients(

@@ -111,7 +111,9 @@ void IdempotencyService::checkDatabase(
           }
 
           dbClient->execSqlAsync(
-            "SELECT request_hash, response_snapshot FROM pay_idempotency WHERE idempotency_key = $1",
+            "SELECT request_hash, response_snapshot FROM pay_idempotency "
+            "WHERE idempotency_key = $1 "
+            "AND (expire_at IS NULL OR expire_at > NOW())",
             [idempotencyKey, requestHash, sharedCb](
               const orm::Result &rows
             ) {
@@ -319,5 +321,24 @@ void IdempotencyService::clearReservation(
       },
       idempotencyKey,
       requestHash
+    );
+}
+
+void IdempotencyService::purgeExpired(UpdateCallback &&callback)
+{
+    auto onceCb = pay::utils::makeOnceCallback<void(bool)>(std::move(callback));
+    auto sharedCb = std::make_shared<pay::utils::OnceCallback<void(bool)>>(onceCb);
+    auto dbClient = dbClient_;
+
+    dbClient->execSqlAsync(
+      "DELETE FROM pay_idempotency WHERE expire_at IS NOT NULL AND expire_at < NOW()",
+      [sharedCb](const orm::Result &result) {
+          LOG_INFO << "[IdempotencyService] Purged expired rows: " << result.affectedRows();
+          sharedCb->call(true);
+      },
+      [sharedCb](const orm::DrogonDbException &e) {
+          LOG_ERROR << "[IdempotencyService] purgeExpired error: " << e.base().what();
+          sharedCb->call(false);
+      }
     );
 }

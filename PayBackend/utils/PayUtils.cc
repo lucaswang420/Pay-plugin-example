@@ -141,4 +141,25 @@ std::string mapRefundStatus(const std::string &wechatStatus)
     }
     return "";
 }
+
+bool validateNotifyUrl(const std::string &url, std::string &errorMessage)
+{
+    errorMessage.clear();
+    if (url.empty())
+    {
+        // No notify URL is allowed; the channel falls back to its configured default.
+        return true;
+    }
+    if (url.find("http://") != 0 && url.find("https://") != 0)
+    {
+        errorMessage = "invalid notify_url (must start with http:// or https://)";
+        return false;
+    }
+    if (url.length() > 512)
+    {
+        errorMessage = "notify_url too long (max 512 characters)";
+        return false;
+    }
+    return true;
+}
 }  // namespace pay::utils

@@ -101,6 +101,12 @@ class IdempotencyService
       std::shared_ptr<drogon::orm::DbClient> txnClient = nullptr
     );
 
+    // Garbage-collect expired idempotency rows (expire_at < NOW()). Without
+    // this the pay_idempotency table grows unbounded: the SELECT now filters
+    // expired rows out of reads, but they still accumulate on disk. Intended to
+    // be called periodically (e.g. from the reconcile timer).
+    void purgeExpired(UpdateCallback &&callback = [](bool) {});
+
   private:
     std::shared_ptr<drogon::orm::DbClient> dbClient_;
     drogon::nosql::RedisClientPtr redisClient_;
