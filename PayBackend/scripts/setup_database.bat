@@ -41,7 +41,23 @@ if %errorlevel% neq 0 (
 echo Applying add indexes...
 psql -U test -d pay_test -f sql/002_add_indexes.sql >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Error: Failed to apply OAuth2 core schema
+    echo Error: Failed to apply indexes
+    endlocal
+    exit /b 1
+)
+
+echo Applying refund unique constraint...
+psql -U test -d pay_test -f sql/003_refund_unique_constraint.sql >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Error: Failed to apply refund unique constraint
+    endlocal
+    exit /b 1
+)
+
+echo Applying ledger foreign keys...
+psql -U test -d pay_test -f sql/004_ledger_fk.sql >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Error: Failed to apply ledger foreign keys
     endlocal
     exit /b 1
 )
