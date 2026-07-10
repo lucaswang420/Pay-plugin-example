@@ -20,8 +20,8 @@
 
 namespace
 {
-using pay::test_util::loadConfig;
 using pay::test_util::buildPgConnInfo;
+using pay::test_util::loadConfig;
 
 drogon::nosql::RedisClientPtr buildRedisClient(const Json::Value &redis)
 {
@@ -3293,7 +3293,7 @@ DROGON_TEST(PayPlugin_Refund_CumulativeAmountDoesNotExceedPaid)
     request.amount = "5.00";  // 5.00 + prior 6.00 = 11.00 > 10.00 paid (over); differs
                               // from the prior 6.00 so the duplicate-success early-out
                               // in proceedWithAmountCheck does not fire.
-    request.refundNo = "";  // Auto-generated
+    request.refundNo = "";    // Auto-generated
 
     std::promise<Json::Value> resultPromise;
     std::promise<std::error_code> errorPromise;
@@ -3320,8 +3320,9 @@ DROGON_TEST(PayPlugin_Refund_CumulativeAmountDoesNotExceedPaid)
     // a "data" object; rejection is signalled by a non-zero error code or a
     // non-zero response code with no data. The core assertion is simply that
     // the over-refund did NOT succeed.
-    const bool succeeded = (!error && result.isMember("data") &&
-                            (!result.isMember("code") || result["code"].asInt() == 0));
+    const bool succeeded =
+      (!error && result.isMember("data") &&
+       (!result.isMember("code") || result["code"].asInt() == 0));
     CHECK(!succeeded);
 
     // No second refund row must have been persisted for this attempt.

@@ -23,14 +23,10 @@ void IdempotencyService::checkAndSet(
   CheckCallback &&callback
 )
 {
-    auto legacyCb = pay::utils::makeOnceCallback<void(bool, const Json::Value &)>(
-      std::move(callback)
-    );
+    auto legacyCb =
+      pay::utils::makeOnceCallback<void(bool, const Json::Value &)>(std::move(callback));
     checkAndSetStatus(
-      idempotencyKey,
-      requestHash,
-      request,
-      [legacyCb](const CheckResult &result) mutable {
+      idempotencyKey, requestHash, request, [legacyCb](const CheckResult &result) mutable {
           switch (result.status)
           {
               case CheckStatus::Started:
@@ -56,19 +52,15 @@ void IdempotencyService::checkAndSetStatus(
   StatusCallback &&callback
 )
 {
-    auto onceCb =
-      pay::utils::makeOnceCallback<void(const CheckResult &)>(std::move(callback));
-    auto sharedCb =
-      std::make_shared<pay::utils::OnceCallback<void(const CheckResult &)>>(onceCb);
+    auto onceCb = pay::utils::makeOnceCallback<void(const CheckResult &)>(std::move(callback));
+    auto sharedCb = std::make_shared<pay::utils::OnceCallback<void(const CheckResult &)>>(onceCb);
     (void)request;
 
     // DB is the source of truth. Redis read-through is intentionally disabled
     // until it can share the same Started/Replay/InProgress/Conflict contract.
-    checkDatabase(
-      idempotencyKey,
-      requestHash,
-      [sharedCb](const CheckResult &result) { sharedCb->call(result); }
-    );
+    checkDatabase(idempotencyKey, requestHash, [sharedCb](const CheckResult &result) {
+        sharedCb->call(result);
+    });
 }
 
 void IdempotencyService::checkDatabase(
@@ -85,10 +77,8 @@ void IdempotencyService::checkDatabase(
         return;
     }
 
-    auto onceCb =
-      pay::utils::makeOnceCallback<void(const CheckResult &)>(std::move(callback));
-    auto sharedCb =
-      std::make_shared<pay::utils::OnceCallback<void(const CheckResult &)>>(onceCb);
+    auto onceCb = pay::utils::makeOnceCallback<void(const CheckResult &)>(std::move(callback));
+    auto sharedCb = std::make_shared<pay::utils::OnceCallback<void(const CheckResult &)>>(onceCb);
     auto dbClient = dbClient_;
     const auto ttlSeconds = ttlSeconds_;
     const auto now = trantor::Date::now();
@@ -98,9 +88,7 @@ void IdempotencyService::checkDatabase(
     dbClient->execSqlAsync(
       "INSERT INTO pay_idempotency (idempotency_key, request_hash, response_snapshot, expire_at) "
       "VALUES ($1, $2, NULL, $3) ON CONFLICT (idempotency_key) DO NOTHING",
-      [dbClient, idempotencyKey, requestHash, sharedCb](
-        const orm::Result &insertResult
-      ) {
+      [dbClient, idempotencyKey, requestHash, sharedCb](const orm::Result &insertResult) {
           if (insertResult.affectedRows() > 0)
           {
               LOG_INFO << "[IdempotencyService] Reserved idempotency key=" << idempotencyKey;
@@ -114,79 +102,78 @@ void IdempotencyService::checkDatabase(
             "SELECT request_hash, response_snapshot FROM pay_idempotency "
             "WHERE idempotency_key = $1 "
             "AND (expire_at IS NULL OR expire_at > NOW())",
-            [idempotencyKey, requestHash, sharedCb](
-              const orm::Result &rows
-            ) {
-          if (!rows.empty())
-          {
-              std::string cachedHash = rows[0]["request_hash"].c_str();
+            [idempotencyKey, requestHash, sharedCb](const orm::Result &rows) {
+                if (!rows.empty())
+                {
+                    std::string cachedHash = rows[0]["request_hash"].c_str();
 
-              if (cachedHash == requestHash)
-              {
-                  if (rows[0]["response_snapshot"].isNull())
-                  {
-                      LOG_INFO << "[IdempotencyService] Idempotency key in progress: key="
-                               << idempotencyKey;
-                      CheckResult checkResult;
-                      checkResult.status = CheckStatus::InProgress;
-                      checkResult.message = "idempotency request is already in progress";
-                      sharedCb->call(checkResult);
-                      return;
-                  }
+                    if (cachedHash == requestHash)
+                    {
+                        if (rows[0]["response_snapshot"].isNull())
+                        {
+                            LOG_INFO << "[IdempotencyService] Idempotency key in progress: key="
+                                     << idempotencyKey;
+                            CheckResult checkResult;
+                            checkResult.status = CheckStatus::InProgress;
+                            checkResult.message = "idempotency request is already in progress";
+                            sharedCb->call(checkResult);
+                            return;
+                        }
 
-                  // Same request - backfill Redis and return
-                  Json::Value snapshot;
-                  Json::CharReaderBuilder builder;
-                  std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-                  std::string errors;
-                  const char *str = rows[0]["response_snapshot"].c_str();
-                  size_t strLen = strlen(str);
-                  LOG_INFO << "[IdempotencyService] Loading from DB: key=" << idempotencyKey
-                           << ", snapshot length=" << strLen;
-                  bool parseSuccess = reader->parse(str, str + strLen, &snapshot, &errors);
-                  Json::Value response = snapshot["response"];
-                  LOG_INFO << "[IdempotencyService] Parsed from DB: success=" << parseSuccess
-                           << ", has_response=" << snapshot.isMember("response")
-                           << ", has_data=" << response.isMember("data")
-                           << ", isNull=" << response.isNull()
-                           << ", members=" << response.getMemberNames().size()
-                           << ", errors=" << errors;
+                        // Same request - backfill Redis and return
+                        Json::Value snapshot;
+                        Json::CharReaderBuilder builder;
+                        std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+                        std::string errors;
+                        const char *str = rows[0]["response_snapshot"].c_str();
+                        size_t strLen = strlen(str);
+                        LOG_INFO << "[IdempotencyService] Loading from DB: key=" << idempotencyKey
+                                 << ", snapshot length=" << strLen;
+                        bool parseSuccess = reader->parse(str, str + strLen, &snapshot, &errors);
+                        Json::Value response = snapshot["response"];
+                        LOG_INFO << "[IdempotencyService] Parsed from DB: success=" << parseSuccess
+                                 << ", has_response=" << snapshot.isMember("response")
+                                 << ", has_data=" << response.isMember("data")
+                                 << ", isNull=" << response.isNull()
+                                 << ", members=" << response.getMemberNames().size()
+                                 << ", errors=" << errors;
 
-                  if (!parseSuccess || response.isNull())
-                  {
-                      CheckResult checkResult;
-                      checkResult.status = CheckStatus::InProgress;
-                      checkResult.message = "idempotency response is not ready";
-                      sharedCb->call(checkResult);
-                      return;
-                  }
+                        if (!parseSuccess || response.isNull())
+                        {
+                            CheckResult checkResult;
+                            checkResult.status = CheckStatus::InProgress;
+                            checkResult.message = "idempotency response is not ready";
+                            sharedCb->call(checkResult);
+                            return;
+                        }
 
-                  LOG_INFO << "[IdempotencyService] Idempotency hit: key=" << idempotencyKey
-                           << ", returning cached response, has_data="
-                           << response.isMember("data");
-                  CheckResult checkResult;
-                  checkResult.status = CheckStatus::Replay;
-                  checkResult.cachedResult = response;
-                  sharedCb->call(checkResult);
-              }
-              else
-              {
-                  // Different request - conflict
-                  LOG_INFO << "[IdempotencyService] Idempotency conflict: key=" << idempotencyKey
-                           << ", cached_hash=" << cachedHash.substr(0, 8) << "..."
-                           << ", request_hash=" << requestHash.substr(0, 8) << "...";
-                  CheckResult checkResult;
-                  checkResult.status = CheckStatus::Conflict;
-                  checkResult.message = "idempotency key conflict";
-                  sharedCb->call(checkResult);
-              }
-              return;
-          }
+                        LOG_INFO << "[IdempotencyService] Idempotency hit: key=" << idempotencyKey
+                                 << ", returning cached response, has_data="
+                                 << response.isMember("data");
+                        CheckResult checkResult;
+                        checkResult.status = CheckStatus::Replay;
+                        checkResult.cachedResult = response;
+                        sharedCb->call(checkResult);
+                    }
+                    else
+                    {
+                        // Different request - conflict
+                        LOG_INFO << "[IdempotencyService] Idempotency conflict: key="
+                                 << idempotencyKey << ", cached_hash=" << cachedHash.substr(0, 8)
+                                 << "..."
+                                 << ", request_hash=" << requestHash.substr(0, 8) << "...";
+                        CheckResult checkResult;
+                        checkResult.status = CheckStatus::Conflict;
+                        checkResult.message = "idempotency key conflict";
+                        sharedCb->call(checkResult);
+                    }
+                    return;
+                }
 
-              CheckResult checkResult;
-              checkResult.status = CheckStatus::Error;
-              checkResult.message = "idempotency key disappeared after conflict";
-              sharedCb->call(checkResult);
+                CheckResult checkResult;
+                checkResult.status = CheckStatus::Error;
+                checkResult.message = "idempotency key disappeared after conflict";
+                sharedCb->call(checkResult);
             },
             [sharedCb](const orm::DrogonDbException &e) {
                 LOG_ERROR << "Idempotency DB select error: " << e.base().what();
@@ -255,9 +242,7 @@ void IdempotencyService::updateResult(
           {
               std::string redisKey = "idempotency:" + idempotencyKey;
               redisClient->execCommandAsync(
-                [sharedCb](const nosql::RedisResult &) {
-                    sharedCb->call(true);
-                },
+                [sharedCb](const nosql::RedisResult &) { sharedCb->call(true); },
                 [sharedCb](const nosql::RedisException &) {
                     // Ignore Redis errors - DB is source of truth
                     sharedCb->call(true);
@@ -304,8 +289,8 @@ void IdempotencyService::clearReservation(
       "DELETE FROM pay_idempotency "
       "WHERE idempotency_key = $1 AND request_hash = $2 AND response_snapshot IS NULL",
       [idempotencyKey, sharedCb](const orm::Result &result) {
-          LOG_INFO << "[IdempotencyService] Cleared in-flight reservation key="
-                   << idempotencyKey << " rows=" << result.affectedRows();
+          LOG_INFO << "[IdempotencyService] Cleared in-flight reservation key=" << idempotencyKey
+                   << " rows=" << result.affectedRows();
           sharedCb->call(true);
       },
       [sharedCb](const orm::DrogonDbException &e) {

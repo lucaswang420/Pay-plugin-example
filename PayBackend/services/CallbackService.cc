@@ -92,10 +92,10 @@ bool CallbackService::isTimestampFresh(const std::string &timestamp, std::string
         errorMsg = "invalid timestamp";
         return false;
     }
-    const auto nowSec =
-      std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-      ).count();
+    const auto nowSec = std::chrono::duration_cast<std::chrono::seconds>(
+                          std::chrono::system_clock::now().time_since_epoch()
+    )
+                          .count();
     constexpr int64_t kMaxSkewSeconds = 300;  // 5 minutes
     if (std::llabs(nowSec - cbTime) > kMaxSkewSeconds)
     {
@@ -148,8 +148,7 @@ void CallbackService::checkNonce(
           // Fail-open on Redis errors: do not drop a legitimate callback because
           // the cache layer is transiently unavailable. DB idempotency guards
           // duplicate processing.
-          LOG_WARN << "[CallbackService] Redis nonce check error, failing open: "
-                   << e.what();
+          LOG_WARN << "[CallbackService] Redis nonce check error, failing open: " << e.what();
           (*sharedProceed)(true);
       },
       "SET %s 1 NX EX 360",
@@ -752,17 +751,19 @@ void CallbackService::handlePaymentCallback(
                                                serialNo](const drogon::orm::Result &r) mutable {
                                                   if (r.affectedRows() == 0)
                                                   {
-                                                      LOG_INFO << "[CallbackService] Payment "
-                                                                  "already advanced by a concurrent "
-                                                                  "transaction for order: "
-                                                               << orderNo << ", skipping";
+                                                      LOG_INFO
+                                                        << "[CallbackService] Payment "
+                                                           "already advanced by a concurrent "
+                                                           "transaction for order: "
+                                                        << orderNo << ", skipping";
                                                       transPtr->rollback();
                                                       // Record this verified delivery in the audit
-                                                      // trail (P4): the business transaction was just
-                                                      // rolled back, so insert the pay_callback row
-                                                      // on dbClient_ (independent of transPtr) to
-                                                      // keep the audit trail complete even when the
-                                                      // state transition is skipped.
+                                                      // trail (P4): the business transaction was
+                                                      // just rolled back, so insert the
+                                                      // pay_callback row on dbClient_ (independent
+                                                      // of transPtr) to keep the audit trail
+                                                      // complete even when the state transition is
+                                                      // skipped.
                                                       PayCallbackModel dupRow;
                                                       dupRow.setPaymentNo(paymentNo);
                                                       dupRow.setRawBody(body);
@@ -771,9 +772,8 @@ void CallbackService::handlePaymentCallback(
                                                       dupRow.setVerified(true);
                                                       dupRow.setProcessed(true);
                                                       dupRow.setReceivedAt(trantor::Date::now());
-                                                      drogon::orm::Mapper<PayCallbackModel> dupMapper(
-                                                        dbClient_
-                                                      );
+                                                      drogon::orm::Mapper<PayCallbackModel>
+                                                        dupMapper(dbClient_);
                                                       dupMapper.insert(
                                                         dupRow,
                                                         [cbPtr](const PayCallbackModel &) {
@@ -782,9 +782,12 @@ void CallbackService::handlePaymentCallback(
                                                             ok["message"] = "OK";
                                                             (*cbPtr)(ok, std::error_code());
                                                         },
-                                                        [cbPtr](const drogon::orm::DrogonDbException &) {
-                                                            // Audit insert failed; still tell the channel
-                                                            // to stop retrying (state already advanced).
+                                                        [cbPtr](
+                                                          const drogon::orm::DrogonDbException &
+                                                        ) {
+                                                            // Audit insert failed; still tell the
+                                                            // channel to stop retrying (state
+                                                            // already advanced).
                                                             Json::Value ok;
                                                             ok["code"] = "SUCCESS";
                                                             ok["message"] = "OK";
@@ -831,7 +834,12 @@ void CallbackService::handlePaymentCallback(
                                                               paymentNo,
                                                               "PAYMENT",
                                                               order.getValueOfAmount(),
-                                                              [cbPtr, orderNo, transPtr, idempotencyKey, plaintext, this]() {
+                                                              [cbPtr,
+                                                               orderNo,
+                                                               transPtr,
+                                                               idempotencyKey,
+                                                               plaintext,
+                                                               this]() {
                                                                   LOG_INFO
                                                                     << "[CallbackService] Manually "
                                                                        "committing transaction for "
@@ -861,20 +869,26 @@ void CallbackService::handlePaymentCallback(
                                                                         // response snapshot. On
                                                                         // failure the row stays
                                                                         // in-flight (NULL snapshot)
-                                                                        // and a retry will reprocess
-                                                                        // (CAS guards the state).
+                                                                        // and a retry will
+                                                                        // reprocess (CAS guards the
+                                                                        // state).
                                                                         dbClient_->execSqlAsync(
                                                                           "UPDATE pay_idempotency "
-                                                                          "SET response_snapshot = $1 "
-                                                                          "WHERE idempotency_key = $2",
+                                                                          "SET response_snapshot = "
+                                                                          "$1 "
+                                                                          "WHERE idempotency_key = "
+                                                                          "$2",
                                                                           [cbPtr](
-                                                                            const drogon::orm::Result &
+                                                                            const drogon::orm::
+                                                                              Result &
                                                                           ) {
                                                                               Json::Value ok;
-                                                                              ok["code"] = "SUCCESS";
+                                                                              ok["code"] =
+                                                                                "SUCCESS";
                                                                               ok["message"] = "OK";
                                                                               (*cbPtr)(
-                                                                                ok, std::error_code()
+                                                                                ok,
+                                                                                std::error_code()
                                                                               );
                                                                           },
                                                                           [cbPtr](
@@ -882,18 +896,25 @@ void CallbackService::handlePaymentCallback(
                                                                               DrogonDbException &e
                                                                           ) {
                                                                               LOG_ERROR
-                                                                                << "[CallbackService] "
-                                                                                   "Failed to finalize "
-                                                                                   "idempotency row: "
+                                                                                << "[CallbackServic"
+                                                                                   "e] "
+                                                                                   "Failed to "
+                                                                                   "finalize "
+                                                                                   "idempotency "
+                                                                                   "row: "
                                                                                 << e.base().what();
-                                                                              // Business already committed;
-                                                                              // respond success so the
-                                                                              // channel stops retrying.
+                                                                              // Business already
+                                                                              // committed; respond
+                                                                              // success so the
+                                                                              // channel stops
+                                                                              // retrying.
                                                                               Json::Value ok;
-                                                                              ok["code"] = "SUCCESS";
+                                                                              ok["code"] =
+                                                                                "SUCCESS";
                                                                               ok["message"] = "OK";
                                                                               (*cbPtr)(
-                                                                                ok, std::error_code()
+                                                                                ok,
+                                                                                std::error_code()
                                                                               );
                                                                           },
                                                                           plaintext,
@@ -941,9 +962,7 @@ void CallbackService::handlePaymentCallback(
                                                                orderNo,
                                                                idempotencyKey,
                                                                plaintext,
-                                                               this](
-                                                                const drogon::orm::Result &
-                                                              ) {
+                                                               this](const drogon::orm::Result &) {
                                                                   LOG_INFO
                                                                     << "[CallbackService] "
                                                                        "Transaction committed, "
@@ -964,7 +983,9 @@ void CallbackService::handlePaymentCallback(
                                                                         Json::Value ok;
                                                                         ok["code"] = "SUCCESS";
                                                                         ok["message"] = "OK";
-                                                                        (*cbPtr)(ok, std::error_code());
+                                                                        (*cbPtr)(
+                                                                          ok, std::error_code()
+                                                                        );
                                                                     },
                                                                     [cbPtr](
                                                                       const drogon::orm::
@@ -978,7 +999,9 @@ void CallbackService::handlePaymentCallback(
                                                                         Json::Value ok;
                                                                         ok["code"] = "SUCCESS";
                                                                         ok["message"] = "OK";
-                                                                        (*cbPtr)(ok, std::error_code());
+                                                                        (*cbPtr)(
+                                                                          ok, std::error_code()
+                                                                        );
                                                                     },
                                                                     plaintext,
                                                                     idempotencyKey
@@ -1630,8 +1653,8 @@ void CallbackService::handleRefundCallback(
                                                     (*cbPtr)(ok, std::error_code());
                                                 },
                                                 [cbPtr](const drogon::orm::DrogonDbException &) {
-                                                    // Audit insert failed; still tell the channel to
-                                                    // stop retrying (state is already advanced).
+                                                    // Audit insert failed; still tell the channel
+                                                    // to stop retrying (state is already advanced).
                                                     Json::Value ok;
                                                     ok["code"] = "SUCCESS";
                                                     ok["message"] = "OK";
@@ -1688,13 +1711,17 @@ void CallbackService::handleRefundCallback(
                                               );
                                               callbackMapper.insert(
                                                 callbackRow,
-                                                [cbPtr, transPtr, idempotencyKey, plaintext, this](const PayCallbackModel &) {
+                                                [cbPtr, transPtr, idempotencyKey, plaintext, this](
+                                                  const PayCallbackModel &
+                                                ) {
                                                     LOG_INFO
                                                       << "[CallbackService] Manually committing "
                                                          "transaction for refund callback";
                                                     transPtr->execSqlAsync(
                                                       "COMMIT",
-                                                      [cbPtr, idempotencyKey, plaintext, this](const drogon::orm::Result &) {
+                                                      [cbPtr, idempotencyKey, plaintext, this](
+                                                        const drogon::orm::Result &
+                                                      ) {
                                                           LOG_INFO
                                                             << "[CallbackService] Transaction "
                                                                "committed, calling final success "
@@ -1713,11 +1740,13 @@ void CallbackService::handleRefundCallback(
                                                                 (*cbPtr)(ok, std::error_code());
                                                             },
                                                             [cbPtr](
-                                                              const drogon::orm::DrogonDbException &e
+                                                              const drogon::orm::DrogonDbException
+                                                                &e
                                                             ) {
                                                                 LOG_ERROR
                                                                   << "[CallbackService] Failed to "
-                                                                     "finalize refund idempotency row: "
+                                                                     "finalize refund idempotency "
+                                                                     "row: "
                                                                   << e.base().what();
                                                                 Json::Value ok;
                                                                 ok["code"] = "SUCCESS";

@@ -37,8 +37,7 @@ AlipaySandboxClient::AlipaySandboxClient(const Json::Value &config) : config_(co
         std::ifstream f(path);
         if (!f.is_open())
         {
-            LOG_WARN << "AlipaySandboxClient: could not open key file (will fail at use): "
-                     << path;
+            LOG_WARN << "AlipaySandboxClient: could not open key file (will fail at use): " << path;
             return;
         }
         std::stringstream buf;

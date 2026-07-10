@@ -84,10 +84,7 @@ class CallbackService
     // null or Redis errors, logs a warning and calls `proceed(true)` so a Redis
     // outage does not drop legitimate callbacks (the DB idempotency table
     // remains the source of truth for duplicate processing).
-    void checkNonce(
-      const std::string &nonce,
-      std::function<void(bool firstSight)> proceed
-    );
+    void checkNonce(const std::string &nonce, std::function<void(bool firstSight)> proceed);
 
     std::shared_ptr<WechatPayClient> wechatClient_;
     std::shared_ptr<drogon::orm::DbClient> dbClient_;

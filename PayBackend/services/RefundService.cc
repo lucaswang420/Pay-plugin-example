@@ -208,16 +208,17 @@ void RefundService::createRefund(
         {
             LOG_INFO << "[RefundService] Saving idempotency snapshot for key=" << idempotencyKey;
             // Save successful response to idempotency cache
-            idempotencyService_->updateResult(idempotencyKey, requestHash, response, [](bool success) {
-                if (success)
-                {
-                    LOG_INFO << "[RefundService] Idempotency snapshot saved successfully";
-                }
-                else
-                {
-                    LOG_WARN << "[RefundService] Failed to save idempotency snapshot";
-                }
-            });
+            idempotencyService_
+              ->updateResult(idempotencyKey, requestHash, response, [](bool success) {
+                  if (success)
+                  {
+                      LOG_INFO << "[RefundService] Idempotency snapshot saved successfully";
+                  }
+                  else
+                  {
+                      LOG_WARN << "[RefundService] Failed to save idempotency snapshot";
+                  }
+              });
         }
         // Call user callback
         if (*sharedCb)
@@ -275,27 +276,26 @@ void RefundService::createRefund(
           // Proceed with refund creation. Wrap the callback so that if the
           // operation fails after the key was reserved, the in-flight
           // reservation is released (preventing key poisoning on retry).
-          auto proceedCb =
-            [this, idempotencyKey, requestHash, wrappedSharedCb](
-              const Json::Value &response, const std::error_code &error) {
-                if (!idempotencyKey.empty() && error)
-                {
-                    idempotencyService_->clearReservation(
-                      idempotencyKey,
-                      requestHash,
-                      [wrappedSharedCb, response, error](bool) {
-                          if (*wrappedSharedCb)
-                          {
-                              (*wrappedSharedCb)(response, error);
-                          }
-                      });
-                    return;
-                }
-                if (*wrappedSharedCb)
-                {
-                    (*wrappedSharedCb)(response, error);
-                }
-            };
+          auto proceedCb = [this, idempotencyKey, requestHash, wrappedSharedCb](
+                             const Json::Value &response, const std::error_code &error
+                           ) {
+              if (!idempotencyKey.empty() && error)
+              {
+                  idempotencyService_->clearReservation(
+                    idempotencyKey, requestHash, [wrappedSharedCb, response, error](bool) {
+                        if (*wrappedSharedCb)
+                        {
+                            (*wrappedSharedCb)(response, error);
+                        }
+                    }
+                  );
+                  return;
+              }
+              if (*wrappedSharedCb)
+              {
+                  (*wrappedSharedCb)(response, error);
+              }
+          };
           proceedRefund(request, idempotencyKey, requestHash, std::move(proceedCb));
       }
     );
@@ -782,258 +782,255 @@ void RefundService::proceedWithInsert(
     // same payment so the SUM check + insert pair is race-free (P0-2 fix). The
     // third-party channel call happens AFTER commit (outside the transaction) so
     // the DB transaction stays short and does not block on network I/O.
-    dbClient_->newTransactionAsync(
-      [this,
-       request,
-       idempotencyKey,
-       requestHash,
-       refundNo,
-       orderNo,
-       paymentNo,
-       amount,
-       refundFen,
-       totalFen,
-       currency,
-       reason,
-       sharedCb](const std::shared_ptr<Transaction> &transPtr) mutable {
-          if (!transPtr)
-          {
-              // Transaction could not be created.
-              if (*sharedCb)
-              {
-                  Json::Value error;
-                  error["code"] = 1500;
-                  error["message"] = "Transaction unavailable";
-                  (*sharedCb)(error, std::error_code(1500, std::system_category()));
-              }
-              return;
-          }
-          auto failDb = [sharedCb, transPtr](const DrogonDbException &e) {
-              transPtr->rollback();
-              if (*sharedCb)
-              {
-                  Json::Value error;
-                  error["code"] = 1500;
-                  error["message"] = std::string("Database error: ") + e.base().what();
-                  (*sharedCb)(error, std::error_code(1500, std::system_category()));
-              }
-          };
+    dbClient_->newTransactionAsync([this,
+                                    request,
+                                    idempotencyKey,
+                                    requestHash,
+                                    refundNo,
+                                    orderNo,
+                                    paymentNo,
+                                    amount,
+                                    refundFen,
+                                    totalFen,
+                                    currency,
+                                    reason,
+                                    sharedCb](
+                                     const std::shared_ptr<Transaction> &transPtr
+                                   ) mutable {
+        if (!transPtr)
+        {
+            // Transaction could not be created.
+            if (*sharedCb)
+            {
+                Json::Value error;
+                error["code"] = 1500;
+                error["message"] = "Transaction unavailable";
+                (*sharedCb)(error, std::error_code(1500, std::system_category()));
+            }
+            return;
+        }
+        auto failDb = [sharedCb, transPtr](const DrogonDbException &e) {
+            transPtr->rollback();
+            if (*sharedCb)
+            {
+                Json::Value error;
+                error["code"] = 1500;
+                error["message"] = std::string("Database error: ") + e.base().what();
+                (*sharedCb)(error, std::error_code(1500, std::system_category()));
+            }
+        };
 
-          // 1. Lock the payment row for this order to serialize concurrent refunds.
-          transPtr->execSqlAsync(
-            "SELECT 1 FROM pay_payment WHERE order_no = $1 AND payment_no = $2 FOR UPDATE",
-            [this,
-             request,
-             idempotencyKey,
-             requestHash,
-             refundNo,
-             orderNo,
-             paymentNo,
-             amount,
-             refundFen,
-             totalFen,
-             currency,
-             reason,
-             sharedCb,
-             transPtr,
-             failDb](const Result &lockResult) mutable {
-                if (lockResult.empty())
-                {
-                    transPtr->rollback();
-                    if (*sharedCb)
+        // 1. Lock the payment row for this order to serialize concurrent refunds.
+        transPtr->execSqlAsync(
+          "SELECT 1 FROM pay_payment WHERE order_no = $1 AND payment_no = $2 FOR UPDATE",
+          [this,
+           request,
+           idempotencyKey,
+           requestHash,
+           refundNo,
+           orderNo,
+           paymentNo,
+           amount,
+           refundFen,
+           totalFen,
+           currency,
+           reason,
+           sharedCb,
+           transPtr,
+           failDb](const Result &lockResult) mutable {
+              if (lockResult.empty())
+              {
+                  transPtr->rollback();
+                  if (*sharedCb)
+                  {
+                      Json::Value error;
+                      error["code"] = 1404;
+                      error["message"] = "payment not found for order";
+                      (*sharedCb)(error, std::error_code(1404, std::system_category()));
+                  }
+                  return;
+              }
+
+              // 2. Sum already-refunded amounts under the lock.
+              transPtr->execSqlAsync(
+                "SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) AS sum_amount "
+                "FROM pay_refund WHERE order_no = $1 "
+                "AND status IN ($2, $3, $4)",
+                [this,
+                 request,
+                 idempotencyKey,
+                 requestHash,
+                 refundNo,
+                 orderNo,
+                 paymentNo,
+                 amount,
+                 refundFen,
+                 totalFen,
+                 currency,
+                 reason,
+                 sharedCb,
+                 transPtr,
+                 failDb](const Result &r) mutable {
+                    int64_t refundedFen = 0;
+                    if (!r.empty())
                     {
-                        Json::Value error;
-                        error["code"] = 1404;
-                        error["message"] = "payment not found for order";
-                        (*sharedCb)(error, std::error_code(1404, std::system_category()));
+                        const auto sumText = r.front()["sum_amount"].as<std::string>();
+                        if (!pay::utils::parseAmountToFen(sumText, refundedFen))
+                        {
+                            transPtr->rollback();
+                            if (*sharedCb)
+                            {
+                                Json::Value error;
+                                error["code"] = 1500;
+                                error["message"] = "Invalid refund sum";
+                                (*sharedCb)(error, std::error_code(1500, std::system_category()));
+                            }
+                            return;
+                        }
                     }
-                    return;
-                }
+                    if (refundedFen + refundFen > totalFen)
+                    {
+                        transPtr->rollback();
+                        if (*sharedCb)
+                        {
+                            Json::Value error;
+                            error["code"] = 409;
+                            error["message"] = "refund amount exceeds paid";
+                            (*sharedCb)(error, std::error_code(409, std::system_category()));
+                        }
+                        return;
+                    }
 
-                // 2. Sum already-refunded amounts under the lock.
-                transPtr->execSqlAsync(
-                  "SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) AS sum_amount "
-                  "FROM pay_refund WHERE order_no = $1 "
-                  "AND status IN ($2, $3, $4)",
-                  [this,
-                   request,
-                   idempotencyKey,
-                   requestHash,
-                   refundNo,
-                   orderNo,
-                   paymentNo,
-                   amount,
-                   refundFen,
-                   totalFen,
-                   currency,
-                   reason,
-                   sharedCb,
-                   transPtr,
-                   failDb](const Result &r) mutable {
-                      int64_t refundedFen = 0;
-                      if (!r.empty())
-                      {
-                          const auto sumText = r.front()["sum_amount"].as<std::string>();
-                          if (!pay::utils::parseAmountToFen(sumText, refundedFen))
-                          {
-                              transPtr->rollback();
-                              if (*sharedCb)
-                              {
-                                  Json::Value error;
-                                  error["code"] = 1500;
-                                  error["message"] = "Invalid refund sum";
-                                  (*sharedCb)(
-                                    error, std::error_code(1500, std::system_category())
-                                  );
-                              }
-                              return;
-                          }
-                      }
-                      if (refundedFen + refundFen > totalFen)
-                      {
-                          transPtr->rollback();
-                          if (*sharedCb)
-                          {
-                              Json::Value error;
-                              error["code"] = 409;
-                              error["message"] = "refund amount exceeds paid";
-                              (*sharedCb)(error, std::error_code(409, std::system_category()));
-                          }
-                          return;
-                      }
+                    // 3. Insert the refund row (REFUND_INIT) inside the same
+                    // transaction so the cumulative check and the insert commit
+                    // atomically.
+                    Mapper<PayRefundModel> refundMapper(transPtr);
+                    PayRefundModel refund;
+                    refund.setRefundNo(refundNo);
+                    refund.setOrderNo(orderNo);
+                    refund.setPaymentNo(paymentNo);
+                    refund.setStatus("REFUND_INIT");
+                    refund.setAmount(amount);
+                    refund.setCreatedAt(trantor::Date::now());
+                    refundMapper.insert(
+                      refund,
+                      [this,
+                       request,
+                       idempotencyKey,
+                       requestHash,
+                       refundNo,
+                       orderNo,
+                       paymentNo,
+                       amount,
+                       refundFen,
+                       totalFen,
+                       currency,
+                       reason,
+                       sharedCb,
+                       transPtr](const PayRefundModel &) mutable {
+                          // 4. Look up the channel inside the transaction, then
+                          // commit before any network call.
+                          Mapper<PayOrderModel> orderMapper(transPtr);
+                          orderMapper.findOne(
+                            Criteria(PayOrderModel::Cols::_order_no, CompareOperator::EQ, orderNo),
+                            [this,
+                             request,
+                             idempotencyKey,
+                             requestHash,
+                             refundNo,
+                             orderNo,
+                             paymentNo,
+                             amount,
+                             refundFen,
+                             totalFen,
+                             currency,
+                             reason,
+                             sharedCb,
+                             transPtr](const PayOrderModel &order) mutable {
+                                std::string channel = order.getValueOfChannel();
+                                LOG_INFO
+                                  << "[RefundService] Processing refund: order_no=" << orderNo
+                                  << ", payment_no=" << paymentNo << ", refund_no=" << refundNo
+                                  << ", channel=" << channel << ", amount=" << amount;
 
-                      // 3. Insert the refund row (REFUND_INIT) inside the same
-                      // transaction so the cumulative check and the insert commit
-                      // atomically.
-                      Mapper<PayRefundModel> refundMapper(transPtr);
-                      PayRefundModel refund;
-                      refund.setRefundNo(refundNo);
-                      refund.setOrderNo(orderNo);
-                      refund.setPaymentNo(paymentNo);
-                      refund.setStatus("REFUND_INIT");
-                      refund.setAmount(amount);
-                      refund.setCreatedAt(trantor::Date::now());
-                      refundMapper.insert(
-                        refund,
-                        [this,
-                         request,
-                         idempotencyKey,
-                         requestHash,
-                         refundNo,
-                         orderNo,
-                         paymentNo,
-                         amount,
-                         refundFen,
-                         totalFen,
-                         currency,
-                         reason,
-                         sharedCb,
-                         transPtr](const PayRefundModel &) mutable {
-                            // 4. Look up the channel inside the transaction, then
-                            // commit before any network call.
-                            Mapper<PayOrderModel> orderMapper(transPtr);
-                            orderMapper.findOne(
-                              Criteria(
-                                PayOrderModel::Cols::_order_no, CompareOperator::EQ, orderNo
-                              ),
-                              [this,
-                               request,
-                               idempotencyKey,
-                               requestHash,
-                               refundNo,
-                               orderNo,
-                               paymentNo,
-                               amount,
-                               refundFen,
-                               totalFen,
-                               currency,
-                               reason,
-                               sharedCb,
-                               transPtr](const PayOrderModel &order) mutable {
-                                  std::string channel = order.getValueOfChannel();
-                                  LOG_INFO << "[RefundService] Processing refund: order_no="
-                                           << orderNo << ", payment_no=" << paymentNo
-                                           << ", refund_no=" << refundNo
-                                           << ", channel=" << channel << ", amount=" << amount;
-
-                                  // Commit the transaction before the channel call.
-                                  transPtr->execSqlAsync(
-                                    "COMMIT",
-                                    [this,
-                                     request,
-                                     idempotencyKey,
-                                     requestHash,
-                                     refundNo,
-                                     orderNo,
-                                     paymentNo,
-                                     amount,
-                                     refundFen,
-                                     totalFen,
-                                     currency,
-                                     reason,
-                                     channel,
-                                     sharedCb](const Result &) mutable {
-                                        invokeRefundChannel(
-                                          request,
-                                          idempotencyKey,
-                                          requestHash,
-                                          refundNo,
-                                          orderNo,
-                                          paymentNo,
-                                          amount,
-                                          refundFen,
-                                          totalFen,
-                                          currency,
-                                          reason,
-                                          channel,
-                                          std::move(*sharedCb)
-                                        );
-                                    },
-                                    [sharedCb](const DrogonDbException &e) {
-                                        if (*sharedCb)
-                                        {
-                                            Json::Value error;
-                                            error["code"] = 1500;
-                                            error["message"] =
-                                              std::string("Failed to commit refund: ") +
-                                              e.base().what();
-                                            (*sharedCb)(
-                                              error, std::error_code(1500, std::system_category())
-                                            );
-                                        }
-                                    }
-                                  );
-                              },
-                              [sharedCb, transPtr](const DrogonDbException &e) {
-                                  transPtr->rollback();
-                                  if (*sharedCb)
-                                  {
-                                      Json::Value error;
-                                      error["code"] = 1404;
-                                      error["message"] =
-                                        std::string("Order not found: ") + e.base().what();
-                                      (*sharedCb)(
-                                        error, std::error_code(1404, std::system_category())
+                                // Commit the transaction before the channel call.
+                                transPtr->execSqlAsync(
+                                  "COMMIT",
+                                  [this,
+                                   request,
+                                   idempotencyKey,
+                                   requestHash,
+                                   refundNo,
+                                   orderNo,
+                                   paymentNo,
+                                   amount,
+                                   refundFen,
+                                   totalFen,
+                                   currency,
+                                   reason,
+                                   channel,
+                                   sharedCb](const Result &) mutable {
+                                      invokeRefundChannel(
+                                        request,
+                                        idempotencyKey,
+                                        requestHash,
+                                        refundNo,
+                                        orderNo,
+                                        paymentNo,
+                                        amount,
+                                        refundFen,
+                                        totalFen,
+                                        currency,
+                                        reason,
+                                        channel,
+                                        std::move(*sharedCb)
                                       );
+                                  },
+                                  [sharedCb](const DrogonDbException &e) {
+                                      if (*sharedCb)
+                                      {
+                                          Json::Value error;
+                                          error["code"] = 1500;
+                                          error["message"] =
+                                            std::string("Failed to commit refund: ") +
+                                            e.base().what();
+                                          (*sharedCb)(
+                                            error, std::error_code(1500, std::system_category())
+                                          );
+                                      }
                                   }
-                              }
-                            );
-                        },
-                        failDb
-                      );
-                  },
-                  failDb,
-                  orderNo,
-                  "REFUND_INIT",
-                  "REFUNDING",
-                  "REFUND_SUCCESS"
-                );
-            },
-            failDb,
-            orderNo,
-            paymentNo
-          );
-      });
+                                );
+                            },
+                            [sharedCb, transPtr](const DrogonDbException &e) {
+                                transPtr->rollback();
+                                if (*sharedCb)
+                                {
+                                    Json::Value error;
+                                    error["code"] = 1404;
+                                    error["message"] =
+                                      std::string("Order not found: ") + e.base().what();
+                                    (*sharedCb)(
+                                      error, std::error_code(1404, std::system_category())
+                                    );
+                                }
+                            }
+                          );
+                      },
+                      failDb
+                    );
+                },
+                failDb,
+                orderNo,
+                "REFUND_INIT",
+                "REFUNDING",
+                "REFUND_SUCCESS"
+              );
+          },
+          failDb,
+          orderNo,
+          paymentNo
+        );
+    });
 }
 
 void RefundService::invokeRefundChannel(

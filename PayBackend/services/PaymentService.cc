@@ -210,10 +210,9 @@ void PaymentService::createPayment(
     // Use SHA-256 for cryptographic hashing (more secure than std::hash)
     std::string requestHash = drogon::utils::getSha256(requestStr);
 
-    auto finalCb =
-      pay::utils::makeOnceCallback<void(const Json::Value &, const std::error_code &)>(
-        std::move(callback)
-      );
+    auto finalCb = pay::utils::makeOnceCallback<void(const Json::Value &, const std::error_code &)>(
+      std::move(callback)
+    );
     auto sharedCb = std::make_shared<decltype(finalCb)>(finalCb);
     auto idempotencyService = idempotencyService_;
 
@@ -278,11 +277,10 @@ void PaymentService::createPayment(
               {
                   // Validation failed after the key was reserved: release it so
                   // the client can retry with a corrected amount.
-                  idempotencyService->clearReservation(
-                    idempotencyKey,
-                    requestHash,
-                    [sharedCb, error, ec](bool) { sharedCb->call(error, ec); }
-                  );
+                  idempotencyService
+                    ->clearReservation(idempotencyKey, requestHash, [sharedCb, error, ec](bool) {
+                        sharedCb->call(error, ec);
+                    });
                   return;
               }
               sharedCb->call(error, ec);
@@ -303,9 +301,9 @@ void PaymentService::createPayment(
                   if (!idempotencyKey.empty())
                   {
                       idempotencyService->clearReservation(
-                        idempotencyKey,
-                        requestHash,
-                        [sharedCb, error, ec](bool) { sharedCb->call(error, ec); }
+                        idempotencyKey, requestHash, [sharedCb, error, ec](bool) {
+                            sharedCb->call(error, ec);
+                        }
                       );
                       return;
                   }
@@ -314,16 +312,16 @@ void PaymentService::createPayment(
               }
           }
 
-          auto wrappedCb = [idempotencyService, idempotencyKey, requestHash, sharedCb](
-                             const Json::Value &result, const std::error_code &error
-                           ) {
+          auto wrappedCb = [idempotencyService,
+                            idempotencyKey,
+                            requestHash,
+                            sharedCb](const Json::Value &result, const std::error_code &error) {
               if (!idempotencyKey.empty() && !error && result.isMember("data"))
               {
                   idempotencyService->updateResult(
-                    idempotencyKey,
-                    requestHash,
-                    result,
-                    [sharedCb, result, error](bool) { sharedCb->call(result, error); }
+                    idempotencyKey, requestHash, result, [sharedCb, result, error](bool) {
+                        sharedCb->call(result, error);
+                    }
                   );
                   return;
               }
@@ -333,9 +331,9 @@ void PaymentService::createPayment(
                   // in-flight reservation so the next retry is not reported as
                   // InProgress (key poisoning).
                   idempotencyService->clearReservation(
-                    idempotencyKey,
-                    requestHash,
-                    [sharedCb, result, error](bool) { sharedCb->call(result, error); }
+                    idempotencyKey, requestHash, [sharedCb, result, error](bool) {
+                        sharedCb->call(result, error);
+                    }
                   );
                   return;
               }
@@ -1881,7 +1879,8 @@ void PaymentService::queryOrderList(
     sql += " OFFSET $" + std::to_string(paramIndex++);
     params.push_back(std::to_string(offset));
 
-    LOG_DEBUG << "[PAYMENT_SERVICE] Executing parameterized SQL with " << params.size() << " parameters";
+    LOG_DEBUG << "[PAYMENT_SERVICE] Executing parameterized SQL with " << params.size()
+              << " parameters";
 
     // Execute parameterized query to prevent SQL injection
     if (params.size() == 4)
@@ -1931,7 +1930,8 @@ void PaymentService::queryOrderList(
                           {
                               Json::Value channelResponse;
                               Json::Reader reader;
-                              reader.parse(row["response_payload"].as<std::string>(), channelResponse);
+                              reader
+                                .parse(row["response_payload"].as<std::string>(), channelResponse);
                               order["channel_response"] = channelResponse;
                           }
                           catch (...)
@@ -1957,7 +1957,8 @@ void PaymentService::queryOrderList(
               }
           },
           [callback](const DrogonDbException &e) {
-              LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: " << e.base().what();
+              LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: "
+                        << e.base().what();
               Json::Value error;
               error["code"] = 1500;
               error["message"] = "Database error: " + std::string(e.base().what());
@@ -2017,7 +2018,8 @@ void PaymentService::queryOrderList(
                           {
                               Json::Value channelResponse;
                               Json::Reader reader;
-                              reader.parse(row["response_payload"].as<std::string>(), channelResponse);
+                              reader
+                                .parse(row["response_payload"].as<std::string>(), channelResponse);
                               order["channel_response"] = channelResponse;
                           }
                           catch (...)
@@ -2043,7 +2045,8 @@ void PaymentService::queryOrderList(
               }
           },
           [callback](const DrogonDbException &e) {
-              LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: " << e.base().what();
+              LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: "
+                        << e.base().what();
               Json::Value error;
               error["code"] = 1500;
               error["message"] = "Database error: " + std::string(e.base().what());

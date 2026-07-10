@@ -52,8 +52,7 @@ void PayPlugin::initAndStart(const Json::Value &config)
     {
         try
         {
-            alipayClient_ =
-              std::make_shared<AlipaySandboxClient>(config["alipay_sandbox"]);
+            alipayClient_ = std::make_shared<AlipaySandboxClient>(config["alipay_sandbox"]);
             LOG_INFO << "AlipaySandboxClient created";
         }
         catch (const std::exception &e)
@@ -145,7 +144,8 @@ std::shared_ptr<CallbackService> PayPlugin::callbackService()
 {
     if (!callbackService_)
     {
-        callbackService_ = std::make_shared<CallbackService>(wechatClient_, dbClient_, redisClient_);
+        callbackService_ =
+          std::make_shared<CallbackService>(wechatClient_, dbClient_, redisClient_);
     }
     return callbackService_;
 }

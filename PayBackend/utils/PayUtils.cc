@@ -112,13 +112,20 @@ bool parseIpv4(const std::string &host, uint8_t out[4])
 // plus 0.0.0.0/8 and 100.64/10 (CGNAT).
 bool isPrivateIpv4(uint8_t a, uint8_t b, uint8_t /*c*/, uint8_t /*d*/)
 {
-    if (a == 10) return true;              // 10.0.0.0/8
-    if (a == 172 && (b & 0xF0) == 16) return true;  // 172.16.0.0/12
-    if (a == 192 && b == 168) return true; // 192.168.0.0/16
-    if (a == 127) return true;             // 127.0.0.0/8 (loopback)
-    if (a == 169 && b == 254) return true; // 169.254.0.0/16 (link-local + metadata)
-    if (a == 0) return true;               // 0.0.0.0/8 ("this network")
-    if (a == 100 && (b & 0xC0) == 64) return true;  // 100.64.0.0/10 (CGNAT)
+    if (a == 10)
+        return true;  // 10.0.0.0/8
+    if (a == 172 && (b & 0xF0) == 16)
+        return true;  // 172.16.0.0/12
+    if (a == 192 && b == 168)
+        return true;  // 192.168.0.0/16
+    if (a == 127)
+        return true;  // 127.0.0.0/8 (loopback)
+    if (a == 169 && b == 254)
+        return true;  // 169.254.0.0/16 (link-local + metadata)
+    if (a == 0)
+        return true;  // 0.0.0.0/8 ("this network")
+    if (a == 100 && (b & 0xC0) == 64)
+        return true;  // 100.64.0.0/10 (CGNAT)
     return false;
 }
 
@@ -129,11 +136,16 @@ bool isPrivateIpv6(const std::string &host)
 {
     std::string h = host;
     std::transform(h.begin(), h.end(), h.begin(), ::tolower);
-    if (h == "::1") return true;             // loopback
-    if (h.rfind("fc", 0) == 0) return true;  // fc00::/7 unique-local
-    if (h.rfind("fd", 0) == 0) return true;
-    if (h.rfind("fe8", 0) == 0 || h.rfind("fe9", 0) == 0 || h.rfind("fea", 0) == 0 ||
-        h.rfind("feb", 0) == 0)
+    if (h == "::1")
+        return true;  // loopback
+    if (h.rfind("fc", 0) == 0)
+        return true;  // fc00::/7 unique-local
+    if (h.rfind("fd", 0) == 0)
+        return true;
+    if (
+      h.rfind("fe8", 0) == 0 || h.rfind("fe9", 0) == 0 || h.rfind("fea", 0) == 0 ||
+      h.rfind("feb", 0) == 0
+    )
     {
         return true;  // fe80::/10 link-local
     }

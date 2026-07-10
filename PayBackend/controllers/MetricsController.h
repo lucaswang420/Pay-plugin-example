@@ -12,13 +12,7 @@ class MetricsController : public drogon::HttpController<MetricsController>
     // same-host sidecar; external callers must not read internal counters.
     // Deployments that scrape remotely should put a reverse proxy with auth in
     // front rather than expose this endpoint publicly.
-    ADD_METHOD_TO(
-      MetricsController::metrics,
-      "/metrics",
-      Get,
-      Options,
-      "drogon::LocalHostFilter"
-    );
+    ADD_METHOD_TO(MetricsController::metrics, "/metrics", Get, Options, "drogon::LocalHostFilter");
     METHOD_LIST_END
 
     void metrics(
