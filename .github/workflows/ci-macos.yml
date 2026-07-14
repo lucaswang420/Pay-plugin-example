@@ -20,8 +20,8 @@ jobs:
 
       - name: Install Drogon dependencies
         run: |
-          # Upgrade Homebrew
-          brew upgrade
+          # Update Homebrew
+          brew update
 
           # Install core dependencies (no databases needed for build-only)
           brew install git cmake
