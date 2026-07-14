@@ -1304,7 +1304,7 @@ void PaymentService::syncOrderStatusFromWechat(
                   "UPDATE pay_payment "
                   "SET status = $1, channel_trade_no = $2, response_payload = $3 "
                   "WHERE payment_no = $4 "
-                  "AND status NOT IN ('SUCCESS', 'REFUNDED')",
+                  "AND status IN ('INIT', 'PROCESSING')",
                   [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
                     const Result &casResult
                   ) {
@@ -1609,7 +1609,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                   "UPDATE pay_payment "
                   "SET status = $1, channel_trade_no = $2, response_payload = $3 "
                   "WHERE payment_no = $4 "
-                  "AND status NOT IN ('SUCCESS', 'REFUNDED')",
+                  "AND status IN ('INIT', 'PROCESSING')",
                   [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
                     const Result &casResult
                   ) {

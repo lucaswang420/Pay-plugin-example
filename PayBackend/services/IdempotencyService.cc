@@ -203,12 +203,13 @@ void IdempotencyService::updateResult(
   const std::string &idempotencyKey,
   const std::string &requestHash,
   const Json::Value &response,
-  UpdateCallback &&callback
+  UpdateCallback &&callback,
+  const std::shared_ptr<drogon::orm::DbClient>& transPtr
 )
 {
     auto onceCb = pay::utils::makeOnceCallback<void(bool)>(std::move(callback));
     auto sharedCb = std::make_shared<pay::utils::OnceCallback<void(bool)>>(onceCb);
-    auto dbClient = dbClient_;
+    auto dbClient = transPtr ? transPtr : dbClient_;
     auto redisClient = redisClient_;
     const auto ttlSeconds = ttlSeconds_;
 

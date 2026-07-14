@@ -239,3 +239,10 @@
 ---
 
 **报告版本**: v1.0 | **作者**: 差距分析审计 | **复核状态**: 待团队评审
+
+## 7. Known Testing Gaps
+
+### 测试环境 Redis 降级导致重放拦截测试缺失 (Nonce Replay Test Gap)
+- **描述**: 当前 CallbackService 中集成的 Nonce 重放缓存机制高度依赖 Redis (`pay_nonce` SETNX)。在单元测试与现有集成测试环境中，由于缺乏真实的 Redis，可能依赖 Fail-Open 退路（已知 harness 问题）。
+- **影响**: 没有真正基于 Redis 验证的自动化集成测试覆盖 `replay-reject` (重放拦截) 逻辑，当前可能仅通过 fail-open 进行了间接覆盖。
+- **改进建议**: 在自动化 CI 流水线 (docker-compose) 中拉起真实的 Redis 容器，提供有效的连接并关闭测试中的 fail-open 退路后，增加针对重放攻击的验证用例。

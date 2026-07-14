@@ -81,7 +81,8 @@ class IdempotencyService
       const std::string &idempotencyKey,
       const std::string &requestHash,
       const Json::Value &response,
-      UpdateCallback &&callback = [](bool) {}
+      UpdateCallback &&callback = [](bool) {},
+      const std::shared_ptr<drogon::orm::DbClient>& transPtr = nullptr
     );
 
     // Release an in-flight reservation when the operation failed before a

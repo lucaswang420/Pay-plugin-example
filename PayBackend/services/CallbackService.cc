@@ -732,7 +732,7 @@ void CallbackService::handlePaymentCallback(
                                               "SET status = $1, channel_trade_no = $2, "
                                               "response_payload = $3 "
                                               "WHERE payment_no = $4 "
-                                              "AND status NOT IN ('SUCCESS', 'REFUNDED')",
+                                              "AND status IN ('INIT', 'PROCESSING')",
                                               [this,
                                                cbPtr,
                                                orderStatus,
@@ -846,106 +846,25 @@ void CallbackService::handlePaymentCallback(
                                                                        "order: "
                                                                     << orderNo;
                                                                   transPtr->execSqlAsync(
-                                                                    "COMMIT",
-                                                                    [cbPtr,
-                                                                     orderNo,
-                                                                     idempotencyKey,
-                                                                     plaintext,
-                                                                     this](
-                                                                      const drogon::orm::Result &
-                                                                    ) {
-                                                                        LOG_INFO
-                                                                          << "[CallbackService] "
-                                                                             "Transaction "
-                                                                             "committed, calling "
-                                                                             "final success "
-                                                                             "callback for order: "
-                                                                          << orderNo;
-                                                                        // Finalize the idempotency
-                                                                        // reservation (P2-4.2): now
-                                                                        // that the business tx is
-                                                                        // committed, mark the row
-                                                                        // complete by storing the
-                                                                        // response snapshot. On
-                                                                        // failure the row stays
-                                                                        // in-flight (NULL snapshot)
-                                                                        // and a retry will
-                                                                        // reprocess (CAS guards the
-                                                                        // state).
-                                                                        dbClient_->execSqlAsync(
-                                                                          "UPDATE pay_idempotency "
-                                                                          "SET response_snapshot = "
-                                                                          "$1 "
-                                                                          "WHERE idempotency_key = "
-                                                                          "$2",
-                                                                          [cbPtr](
-                                                                            const drogon::orm::
-                                                                              Result &
-                                                                          ) {
-                                                                              Json::Value ok;
-                                                                              ok["code"] =
-                                                                                "SUCCESS";
-                                                                              ok["message"] = "OK";
-                                                                              (*cbPtr)(
-                                                                                ok,
-                                                                                std::error_code()
-                                                                              );
-                                                                          },
-                                                                          [cbPtr](
-                                                                            const drogon::orm::
-                                                                              DrogonDbException &e
-                                                                          ) {
-                                                                              LOG_ERROR
-                                                                                << "[CallbackServic"
-                                                                                   "e] "
-                                                                                   "Failed to "
-                                                                                   "finalize "
-                                                                                   "idempotency "
-                                                                                   "row: "
-                                                                                << e.base().what();
-                                                                              // Business already
-                                                                              // committed; respond
-                                                                              // success so the
-                                                                              // channel stops
-                                                                              // retrying.
-                                                                              Json::Value ok;
-                                                                              ok["code"] =
-                                                                                "SUCCESS";
-                                                                              ok["message"] = "OK";
-                                                                              (*cbPtr)(
-                                                                                ok,
-                                                                                std::error_code()
-                                                                              );
-                                                                          },
-                                                                          plaintext,
-                                                                          idempotencyKey
-                                                                        );
+                                                                    "UPDATE pay_idempotency SET response_snapshot = $1 WHERE idempotency_key = $2",
+                                                                    [cbPtr, orderNo, transPtr](const drogon::orm::Result &) {
+                                                                        transPtr->execSqlAsync("COMMIT", [cbPtr, orderNo](const drogon::orm::Result &) {
+                                                                            LOG_INFO << "[CallbackService] Transaction committed, calling final success callback for order: " << orderNo;
+                                                                            Json::Value ok; ok["code"] = "SUCCESS"; ok["message"] = "OK";
+                                                                            (*cbPtr)(ok, std::error_code());
+                                                                        }, [cbPtr, orderNo, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                                            LOG_ERROR << "[CallbackService] Failed to commit: " << e.base().what();
+                                                                            transPtr->rollback();
+                                                                            Json::Value err; err["code"] = "FAIL"; err["message"] = std::string("db error: ") + e.base().what();
+                                                                            (*cbPtr)(err, pay::makePayError(1400, "db commit error"));
+                                                                        });
                                                                     },
-                                                                    [cbPtr, orderNo](
-                                                                      const drogon::orm::
-                                                                        DrogonDbException &e
-                                                                    ) {
-                                                                        LOG_ERROR
-                                                                          << "[CallbackService] "
-                                                                             "Failed to commit "
-                                                                             "transaction for "
-                                                                             "order: "
-                                                                          << orderNo << ", error: "
-                                                                          << e.base().what();
-                                                                        Json::Value error;
-                                                                        error["code"] = "FAIL";
-                                                                        error["message"] =
-                                                                          "Failed to commit "
-                                                                          "transaction";
-                                                                        (*cbPtr)(
-                                                                          error,
-                                                                          pay::makePayError(
-                                                                            1400,
-                                                                            "db transaction "
-                                                                            "unavailable"
-                                                                          )
-                                                                        );
-                                                                    }
+                                                                    [cbPtr, orderNo, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                                        LOG_ERROR << "[CallbackService] Failed to update idempotency: " << e.base().what();
+                                                                        transPtr->rollback();
+                                                                        Json::Value err; err["code"] = "FAIL"; err["message"] = std::string("db error: ") + e.base().what();
+                                                                        (*cbPtr)(err, pay::makePayError(1400, "db idempotency error"));
+                                                                    }, plaintext, idempotencyKey
                                                                   );
                                                               }
                                                             );
@@ -1608,7 +1527,7 @@ void CallbackService::handleRefundCallback(
                                       "UPDATE pay_refund "
                                       "SET status = $1, channel_refund_no = $2 "
                                       "WHERE refund_no = $3 "
-                                      "AND status NOT IN ('REFUND_SUCCESS', 'REFUND_FAIL')",
+                                      "AND status IN ('REFUND_INIT', 'REFUNDING')",
                                       [this,
                                        cbPtr,
                                        refundStatus,
@@ -1717,65 +1636,27 @@ void CallbackService::handleRefundCallback(
                                                     LOG_INFO
                                                       << "[CallbackService] Manually committing "
                                                          "transaction for refund callback";
-                                                    transPtr->execSqlAsync(
-                                                      "COMMIT",
-                                                      [cbPtr, idempotencyKey, plaintext, this](
-                                                        const drogon::orm::Result &
-                                                      ) {
-                                                          LOG_INFO
-                                                            << "[CallbackService] Transaction "
-                                                               "committed, calling final success "
-                                                               "callback for refund";
-                                                          // Finalize the idempotency reservation
-                                                          // (P2-4.2): mark the row complete now
-                                                          // that the refund business tx committed.
-                                                          dbClient_->execSqlAsync(
-                                                            "UPDATE pay_idempotency "
-                                                            "SET response_snapshot = $1 "
-                                                            "WHERE idempotency_key = $2",
-                                                            [cbPtr](const drogon::orm::Result &) {
-                                                                Json::Value ok;
-                                                                ok["code"] = "SUCCESS";
-                                                                ok["message"] = "OK";
+                                                      transPtr->execSqlAsync(
+                                                        "UPDATE pay_idempotency SET response_snapshot = $1 WHERE idempotency_key = $2",
+                                                        [cbPtr, transPtr](const drogon::orm::Result &) {
+                                                            transPtr->execSqlAsync("COMMIT", [cbPtr](const drogon::orm::Result &) {
+                                                                LOG_INFO << "[CallbackService] Transaction committed, calling final success callback for refund";
+                                                                Json::Value ok; ok["code"] = "SUCCESS"; ok["message"] = "OK";
                                                                 (*cbPtr)(ok, std::error_code());
-                                                            },
-                                                            [cbPtr](
-                                                              const drogon::orm::DrogonDbException
-                                                                &e
-                                                            ) {
-                                                                LOG_ERROR
-                                                                  << "[CallbackService] Failed to "
-                                                                     "finalize refund idempotency "
-                                                                     "row: "
-                                                                  << e.base().what();
-                                                                Json::Value ok;
-                                                                ok["code"] = "SUCCESS";
-                                                                ok["message"] = "OK";
-                                                                (*cbPtr)(ok, std::error_code());
-                                                            },
-                                                            plaintext,
-                                                            idempotencyKey
-                                                          );
-                                                      },
-                                                      [cbPtr](
-                                                        const drogon::orm::DrogonDbException &e
-                                                      ) {
-                                                          LOG_ERROR
-                                                            << "[CallbackService] Failed to commit "
-                                                               "transaction for refund, error: "
-                                                            << e.base().what();
-                                                          Json::Value error;
-                                                          error["code"] = "FAIL";
-                                                          error["message"] =
-                                                            "Failed to commit transaction";
-                                                          (*cbPtr)(
-                                                            error,
-                                                            pay::makePayError(
-                                                              1400, "db transaction unavailable"
-                                                            )
-                                                          );
-                                                      }
-                                                    );
+                                                            }, [cbPtr, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                                LOG_ERROR << "[CallbackService] Failed to commit refund: " << e.base().what();
+                                                                transPtr->rollback();
+                                                                Json::Value err; err["code"] = "FAIL"; err["message"] = std::string("db error: ") + e.base().what();
+                                                                (*cbPtr)(err, pay::makePayError(1400, "db commit error"));
+                                                            });
+                                                        },
+                                                        [cbPtr, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                            LOG_ERROR << "[CallbackService] Failed to update idempotency: " << e.base().what();
+                                                            transPtr->rollback();
+                                                            Json::Value err; err["code"] = "FAIL"; err["message"] = std::string("db error: ") + e.base().what();
+                                                            (*cbPtr)(err, pay::makePayError(1400, "db idempotency error"));
+                                                        }, plaintext, idempotencyKey
+                                                      );
                                                 },
                                                 [cbPtr, transPtr](
                                                   const drogon::orm::DrogonDbException &e
