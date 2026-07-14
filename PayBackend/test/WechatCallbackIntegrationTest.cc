@@ -575,9 +575,9 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["entry_type"].as<std::string>() == "PAYMENT");
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -802,10 +802,10 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
     }
     CHECK(callbackCount >= 1);
 
+    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
-    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -1057,11 +1057,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
     }
     CHECK(callbackCount >= 1);
 
+    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1", refundNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
-    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -1283,9 +1283,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -1511,9 +1511,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -1739,9 +1739,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -1967,9 +1967,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -2195,9 +2195,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -2422,12 +2422,12 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 1);
 
-    client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
-    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId1);
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId2);
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -6641,10 +6641,10 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1", refundNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()

@@ -576,6 +576,28 @@ DROGON_TEST(PayLedger_OrmRoundTrip)
     const auto orderNo = "order_" + drogon::utils::getUuid();
     const auto paymentNo = "pay_" + drogon::utils::getUuid();
 
+    // Insert referencing order and payment to satisfy DB foreign keys
+    using PayOrder = drogon_model::pay_test::PayOrder;
+    drogon::orm::Mapper<PayOrder> orderMapper(client);
+    PayOrder orderRow;
+    orderRow.setOrderNo(orderNo);
+    orderRow.setUserId(userId);
+    orderRow.setAmount("3.21");
+    orderRow.setCurrency("CNY");
+    orderRow.setStatus("CREATED");
+    orderRow.setChannel("WECHAT");
+    orderRow.setTitle("Test order for ledger");
+    orderMapper.insert(orderRow);
+
+    using PayPayment = drogon_model::pay_test::PayPayment;
+    drogon::orm::Mapper<PayPayment> paymentMapper(client);
+    PayPayment paymentRow;
+    paymentRow.setOrderNo(orderNo);
+    paymentRow.setPaymentNo(paymentNo);
+    paymentRow.setStatus("SUCCESS");
+    paymentRow.setAmount("3.21");
+    paymentMapper.insert(paymentRow);
+
     PayLedger row;
     row.setUserId(userId);
     row.setOrderNo(orderNo);
@@ -597,6 +619,8 @@ DROGON_TEST(PayLedger_OrmRoundTrip)
     CHECK(fetched.getValueOfBalance() == "100.00");
 
     mapper.deleteByPrimaryKey(id);
+    paymentMapper.deleteByPrimaryKey(paymentRow.getValueOfId());
+    orderMapper.deleteByPrimaryKey(orderRow.getValueOfId());
 }
 
 DROGON_TEST(PayIdempotency_ClearReservationReleasesKey)
