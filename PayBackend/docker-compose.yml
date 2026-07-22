@@ -48,9 +48,14 @@ services:
     ports:
       - "5566:5566"
     environment:
-      - PAY_DB_PASSWORD=postgres
-      - PAY_REDIS_PASSWORD=
-      - PAY_API_KEY=test_key_123456
+      # Secrets MUST be supplied via the environment (P5). The :? syntax makes
+      # docker-compose refuse to start if they are unset, so a production
+      # deploy can never silently fall back to a weak/default key. For local
+      # dev, copy .env.development.example to .env (gitignored) and export
+      # these vars, or set them inline: PAY_API_KEY=dev-only-key docker-compose up
+      - PAY_DB_PASSWORD=${PAY_DB_PASSWORD:?set PAY_DB_PASSWORD}
+      - PAY_REDIS_PASSWORD=${PAY_REDIS_PASSWORD:-}
+      - PAY_API_KEY=${PAY_API_KEY:?set PAY_API_KEY (use a strong key; never the dev test_key_123456)}
     volumes:
       - ./config.json:/app/config.json:ro
       - ./certs:/app/certs:ro

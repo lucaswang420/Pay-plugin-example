@@ -79,6 +79,27 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
         LOG_DEBUG << "WeChat Pay not configured, skipping refund reconciliation";
     }
 
+    // Garbage-collect expired idempotency rows so pay_idempotency does not grow
+    // unbounded (P2). The read path already filters expired rows out, but they
+    // still accumulate on disk; this periodic purge reclaims them. Fire-and-
+    // forget: GC failures must not block reconciliation.
+    if (dbClient_)
+    {
+        dbClient_->execSqlAsync(
+          "DELETE FROM pay_idempotency WHERE expire_at IS NOT NULL AND expire_at < NOW()",
+          [](const drogon::orm::Result &r) {
+              if (r.affectedRows() > 0)
+              {
+                  LOG_INFO << "[ReconciliationService] Purged " << r.affectedRows()
+                           << " expired idempotency rows";
+              }
+          },
+          [](const drogon::orm::DrogonDbException &e) {
+              LOG_ERROR << "[ReconciliationService] Idempotency purge error: " << e.base().what();
+          }
+        );
+    }
+
     callback(*successCount, *failedCount);
 }
 
@@ -115,8 +136,13 @@ void ReconciliationService::syncPendingWeChatOrders()
     }
 
     dbClient_->execSqlAsync(
-      "SELECT order_no FROM pay_order WHERE status = $1 AND channel = $2 "
-      "ORDER BY updated_at DESC LIMIT $3",
+      // Sweep both PAYING and CREATED orders. CREATED is included so that an
+      // order whose third-party trade was created but whose local status update
+      // failed (partial failure between channel call and DB write) is recovered;
+      // the created_at filter avoids racing with an in-flight create request.
+      "SELECT order_no FROM pay_order WHERE status IN ($1, $2) AND channel = $3 "
+      "AND (status = 'PAYING' OR created_at < NOW() - INTERVAL '5 minutes') "
+      "ORDER BY updated_at DESC LIMIT $4",
       [this](const drogon::orm::Result &r) {
           for (const auto &row : r)
           {
@@ -138,6 +164,7 @@ void ReconciliationService::syncPendingWeChatOrders()
           LOG_ERROR << "WeChat reconcile query error: " << e.base().what();
       },
       "PAYING",
+      "CREATED",
       "wechat",
       reconcileBatchSize_
     );
@@ -156,8 +183,11 @@ void ReconciliationService::syncPendingAlipayOrders()
     }
 
     dbClient_->execSqlAsync(
-      "SELECT order_no FROM pay_order WHERE status = $1 AND channel = $2 "
-      "ORDER BY updated_at DESC LIMIT $3",
+      // Sweep both PAYING and CREATED orders (see WeChat path comment); the
+      // created_at filter avoids racing with an in-flight create request.
+      "SELECT order_no FROM pay_order WHERE status IN ($1, $2) AND channel = $3 "
+      "AND (status = 'PAYING' OR created_at < NOW() - INTERVAL '5 minutes') "
+      "ORDER BY updated_at DESC LIMIT $4",
       [this](const drogon::orm::Result &r) {
           for (const auto &row : r)
           {
@@ -192,6 +222,7 @@ void ReconciliationService::syncPendingAlipayOrders()
           LOG_ERROR << "Alipay reconcile query error: " << e.base().what();
       },
       "PAYING",
+      "CREATED",
       "alipay",
       reconcileBatchSize_
     );

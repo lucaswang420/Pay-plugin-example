@@ -41,6 +41,7 @@ RUN apt-get update && apt-get install -y \
     libpq5 \
     openssl \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -51,15 +52,18 @@ RUN useradd -m -u 1000 payuser && \
 # Set working directory
 WORKDIR /app
 
-# Copy built binaries from builder stage
+# Copy built binaries from builder stage. Only the server binary belongs in the
+# production image; the test binary must not ship to prod.
 COPY --from=builder /build/build/Release/PayServer /app/PayServer
-COPY --from=builder /build/build/Release/PayBackendTest /app/PayBackendTest
 
-# Copy configuration template
-COPY config.example.json /app/config.example.json
+# Copy configuration. Sensitive values in config.json use __env_var:NAME__
+# placeholders resolved at runtime from the environment, so shipping the file is
+# safe; the previous COPY referenced a non-existent config.example.json which
+# broke the image build.
+COPY config.json /app/config.json
 
 # Change ownership
-RUN chown payuser:payuser /app/PayServer /app/PayBackendTest /app/config.example.json
+RUN chown payuser:payuser /app/PayServer /app/config.json
 
 # Switch to non-root user
 USER payuser

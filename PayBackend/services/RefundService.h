@@ -143,7 +143,7 @@ class RefundService
       RefundCallback &&callback
     );
 
-    void proceedWithRefundInsert(
+    void invokeRefundChannel(
       const CreateRefundRequest &request,
       const std::string &idempotencyKey,
       const std::string &requestHash,
@@ -155,6 +155,7 @@ class RefundService
       int64_t totalFen,
       const std::string &currency,
       const std::string &reason,
+      const std::string &channel,
       RefundCallback &&callback
     );
 

@@ -36,6 +36,55 @@ void AlipayCallbackController::notify(
         }
     }
 
+    // Extract signature BEFORE removing it from params (verifyCallback also
+    // excludes 'sign', but we need the value here).
+    const std::string sign = params.count("sign") ? params["sign"] : std::string{};
+
+    // Get the Alipay client. If it is not configured we MUST reject the callback
+    // rather than processing it unverified — accepting an unverified callback
+    // would let any party forge a payment-success notification (P0-1).
+    auto plugin = drogon::app().getPlugin<PayPlugin>();
+    auto alipayClient = plugin->alipayClient();
+    if (!alipayClient)
+    {
+        LOG_ERROR << "[ALIPAY_CALLBACK] Alipay client not configured, rejecting callback";
+        Json::Value response;
+        response["code"] = "FAIL";
+        response["message"] = "Alipay client not configured";
+        auto resp = HttpResponse::newHttpJsonResponse(response);
+        resp->setContentTypeString("application/json");
+        resp->addHeader("Content-Type", "application/json; charset=utf-8");
+        callback(resp);
+        return;
+    }
+
+    // Build the parameter set for signature verification. verifyCallback
+    // expects a JSON object whose members (excluding 'sign'/'sign_type') are
+    // sorted and joined as k=v to form the signed payload.
+    Json::Value verifyParams;
+    for (const auto &kv : params)
+    {
+        verifyParams[kv.first] = kv.second;
+    }
+
+    // Verify the callback signature BEFORE any database mutation. A failed
+    // signature means the notification is not authentic and must not advance
+    // any order state (P0-1: previously signature verification was never
+    // invoked, allowing forged payment-success notifications).
+    if (!alipayClient->verifyCallback(verifyParams, sign))
+    {
+        LOG_WARN << "[ALIPAY_CALLBACK] Signature verification failed, rejecting callback";
+        Json::Value response;
+        response["code"] = "FAIL";
+        response["message"] = "signature verification failed";
+        auto resp = HttpResponse::newHttpJsonResponse(response);
+        resp->setContentTypeString("application/json");
+        resp->addHeader("Content-Type", "application/json; charset=utf-8");
+        callback(resp);
+        return;
+    }
+    LOG_INFO << "[ALIPAY_CALLBACK] Signature verified successfully";
+
     // 提取关键参数
     std::string outTradeNo = params["out_trade_no"];
     std::string tradeNo = params["trade_no"];
@@ -64,8 +113,6 @@ void AlipayCallbackController::notify(
     alipayResult["notify_type"] = notifyType;
     alipayResult["notify_id"] = notifyId;
 
-    // 获取PaymentService
-    auto plugin = drogon::app().getPlugin<PayPlugin>();
     auto paymentService = plugin->paymentService();
 
     // 调用syncOrderStatusFromAlipay更新数据库

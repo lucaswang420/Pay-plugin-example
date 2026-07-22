@@ -25,6 +25,28 @@ AlipaySandboxClient::AlipaySandboxClient(const Json::Value &config) : config_(co
     // Get timeout from config, default to 30 seconds
     timeoutMs_ = config.get("timeout_ms", 30000).asInt();
 
+    // Load key files once at construction (B3). Avoids per-request disk I/O and
+    // the TOCTOU window of re-reading on every sign/verify call. Missing files
+    // are tolerated here (isConfigured() guards usage); the PEM strings stay
+    // empty and sign/verify will fail safely.
+    auto loadFile = [](const std::string &path, std::string &out) {
+        if (path.empty())
+        {
+            return;
+        }
+        std::ifstream f(path);
+        if (!f.is_open())
+        {
+            LOG_WARN << "AlipaySandboxClient: could not open key file (will fail at use): " << path;
+            return;
+        }
+        std::stringstream buf;
+        buf << f.rdbuf();
+        out = buf.str();
+    };
+    loadFile(privateKeyPath_, privateKeyPem_);
+    loadFile(alipayPublicKeyPath_, alipayPublicKeyPem_);
+
     LOG_INFO << "AlipaySandboxClient initialized with AppID: " << appId_
              << ", notify_url: " << notifyUrl_ << ", timeout: " << timeoutMs_ << "ms";
 }
@@ -408,19 +430,12 @@ std::string AlipaySandboxClient::sign(const std::string &data) const
 {
     LOG_DEBUG << "[AlipayClient] Generating signature for " << data.length() << " bytes of data";
 
-    std::string privateKeyPem;
-
-    // Read private key file
-    std::ifstream file(privateKeyPath_);
-    if (!file.is_open())
+    const std::string &privateKeyPem = privateKeyPem_;
+    if (privateKeyPem.empty())
     {
-        LOG_ERROR << "Failed to open private key file: " << privateKeyPath_;
+        LOG_ERROR << "Private key not loaded (path: " << privateKeyPath_ << ")";
         return "";
     }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    privateKeyPem = buffer.str();
 
     if (privateKeyPem.empty())
     {
@@ -479,23 +494,10 @@ std::string AlipaySandboxClient::sign(const std::string &data) const
 
 bool AlipaySandboxClient::verify(const std::string &data, const std::string &signature) const
 {
-    std::string publicKeyPem;
-
-    // Read Alipay public key file
-    std::ifstream file(alipayPublicKeyPath_);
-    if (!file.is_open())
-    {
-        LOG_ERROR << "Failed to open Alipay public key file: " << alipayPublicKeyPath_;
-        return false;
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    publicKeyPem = buffer.str();
-
+    const std::string &publicKeyPem = alipayPublicKeyPem_;
     if (publicKeyPem.empty())
     {
-        LOG_ERROR << "Empty Alipay public key file";
+        LOG_ERROR << "Alipay public key not loaded (path: " << alipayPublicKeyPath_ << ")";
         return false;
     }
 

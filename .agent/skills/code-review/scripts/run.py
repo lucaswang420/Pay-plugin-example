@@ -23,13 +23,18 @@ def find_all_sources(root_dir="."):
 
 def main():
     args = sys.argv[1:]
-    files = []
+    
+    fix_required = "--fix" in args
+    report_required = "--report" in args
+    all_mode = "--all" in args
+    
+    cleaned_args = [a for a in args if a not in ("--fix", "--report", "--all")]
     
     # 1. Determine Target Files
-    if "--all" in args:
+    if all_mode:
         files = find_all_sources()
-    elif len(args) > 0 and not args[0].startswith("-"):
-        files = args # Assume file list provided as args
+    elif len(cleaned_args) > 0:
+        files = cleaned_args
     else:
         # Default: Git Diff
         try:
@@ -46,7 +51,7 @@ def main():
             pass
 
     if not files:
-        if "--all" not in args:
+        if not all_mode:
             print("ℹ️ No modified source files found. Use --all to check everything.")
             print("   Use /test workflow to run tests.")
             return
@@ -58,7 +63,7 @@ def main():
     files = [f for f in files if "models" not in os.path.normpath(f).split(os.sep)]
 
     # Redirect output to report file if requested
-    if "--report" in args:
+    if report_required:
         import datetime
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -76,7 +81,6 @@ def main():
     # 2. Static Analysis
     # 2.1 Clang Format
     cf_path = locations.get_tool_path("clang-format")
-    fix_required = "--fix" in args
     
     if cf_path:
         static_check.run_clang_format(files, cf_path, fix_mode=fix_required)

@@ -109,6 +109,7 @@ docs/
 - [2026-04-13-option-b-implementation.md](history/refactoring/2026-04-13-option-b-implementation.md) - Option B implementation plan
 
 #### Project Reports
+- [2026-07-07-production-readiness-gap-analysis.md](history/reports/2026-07-07-production-readiness-gap-analysis.md) - Production-readiness gap analysis (source-audited; P0/P1/P2 issues)
 - [project_completion_summary.md](history/reports/project_completion_summary.md) - Project completion summary
 - [release_notes_v1.0.md](history/reports/release_notes_v1.0.md) - Release notes v1.0
 - [production_readiness_roadmap.md](history/reports/production_readiness_roadmap.md) - Production readiness roadmap

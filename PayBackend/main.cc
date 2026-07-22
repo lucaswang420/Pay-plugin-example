@@ -37,24 +37,18 @@ void setupCors()
                   auto resp = drogon::HttpResponse::newHttpResponse();
                   resp->addHeader("Access-Control-Allow-Origin", origin);
 
-                  const auto &requestMethod =
-                    req->getHeader("Access-Control-Request-Method");
+                  const auto &requestMethod = req->getHeader("Access-Control-Request-Method");
                   if (!requestMethod.empty())
                   {
-                      resp->addHeader(
-                        "Access-Control-Allow-Methods", requestMethod
-                      );
+                      resp->addHeader("Access-Control-Allow-Methods", requestMethod);
                   }
 
                   resp->addHeader("Access-Control-Allow-Credentials", "true");
 
-                  const auto &requestHeaders =
-                    req->getHeader("Access-Control-Request-Headers");
+                  const auto &requestHeaders = req->getHeader("Access-Control-Request-Headers");
                   if (!requestHeaders.empty())
                   {
-                      resp->addHeader(
-                        "Access-Control-Allow-Headers", requestHeaders
-                      );
+                      resp->addHeader("Access-Control-Allow-Headers", requestHeaders);
                   }
                   return resp;
               }
@@ -64,21 +58,26 @@ void setupCors()
     );
 
     drogon::app().registerPostHandlingAdvice(
-      [isAllowed](const drogon::HttpRequestPtr &req,
-                  const drogon::HttpResponsePtr &resp) {
+      [isAllowed](const drogon::HttpRequestPtr &req, const drogon::HttpResponsePtr &resp) {
           const auto &origin = req->getHeader("Origin");
           if (isAllowed(origin))
           {
               resp->addHeader("Access-Control-Allow-Origin", origin);
-              resp->addHeader(
-                "Access-Control-Allow-Methods", "GET, POST, OPTIONS"
-              );
-              resp->addHeader(
-                "Access-Control-Allow-Headers",
-                "Content-Type, Authorization"
-              );
+              resp->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+              resp->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
               resp->addHeader("Access-Control-Allow-Credentials", "true");
           }
+          // Security headers (P1-5). Previously these were defined in
+          // deploy/security_headers_config.json but never loaded, so the service
+          // served responses with no X-Content-Type-Options / X-Frame-Options /
+          // HSTS / CSP / Referrer-Policy / Permissions-Policy headers.
+          resp->addHeader("X-Content-Type-Options", "nosniff");
+          resp->addHeader("X-Frame-Options", "DENY");
+          resp->addHeader("X-XSS-Protection", "1; mode=block");
+          resp->addHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+          resp->addHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'");
+          resp->addHeader("Referrer-Policy", "no-referrer");
+          resp->addHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
       }
     );
 }

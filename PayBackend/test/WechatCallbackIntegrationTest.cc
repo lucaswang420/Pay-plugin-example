@@ -21,8 +21,8 @@
 
 namespace
 {
-using pay::test_util::loadConfig;
 using pay::test_util::buildPgConnInfo;
+using pay::test_util::loadConfig;
 
 std::string toJsonCompact(const Json::Value &value)
 {
@@ -514,7 +514,12 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -570,9 +575,9 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["entry_type"].as<std::string>() == "PAYMENT");
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -736,7 +741,12 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
       "{}"
     );
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -792,10 +802,10 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
     }
     CHECK(callbackCount >= 1);
 
+    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
-    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -986,7 +996,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
       "{}"
     );
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -1042,11 +1057,11 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
     }
     CHECK(callbackCount >= 1);
 
+    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1", refundNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
-    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -1207,7 +1222,12 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -1263,9 +1283,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -1430,7 +1450,12 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -1486,9 +1511,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -1653,7 +1678,12 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -1709,9 +1739,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -1876,7 +1906,12 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -1932,9 +1967,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -2099,7 +2134,12 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -2155,9 +2195,9 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -2326,7 +2366,12 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
         notify["resource"]["associated_data"] = aad;
         const std::string body = toJsonCompact(notify);
 
-        const std::string timestamp = "1700000000";
+        const std::string timestamp = std::to_string(
+          std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+          )
+            .count()
+        );
         const std::string headerNonce = "headerNonce_" + drogon::utils::getUuid();
         const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
         std::string signatureB64;
@@ -2377,12 +2422,12 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 1);
 
-    client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
-    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId1);
     client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", notifyId2);
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 
     EVP_PKEY_free(pkey);
     std::error_code ec;
@@ -2532,7 +2577,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidSignature)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     std::string signatureB64;
     CHECK(signMessage("tampered\n", pkey, signatureB64));
@@ -2732,7 +2782,12 @@ DROGON_TEST(PayPlugin_WechatCallback_DecryptFailure)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -2989,7 +3044,12 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingResource)
     notify["event_type"] = "TRANSACTION.SUCCESS";
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3071,7 +3131,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidJson)
 
     const std::string body = "{";
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3160,7 +3225,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceFields)
     notify["resource"]["nonce"] = "";
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3256,7 +3326,12 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingEventType)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3362,7 +3437,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundEventType)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3468,7 +3548,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTradeState)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3573,7 +3658,12 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingTransactionId)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3679,7 +3769,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAssociatedData)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3785,7 +3880,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTransactionAssociatedData)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3874,7 +3974,12 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedResourceType)
     notify["resource"]["nonce"] = "nonce";
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -3963,7 +4068,12 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedAlgorithm)
     notify["resource"]["nonce"] = "nonce";
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -4060,7 +4170,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceJson)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -4150,7 +4265,12 @@ DROGON_TEST(PayPlugin_WechatCallback_SerialMismatch)
     notify["resource"]["associated_data"] = "transaction";
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -4338,7 +4458,12 @@ DROGON_TEST(PayPlugin_WechatCallback_AppIdMismatch)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -4574,7 +4699,12 @@ DROGON_TEST(PayPlugin_WechatCallback_MchIdMismatch)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -4772,7 +4902,12 @@ DROGON_TEST(PayPlugin_WechatCallback_AmountMismatch)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -4973,7 +5108,12 @@ DROGON_TEST(PayPlugin_WechatCallback_CurrencyMismatch)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -5202,7 +5342,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundSuccess)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -5447,7 +5592,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundAmountMismatch)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -5661,7 +5811,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundCurrencyMismatch)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -5863,7 +6018,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundNotFound)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -6072,7 +6232,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundMissingFields)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -6187,7 +6352,12 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingRefundId)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -6413,7 +6583,12 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -6466,10 +6641,10 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
     CHECK(ledgerRows.size() >= 1);
     CHECK(ledgerRows.front()["cnt"].as<int64_t>() == 0);
 
+    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_callback WHERE payment_no = $1", paymentNo);
     client->execSqlSync("DELETE FROM pay_refund WHERE refund_no = $1", refundNo);
     client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
-    client->execSqlSync("DELETE FROM pay_ledger WHERE order_no = $1", orderNo);
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
     client->execSqlSync(
       "DELETE FROM pay_idempotency WHERE idempotency_key = $1", notify["id"].asString()
@@ -6639,7 +6814,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundStatus)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;
@@ -6853,7 +7033,12 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAmount)
     notify["resource"]["associated_data"] = aad;
     const std::string body = toJsonCompact(notify);
 
-    const std::string timestamp = "1700000000";
+    const std::string timestamp = std::to_string(
+      std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+      )
+        .count()
+    );
     const std::string headerNonce = "headerNonce";
     const std::string message = timestamp + "\n" + headerNonce + "\n" + body + "\n";
     std::string signatureB64;

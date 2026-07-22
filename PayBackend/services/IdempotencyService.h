@@ -75,12 +75,14 @@ class IdempotencyService
       StatusCallback &&callback
     );
 
-    // Update result after successful operation
+    // Update result after successful operation. The UPDATE runs on the
+    // service's own db client and additionally writes through to Redis.
     void updateResult(
       const std::string &idempotencyKey,
       const std::string &requestHash,
       const Json::Value &response,
-      UpdateCallback &&callback = [](bool) {}
+      UpdateCallback &&callback = [](bool) {},
+      const std::shared_ptr<drogon::orm::DbClient>& transPtr = nullptr
     );
 
     // Release an in-flight reservation when the operation failed before a
@@ -92,6 +94,12 @@ class IdempotencyService
       const std::string &requestHash,
       UpdateCallback &&callback = [](bool) {}
     );
+
+    // Garbage-collect expired idempotency rows (expire_at < NOW()). Without
+    // this the pay_idempotency table grows unbounded: the SELECT now filters
+    // expired rows out of reads, but they still accumulate on disk. Intended to
+    // be called periodically (e.g. from the reconcile timer).
+    void purgeExpired(UpdateCallback &&callback = [](bool) {});
 
   private:
     std::shared_ptr<drogon::orm::DbClient> dbClient_;
