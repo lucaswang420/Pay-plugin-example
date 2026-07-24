@@ -1,0 +1,92 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write",
+      "Read",
+      "Bash",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Read(PayBackend/.env*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git ls-files '*.cc' '*.h' '*.cpp' '*.hpp' | ForEach-Object { if ($_ -notmatch '[/\\\\]models[/\\\\]') { clang-format -i $_ } }"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd PayBackend && build/Release/test_payplugin.exe"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if git diff --cached --name-only | grep -qE 'models/.*\\.(h|cc|cpp)$'; then echo 'BLOCKED: ORM model files under models/ are generated. Run /orm-gen instead.'; exit 1; fi"
+          },
+          {
+            "type": "command",
+            "command": "if git diff --cached --name-only | grep -qE 'config\\.prod\\.json$'; then echo 'BLOCKED: Do not commit config.prod.json (production secrets).'; exit 1; fi"
+          },
+          {
+            "type": "command",
+            "command": "if git diff --cached --name-only | grep -qE '\\.(cc|h|cpp|hpp|json)$' && git diff --cached | grep -qE 'TODO.*REPLACE.*CREDENTIAL'; then echo 'BLOCKED: A placeholder credential (TODO REPLACE CREDENTIAL) was left in a committed file.'; exit 1; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "如果要修改 .env 文件，请先确认不会提交真实密钥，并优先使用环境变量。",
+            "if": "(Edit|Write)**/.env*"
+          },
+          {
+            "type": "prompt",
+            "prompt": "正在修改 TLS 证书文件 (.pem)。请确认不会将私钥提交到仓库，并提交前核对 .gitignore。",
+            "if": "(Edit|Write)**/*.pem"
+          },
+          {
+            "type": "prompt",
+            "prompt": "正在修改私钥文件 (.key)。切勿提交该文件，并确认已在 .gitignore 中忽略。",
+            "if": "(Edit|Write)**/*.key"
+          },
+          {
+            "type": "prompt",
+            "prompt": "正在修改 certs/ 目录下的证书。请确认不包含私钥，且已加入 .gitignore。",
+            "if": "(Edit|Write)**/certs/**"
+          },
+          {
+            "type": "prompt",
+            "prompt": "正在修改 PKCS#12 证书文件 (.p12)。这是敏感凭证，切勿提交到仓库。",
+            "if": "(Edit|Write)**/*.p12"
+          },
+          {
+            "type": "prompt",
+            "prompt": "正在修改 PFX 证书文件 (.pfx)。这是敏感凭证，切勿提交到仓库。",
+            "if": "(Edit|Write)**/*.pfx"
+          }
+        ]
+      }
+    ]
+  }
+}

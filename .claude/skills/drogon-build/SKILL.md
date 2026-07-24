@@ -1,73 +1,117 @@
 ---
 name: drogon-build
-description: Build Drogon payment plugin with correct Release mode configuration
-user-invocable: false
+description: Build Drogon C++ application (PayBackend) using the project's Conan + CMake + MSVC toolchain via scripts\build.bat.
 ---
 
-## Build Requirements
+# Drogon Build
 
-CRITICAL: This project MUST be built in Release mode due to local Drogon framework configuration.
+Build the PayBackend C++ application using the project's Conan + CMake + MSVC
+toolchain via `PayBackend/scripts/build.bat`.
 
-## Correct Build Commands
+## Quick Build
 
-### Windows (from PayBackend/):
-```bash
-..\scripts\build.bat
+```powershell
+cd PayBackend
+scripts\build.bat
 ```
 
-### Never use:
-- `cmake --build build` directly (wrong configuration)
-- Debug mode builds (linker errors with Release Drogon)
-- Visual Studio build button (unless configured for Release)
-
-## Why This Matters
-
-- Local Drogon is compiled in Release mode
-- Mixing Debug/Release causes linker errors
-- Conan manages all third-party dependencies
-- build.bat handles all necessary CMake configuration
-
-## Build Process Details
-
-The build.bat script automatically:
-1. Changes to PayBackend directory
-2. Creates build directory if needed
-3. Runs CMake with Release configuration
-4. Sets up Conan toolchain
-5. Builds the target in Release mode
-6. Places output in build/Release/
-
-## Post-Build Verification
-
-After building, verify:
-```bash
-# Check executables exist
-ls -lh build/Release/*.exe
-
-# Run test suite
-./build/Release/test_payplugin.exe
-
-# Verify main executable
-./build/Release/PayServer.exe --version
+### Debug Build
+```powershell
+cd PayBackend
+scripts\build.bat -debug
 ```
 
-## Troubleshooting
+### What the build script does (step by step)
 
-### Linker errors with Drogon
-**Problem**: Unresolved external symbols
-**Solution**: Ensure Release mode build (Debug/Release mismatch)
+1. Kills any running `PayServer.exe` processes (avoids file-lock conflicts)
+2. `cd PayBackend\build`
+3. `conan install .. --build=missing -s build_type=Release` — resolves C++ dependencies
+4. `cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW`
+5. `cmake --build . --config Release` — compiles the project
+6. Copies `config.json`, `.env`, and `certs/` to `build/Release/`
 
-### Conan dependency issues
-**Problem**: Cannot find Conan packages
-**Solution**: Run `conan install .` from PayBackend/ first
+### Build outputs
 
-### Build速度快 but runtime crashes
-**Problem**: Debug build succeeded but app crashes
-**Solution**: You likely built Debug against Release Drogon - rebuild in Release mode
+| Artifact | Path |
+|----------|------|
+| Server executable | `build/Release/PayServer.exe` |
+| Test executable | `build/Release/test_payplugin.exe` |
+| Config | `build/Release/config.json` |
+| Certs | `build/Release/certs/` |
 
-## Related Files
+## Manual CMake (for custom configurations)
 
-- Build script: `scripts/build.bat`
-- CMake config: `PayBackend/CMakeLists.txt`
-- Conan dependencies: `PayBackend/conanfile.txt`
-- Project docs: `CLAUDE.md` (Build Rules section)
+If you need a non-standard CMake setup (different generator, toolchain, etc.), bypass
+`build.bat`:
+
+```powershell
+cd PayBackend\build
+
+# Configure
+cmake .. -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_BUILD_TYPE=Release `
+    -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake `
+    -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+
+# Build
+cmake --build . --config Release
+
+# Copy config
+Copy-Item ..\config.json Release\ -Force
+if (Test-Path "..\certs") { Copy-Item ..\certs Release\certs\ -Recurse -Force }
+```
+
+## Running After Build
+
+```powershell
+# Start the server
+cd PayBackend
+build\Release\PayServer.exe -c build\Release\config.json
+
+# Or with logging
+build\Release\PayServer.exe -c build\Release\config.json --log-level debug
+```
+
+## Build Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `error MSB1009: Project file does not exist` | Run `scripts\build.bat` from `PayBackend/` (not subdirectory) |
+| `conan: command not found` | `pip install conan` or add Conan to PATH |
+| `cmake: command not found` | Install CMake and add to PATH |
+| `Error: Conan install failed` | `conan install .. --build=missing -s build_type=Release --output-folder .` |
+| `fatal error C1083` (drogon headers) | Drogon not installed via Conan — check `conanfile.txt` |
+| `LNK1104: cannot open file 'PayServer.exe'` | `taskkill /F /IM PayServer.exe` then retry |
+| `D9035: option 'FI' has been deprecated` | Normal MSVC warning, safe to ignore |
+
+## Project Structure
+
+```
+PayBackend/
+├── build/                  # CMake build directory
+├── certs/                  # TLS certificates (copied to build output)
+├── config.json             # Server configuration (copied by build.bat)
+├── controllers/            # HTTP request handlers
+├── filters/                # Middleware/filters
+├── models/                 # ORM generated models (DO NOT EDIT manually)
+├── plugins/                # Third-party payment clients
+├── scripts/
+│   └── build.bat           # ← THE build script
+├── services/               # Business logic layer
+├── sql/                    # Database migrations
+├── test/                   # Google Test test files
+├── utils/                  # Utility functions
+├── CMakeLists.txt          # CMake project definition (C++17)
+├── docker-compose.yml      # Container orchestration
+├── Dockerfile              # Container image definition
+└── model.json              # ORM model definition for drogon_ctl
+```
+
+## Context
+
+- **C++ Standard**: C++17 (set in `CMakeLists.txt`)
+- **Build System**: CMake ≥ 3.5 + Conan 2.x
+- **Compiler**: MSVC (Windows), GCC/Clang (Linux) — supports both
+- **Framework**: Drogon C++ web framework
+- **Dependencies**: Drogon, OpenSSL (via Conan)
+- **ORM**: drogon_ctl generated models from PostgreSQL schema

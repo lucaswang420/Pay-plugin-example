@@ -231,7 +231,9 @@ cd PayBackend
 
 ## 相关文件
 
-- cpp-test-service skill: `.claude/skills/cpp-test-service/SKILL.md`
+- 代码审查: `.claude/skills/code-review/SKILL.md`
 - 测试文件: `PayBackend/test/*.cc`
 - Service 定义: `PayBackend/services/*.h`
 - 迁移示例: `PayBackend/test/CreatePaymentIntegrationTest.cc`
+- 构建: `cd PayBackend && scripts\build.bat`
+- 测试运行: `cd PayBackend && build/Release/test_payplugin.exe`
