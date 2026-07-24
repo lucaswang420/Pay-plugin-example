@@ -1,0 +1,27 @@
+{
+  "skill_name": "cpp-project-file-cleanup",
+  "description": "Test cases for C++ project file cleanup and organization skill",
+  "evals": [
+    {
+      "id": 1,
+      "name": "simple-backup-cleanup",
+      "prompt": "My C++ project has accumulated some backup files in the test directory. I see files like test_main.cc.backup, test_main.cc.backup2, and some .old files. Can you clean these up and organize the project structure?",
+      "expected_output": "Backup files should be moved to an archive directory, .gitignore should be updated to prevent future backup files, and the project should still build and test successfully.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "messy-documentation",
+      "prompt": "The docs folder is a mess. There are like 30 markdown files all mixed together - tdd reports, phase reports, validation reports, some backup files. I can't find anything. Can you organize this properly? Archive the old reports and create an index so I can actually find the documentation I need?",
+      "expected_output": "Documentation should be organized with archive/tdd_reports/, archive/legacy_docs/, and archive/backups/ subdirectories. A docs/README.md index should be created with clear categorization and navigation. Current essential docs should remain easily accessible.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "missing-gitignore",
+      "prompt": "I'm working on a C++ project that doesn't have a .gitignore file. There are build artifacts, backup files, and temporary files cluttering the repository. Can you set up proper file organization and create a comprehensive .gitignore?",
+      "expected_output": "A comprehensive .gitignore should be created covering build directories, backup files, IDE files, temporary files, logs, and OS-generated files. Existing backup/temporary files should be moved to archive directories. The .gitignore should follow best practices for C++ projects.",
+      "files": []
+    }
+  ]
+}
