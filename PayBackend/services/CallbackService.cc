@@ -990,15 +990,29 @@ void CallbackService::handlePaymentCallback(
                     });
                 },
                 [cbPtr, idempotencyKey](const drogon::orm::DrogonDbException &e) {
+                    const std::string what = e.base().what();
                     // Duplicate key = already processed by concurrent call
-                    LOG_INFO << "[CallbackService] Idempotency insert failed for key: "
-                             << idempotencyKey << ", error: " << e.base().what();
+                    if (what.find("duplicate key") != std::string::npos ||
+                        what.find("23505") != std::string::npos)
+                    {
+                        LOG_INFO << "[CallbackService] Duplicate callback ignored (idempotent) "
+                                    "for key: "
+                                 << idempotencyKey;
+                        Json::Value ok;
+                        ok["code"] = "SUCCESS";
+                        ok["message"] = "OK";
+                        (*cbPtr)(ok, std::error_code());
+                        return;
+                    }
 
-                    // Return success to avoid duplicate callback processing
-                    Json::Value ok;
-                    ok["code"] = "SUCCESS";
-                    ok["message"] = "OK";
-                    (*cbPtr)(ok, std::error_code());
+                    // Real DB failure: report FAIL so the channel retries instead
+                    // of acknowledging an unprocessed callback.
+                    LOG_ERROR << "[CallbackService] Idempotency insert failed for key: "
+                              << idempotencyKey << ", error: " << what;
+                    Json::Value error;
+                    error["code"] = "FAIL";
+                    error["message"] = std::string("db error: ") + what;
+                    (*cbPtr)(error, pay::makePayError(1400, "idempotency insert failed"));
                 }
               );
           }
