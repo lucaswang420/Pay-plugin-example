@@ -91,6 +91,9 @@ void IdempotencyService::checkDatabase(
     const auto expiresAt =
       trantor::Date(now.microSecondsSinceEpoch() + ttlSeconds * static_cast<int64_t>(1000000));
 
+    // Atomic reserve (raw-SQL exemption: INSERT ... ON CONFLICT): the
+    // insert-or-ignore reservation must be a single atomic statement; the
+    // Mapper cannot express ON CONFLICT DO NOTHING.
     dbClient->execSqlAsync(
       "INSERT INTO pay_idempotency (idempotency_key, request_hash, response_snapshot, expire_at) "
       "VALUES ($1, $2, NULL, $3) ON CONFLICT (idempotency_key) DO NOTHING",
