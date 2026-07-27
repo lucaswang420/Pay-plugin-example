@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-REM Build script for Pay Plugin Backend
+REM Build script for Pay Plugin Backend (Conan 2 + CMake presets workflow)
 
 echo ========================================
 echo Pay Plugin Backend Build Script
@@ -24,97 +24,91 @@ echo Working directory: %CD%
 
 REM Default build type
 set BUILD_TYPE=Release
+set PRESET=windows-msvc
 
 REM Parse command line arguments
 :parse_args
 if "%1"=="" goto end_parse
 if /i "%1"=="-debug" (
     set BUILD_TYPE=Debug
+    set PRESET=windows-msvc-debug
     shift
     goto parse_args
 )
 if /i "%1"=="-release" (
     set BUILD_TYPE=Release
+    set PRESET=windows-msvc
     shift
     goto parse_args
 )
 echo Unknown option: %1
 echo Usage: %0 [-debug|-release]
-echo   -debug     Build debug version
-echo   -release   Build release version (default)
+echo   -debug     Build debug version (preset windows-msvc-debug)
+echo   -release   Build release version (default, preset windows-msvc)
 exit /b 1
 :end_parse
 
 echo Building with configuration:
 echo   Build Type: %BUILD_TYPE%
+echo   Preset:     %PRESET%
 echo.
 
-REM Check if build directory exists
-if not exist build (
-    echo Creating build directory...
-    mkdir build
-)
-
-cd build
-
-REM Install dependencies and configure
-echo Installing dependencies...
-conan install .. --build=missing -s build_type=%BUILD_TYPE% --output-folder . 
+REM Install dependencies (generates build\%PRESET%\conan_toolchain.cmake)
+echo Installing dependencies via Conan...
+conan install . --output-folder=build/%PRESET% -s build_type=%BUILD_TYPE% -s compiler.cppstd=17 --build=missing
 if %errorlevel% neq 0 (
     echo Error: Conan install failed
-    cd /d "%~dp0.."
     exit /b 1
 )
 
-REM Configure with CMake
+REM Configure with CMake preset
 echo Configuring project...
-cmake .. -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+cmake --preset %PRESET%
 if %errorlevel% neq 0 (
     echo Error: CMake configuration failed
-    cd /d "%~dp0.."
     exit /b 1
 )
 
-REM Build
+REM Build with CMake preset
 echo Building project...
-cmake --build . --config %BUILD_TYPE%
+cmake --build --preset %PRESET%
 if %errorlevel% neq 0 (
     echo Error: Build failed
-    cd /d "%~dp0.."
     exit /b 1
 )
 
-REM Copy config.json, .env, and certs to build directory
+set OUT_DIR=build\%PRESET%\%BUILD_TYPE%
+set TEST_OUT_DIR=build\%PRESET%\test\%BUILD_TYPE%
+
+REM Copy config.json and .env to output directory
 echo Copying configuration files...
-robocopy .. %BUILD_TYPE% config.json .env /NFL /NDL /NJH /NJS /NP
+robocopy . %OUT_DIR% config.json .env /NFL /NDL /NJH /NJS /NP
 if %ERRORLEVEL% GEQ 8 (
     echo Error: Failed to copy config files
-    cd /d "%~dp0.."
     exit /b 1
 )
 
 REM Copy certs directory if it exists
-if exist "..\certs" (
-    robocopy ..\certs %BUILD_TYPE%\certs\ /E /NFL /NDL /NJH /NJS /NP
-    if %ERRORLEVEL% GEQ 8 (
+if exist "certs" (
+    robocopy certs %OUT_DIR%\certs\ /E /NFL /NDL /NJH /NJS /NP
+    if !ERRORLEVEL! GEQ 8 (
         echo Error: Failed to copy certs directory
-        cd /d "%~dp0.."
         exit /b 1
     )
 )
 
-REM Also copy to test directory
+REM Also copy to test output directory
 echo Copying configuration files to test directory...
-if exist "%BUILD_TYPE%\PayServer.exe" (
-    robocopy .. test\%BUILD_TYPE% config.json .env /NFL /NDL /NJH /NJS /NP
-    if exist "..\certs" (
-        robocopy ..\certs test\%BUILD_TYPE%\certs\ /E /NFL /NDL /NJH /NJS /NP
+if exist "%TEST_OUT_DIR%" (
+    robocopy . %TEST_OUT_DIR% config.json .env /NFL /NDL /NJH /NJS /NP
+    if exist "certs" (
+        robocopy certs %TEST_OUT_DIR%\certs\ /E /NFL /NDL /NJH /NJS /NP
     )
 )
 
 echo ========================================
 echo Build complete!
+echo   Server: %OUT_DIR%\PayServer.exe
+echo   Tests:  %TEST_OUT_DIR%\PayBackendTests.exe
 echo ========================================
-cd /d "%~dp0.."
-endlocal
 exit /b 0
