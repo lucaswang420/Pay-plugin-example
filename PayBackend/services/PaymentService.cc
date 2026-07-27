@@ -351,8 +351,16 @@ void PaymentService::proceedCreatePayment(
   PaymentCallback &&callback
 )
 {
-    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
-    auto sharedCb = std::make_shared<PaymentCallback>(std::move(callback));
+    // Wrap callback in a shared once-only wrapper: concurrent DB-error and
+    // channel-error branches may both try to respond; only the first wins.
+    auto onceCb = pay::utils::makeOnceCallback<void(const Json::Value &, const std::error_code &)>(
+      std::move(callback)
+    );
+    auto sharedCb = std::make_shared<PaymentCallback>(
+      [onceCb](const Json::Value &response, const std::error_code &ec) {
+          onceCb.call(response, ec);
+      }
+    );
 
     // Create order record in database
     Mapper<PayOrderModel> orderMapper(dbClient_);
@@ -508,7 +516,11 @@ void PaymentService::proceedCreatePayment(
                                               orderUpdater.update(
                                                 order,
                                                 [](const size_t) {},
-                                                [](const DrogonDbException &) {}
+                                                [](const DrogonDbException &e) {
+                                                    LOG_ERROR << "[PaymentService] order FAILED "
+                                                                 "status update error: "
+                                                              << e.base().what();
+                                                }
                                               );
                                           },
                                           [sharedCb](const DrogonDbException &) {
@@ -1127,9 +1139,16 @@ void PaymentService::queryOrder(const std::string &orderNo, PaymentCallback &&ca
 void PaymentService::syncOrderStatusFromWechat(
   const std::string &orderNo,
   const Json::Value &result,
-  std::function<void(const std::string &status)> &&callback
+  std::function<void(const std::string &status)> &&rawCallback
 )
 {
+    // Once-only wrapper (P0): the SUCCESS-branch fire-and-forget update and
+    // its error branch could otherwise both invoke the callback.
+    auto onceCb = pay::utils::makeOnceCallback<void(const std::string &)>(std::move(rawCallback));
+    std::function<void(const std::string &)> callback = [onceCb](const std::string &status) {
+        onceCb.call(status);
+    };
+
     const std::string tradeState = result.get("trade_state", "").asString();
     if (tradeState.empty())
     {
@@ -1402,9 +1421,15 @@ void PaymentService::syncOrderStatusFromWechat(
 void PaymentService::syncOrderStatusFromAlipay(
   const std::string &orderNo,
   const Json::Value &result,
-  std::function<void(const std::string &status)> &&callback
+  std::function<void(const std::string &status)> &&rawCallback
 )
 {
+    // Once-only wrapper (P0): mirrors the WeChat reconcile path.
+    auto onceCb = pay::utils::makeOnceCallback<void(const std::string &)>(std::move(rawCallback));
+    std::function<void(const std::string &)> callback = [onceCb](const std::string &status) {
+        onceCb.call(status);
+    };
+
     const std::string responseCode = result.get("code", "").asString();
     if (responseCode != "10000")
     {
