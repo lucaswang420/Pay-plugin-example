@@ -1,4 +1,5 @@
 #include "IdempotencyService.h"
+#include "../models/PayIdempotency.h"
 #include "../utils/OnceCallback.h"
 #include "../utils/PayUtils.h"
 #include <drogon/drogon.h>
@@ -6,6 +7,11 @@
 #include <sstream>
 
 using namespace drogon;
+
+namespace
+{
+using PayIdempotencyModel = drogon_model::pay_test::PayIdempotency;
+}  // namespace
 
 IdempotencyService::IdempotencyService(
   std::shared_ptr<orm::DbClient> dbClient,
@@ -204,7 +210,7 @@ void IdempotencyService::updateResult(
   const std::string &requestHash,
   const Json::Value &response,
   UpdateCallback &&callback,
-  const std::shared_ptr<drogon::orm::DbClient>& transPtr
+  const std::shared_ptr<drogon::orm::DbClient> &transPtr
 )
 {
     auto onceCb = pay::utils::makeOnceCallback<void(bool)>(std::move(callback));
@@ -223,50 +229,65 @@ void IdempotencyService::updateResult(
              << ", hash=" << requestHash.substr(0, 8)
              << "..., has_response_data=" << response.isMember("data");
 
-    // Use INSERT ... ON CONFLICT UPDATE to handle both insert and update cases
-    dbClient->execSqlAsync(
-      "UPDATE pay_idempotency SET response_snapshot = $3 "
-      "WHERE idempotency_key = $1 AND request_hash = $2",
-      [redisClient, ttlSeconds, idempotencyKey, requestHash, cacheStr, sharedCb](
-        const orm::Result &result
-      ) {
-          if (result.affectedRows() == 0)
-          {
-              LOG_ERROR << "Idempotency update skipped: key/hash mismatch for key="
-                        << idempotencyKey;
-              sharedCb->call(false);
-              return;
-          }
+    // Conditional UPDATE: only fills snapshot when key+hash match
+    try
+    {
+        orm::Mapper<PayIdempotencyModel> idempMapper(dbClient);
+        idempMapper.updateBy(
+          {PayIdempotencyModel::Cols::_response_snapshot},
+          [redisClient, ttlSeconds, idempotencyKey, cacheStr, sharedCb](const size_t rows) {
+              if (rows == 0)
+              {
+                  LOG_ERROR << "Idempotency update skipped: key/hash mismatch for key="
+                            << idempotencyKey;
+                  sharedCb->call(false);
+                  return;
+              }
 
-          // Update Redis cache if available (skipped inside a transaction)
-          if (redisClient)
-          {
-              std::string redisKey = "idempotency:" + idempotencyKey;
-              redisClient->execCommandAsync(
-                [sharedCb](const nosql::RedisResult &) { sharedCb->call(true); },
-                [sharedCb](const nosql::RedisException &) {
-                    // Ignore Redis errors - DB is source of truth
-                    sharedCb->call(true);
-                },
-                "SETEX %s %d %s",
-                redisKey.c_str(),
-                ttlSeconds,
-                cacheStr.c_str()
-              );
-          }
-          else
-          {
-              sharedCb->call(true);
-          }
-      },
-      [sharedCb](const orm::DrogonDbException &e) {
-          LOG_ERROR << "Idempotency DB upsert error: " << e.base().what();
-          sharedCb->call(false);
-      },
-      idempotencyKey,
-      requestHash,
-      cacheStr
-    );
+              // Update Redis cache if available (skipped inside a transaction)
+              if (redisClient)
+              {
+                  std::string redisKey = "idempotency:" + idempotencyKey;
+                  redisClient->execCommandAsync(
+                    [sharedCb](const nosql::RedisResult &) { sharedCb->call(true); },
+                    [sharedCb](const nosql::RedisException &) {
+                        // Ignore Redis errors - DB is source of truth
+                        sharedCb->call(true);
+                    },
+                    "SETEX %s %d %s",
+                    redisKey.c_str(),
+                    ttlSeconds,
+                    cacheStr.c_str()
+                  );
+              }
+              else
+              {
+                  sharedCb->call(true);
+              }
+          },
+          [sharedCb](const orm::DrogonDbException &e) {
+              LOG_ERROR << "Idempotency DB upsert error: " << e.base().what();
+              sharedCb->call(false);
+          },
+          orm::Criteria(
+            PayIdempotencyModel::Cols::_idempotency_key, orm::CompareOperator::EQ, idempotencyKey
+          ) &&
+            orm::Criteria(
+              PayIdempotencyModel::Cols::_request_hash, orm::CompareOperator::EQ, requestHash
+            ),
+          cacheStr
+        );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[IdempotencyService] Mapper construction failed: " << e.what();
+        sharedCb->call(false);
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[IdempotencyService] Mapper construction failed: unknown exception";
+        sharedCb->call(false);
+    }
 }
 
 void IdempotencyService::clearReservation(

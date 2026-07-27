@@ -1409,16 +1409,31 @@ void RefundService::updateRefundWithError(
                   refundUpdater.update(
                     refund,
                     [this, errJson, refundNo](const size_t) {
-                        dbClient_->execSqlAsync(
-                          "UPDATE pay_refund SET response_payload = $1 "
-                          "WHERE refund_no = $2",
-                          [](const Result &) {},
-                          [](const DrogonDbException &e) {
-                              LOG_WARN << "Refund error payload update error: " << e.base().what();
-                          },
-                          toJsonString(errJson),
-                          refundNo
-                        );
+                        try
+                        {
+                            Mapper<PayRefundModel> payloadUpdater(dbClient_);
+                            payloadUpdater.updateBy(
+                              {PayRefundModel::Cols::_response_payload},
+                              [](const size_t) {},
+                              [](const DrogonDbException &e) {
+                                  LOG_WARN << "Refund error payload update error: "
+                                           << e.base().what();
+                              },
+                              Criteria(
+                                PayRefundModel::Cols::_refund_no, CompareOperator::EQ, refundNo
+                              ),
+                              toJsonString(errJson)
+                            );
+                        }
+                        catch (const std::exception &e)
+                        {
+                            LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+                        }
+                        catch (...)
+                        {
+                            LOG_ERROR << "[RefundService] Mapper construction failed: unknown "
+                                         "exception";
+                        }
                     },
                     [refundNo](const DrogonDbException &e) {
                         LOG_ERROR << "[RefundService] updateRefundWithError DB write failed for "
@@ -1491,137 +1506,154 @@ void RefundService::updateRefundWithSuccess(
                      paymentNo,
                      amount,
                      sharedCb](const size_t) {
-                        dbClient_->execSqlAsync(
-                          "UPDATE pay_refund SET response_payload = $1 "
-                          "WHERE refund_no = $2",
-                          [this,
-                           refundNo,
-                           refundStatus,
-                           refundId,
-                           result,
-                           orderNo,
-                           paymentNo,
-                           amount,
-                           sharedCb](const Result &) {
-                              // Update order status to REFUNDED after successful refund
-                              try
-                              {
-                                  Mapper<PayOrderModel> orderMapper(dbClient_);
-                                  auto orderCriteria = Criteria(
-                                    PayOrderModel::Cols::_order_no, CompareOperator::EQ, orderNo
-                                  );
-                                  orderMapper.findOne(
-                                    orderCriteria,
-                                    [this,
-                                     refundNo,
-                                     refundStatus,
-                                     refundId,
-                                     result,
-                                     orderNo,
-                                     paymentNo,
-                                     amount,
-                                     sharedCb](PayOrderModel order) mutable {
-                                        order.setStatus("REFUNDED");
-                                        try
-                                        {
-                                            Mapper<PayOrderModel> orderUpdater(dbClient_);
-                                            orderUpdater.update(
-                                              order,
-                                              [this,
-                                               refundNo,
-                                               refundStatus,
-                                               refundId,
-                                               result,
-                                               orderNo,
-                                               paymentNo,
-                                               amount,
-                                               sharedCb](const size_t) {
-                                                  LOG_INFO << "[RefundService] Refund completed: "
-                                                              "refund_no="
-                                                           << refundNo << ", order_no=" << orderNo
-                                                           << ", status=" << refundStatus
-                                                           << ", amount=" << amount;
-                                                  if (*sharedCb)
-                                                  {
-                                                      Json::Value response;
-                                                      response["code"] = 0;
-                                                      response["message"] =
-                                                        "Refund created successfully";
-                                                      Json::Value data;
-                                                      data["refund_no"] = refundNo;
-                                                      data["order_no"] = orderNo;
-                                                      data["payment_no"] = paymentNo;
-                                                      data["refund_amount"] = amount;
-                                                      data["status"] = refundStatus;
-                                                      data["channel_refund_no"] = refundId;
-                                                      data["wechat_response"] = result;
-                                                      response["data"] = data;
-                                                      (*sharedCb)(response, std::error_code());
+                        try
+                        {
+                            Mapper<PayRefundModel> payloadUpdater(dbClient_);
+                            payloadUpdater.updateBy(
+                              {PayRefundModel::Cols::_response_payload},
+                              [this,
+                               refundNo,
+                               refundStatus,
+                               refundId,
+                               result,
+                               orderNo,
+                               paymentNo,
+                               amount,
+                               sharedCb](const size_t) {
+                                  // Update order status to REFUNDED after successful refund
+                                  try
+                                  {
+                                      Mapper<PayOrderModel> orderMapper(dbClient_);
+                                      auto orderCriteria = Criteria(
+                                        PayOrderModel::Cols::_order_no, CompareOperator::EQ, orderNo
+                                      );
+                                      orderMapper.findOne(
+                                        orderCriteria,
+                                        [this,
+                                         refundNo,
+                                         refundStatus,
+                                         refundId,
+                                         result,
+                                         orderNo,
+                                         paymentNo,
+                                         amount,
+                                         sharedCb](PayOrderModel order) mutable {
+                                            order.setStatus("REFUNDED");
+                                            try
+                                            {
+                                                Mapper<PayOrderModel> orderUpdater(dbClient_);
+                                                orderUpdater.update(
+                                                  order,
+                                                  [this,
+                                                   refundNo,
+                                                   refundStatus,
+                                                   refundId,
+                                                   result,
+                                                   orderNo,
+                                                   paymentNo,
+                                                   amount,
+                                                   sharedCb](const size_t) {
+                                                      LOG_INFO
+                                                        << "[RefundService] Refund completed: "
+                                                           "refund_no="
+                                                        << refundNo << ", order_no=" << orderNo
+                                                        << ", status=" << refundStatus
+                                                        << ", amount=" << amount;
+                                                      if (*sharedCb)
+                                                      {
+                                                          Json::Value response;
+                                                          response["code"] = 0;
+                                                          response["message"] =
+                                                            "Refund created successfully";
+                                                          Json::Value data;
+                                                          data["refund_no"] = refundNo;
+                                                          data["order_no"] = orderNo;
+                                                          data["payment_no"] = paymentNo;
+                                                          data["refund_amount"] = amount;
+                                                          data["status"] = refundStatus;
+                                                          data["channel_refund_no"] = refundId;
+                                                          data["wechat_response"] = result;
+                                                          response["data"] = data;
+                                                          (*sharedCb)(response, std::error_code());
+                                                      }
+                                                  },
+                                                  [sharedCb](const DrogonDbException &e) {
+                                                      if (*sharedCb)
+                                                      {
+                                                          Json::Value error;
+                                                          error["code"] = 1500;
+                                                          error["message"] =
+                                                            std::string("Database error: ") +
+                                                            e.base().what();
+                                                          (*sharedCb)(
+                                                            error,
+                                                            std::error_code(
+                                                              1500, std::system_category()
+                                                            )
+                                                          );
+                                                      }
                                                   }
-                                              },
-                                              [sharedCb](const DrogonDbException &e) {
-                                                  if (*sharedCb)
-                                                  {
-                                                      Json::Value error;
-                                                      error["code"] = 1500;
-                                                      error["message"] =
-                                                        std::string("Database error: ") +
-                                                        e.base().what();
-                                                      (*sharedCb)(
-                                                        error,
-                                                        std::error_code(
-                                                          1500, std::system_category()
-                                                        )
-                                                      );
-                                                  }
-                                              }
-                                            );
+                                                );
+                                            }
+                                            catch (const std::exception &e)
+                                            {
+                                                reportMapperFailure(sharedCb, e.what());
+                                            }
+                                            catch (...)
+                                            {
+                                                reportMapperFailure(sharedCb, "unknown exception");
+                                            }
+                                        },
+                                        [sharedCb](const DrogonDbException &e) {
+                                            if (*sharedCb)
+                                            {
+                                                Json::Value error;
+                                                error["code"] = 1500;
+                                                error["message"] =
+                                                  std::string("Database error: ") + e.base().what();
+                                                (*sharedCb)(
+                                                  error,
+                                                  std::error_code(1500, std::system_category())
+                                                );
+                                            }
                                         }
-                                        catch (const std::exception &e)
-                                        {
-                                            reportMapperFailure(sharedCb, e.what());
-                                        }
-                                        catch (...)
-                                        {
-                                            reportMapperFailure(sharedCb, "unknown exception");
-                                        }
-                                    },
-                                    [sharedCb](const DrogonDbException &e) {
-                                        if (*sharedCb)
-                                        {
-                                            Json::Value error;
-                                            error["code"] = 1500;
-                                            error["message"] =
-                                              std::string("Database error: ") + e.base().what();
-                                            (*sharedCb)(
-                                              error, std::error_code(1500, std::system_category())
-                                            );
-                                        }
-                                    }
-                                  );
-                              }
-                              catch (const std::exception &e)
-                              {
-                                  reportMapperFailure(sharedCb, e.what());
-                              }
-                              catch (...)
-                              {
-                                  reportMapperFailure(sharedCb, "unknown exception");
-                              }
-                          },
-                          [sharedCb](const DrogonDbException &e) {
-                              if (*sharedCb)
-                              {
-                                  Json::Value error;
-                                  error["code"] = 1500;
-                                  error["message"] =
-                                    std::string("Database error: ") + e.base().what();
-                                  (*sharedCb)(error, std::error_code(1500, std::system_category()));
-                              }
-                          },
-                          toJsonString(result),
-                          refundNo
-                        );
+                                      );
+                                  }
+                                  catch (const std::exception &e)
+                                  {
+                                      reportMapperFailure(sharedCb, e.what());
+                                  }
+                                  catch (...)
+                                  {
+                                      reportMapperFailure(sharedCb, "unknown exception");
+                                  }
+                              },
+                              [sharedCb](const DrogonDbException &e) {
+                                  if (*sharedCb)
+                                  {
+                                      Json::Value error;
+                                      error["code"] = 1500;
+                                      error["message"] =
+                                        std::string("Database error: ") + e.base().what();
+                                      (*sharedCb)(
+                                        error, std::error_code(1500, std::system_category())
+                                      );
+                                  }
+                              },
+                              Criteria(
+                                PayRefundModel::Cols::_refund_no, CompareOperator::EQ, refundNo
+                              ),
+                              toJsonString(result)
+                            );
+                        }
+                        catch (const std::exception &e)
+                        {
+                            reportMapperFailure(sharedCb, e.what());
+                        }
+                        catch (...)
+                        {
+                            reportMapperFailure(sharedCb, "unknown exception");
+                        }
                     },
                     [sharedCb](const DrogonDbException &e) {
                         if (*sharedCb)
@@ -1854,22 +1886,49 @@ void RefundService::syncRefundStatusFromWechat(
                          transDb,
                          callback](const size_t) {
                             const std::string responsePayload = toJsonString(result);
-                            transPtr->execSqlAsync(
-                              "UPDATE pay_refund SET response_payload = $1 "
-                              "WHERE refund_no = $2",
-                              [refundStatus, transPtr](const Result &) {},
-                              [callback, refundStatus, transPtr](const DrogonDbException &e) {
-                                  LOG_ERROR << "Reconcile refund payload update error: "
-                                            << e.base().what();
-                                  transPtr->rollback();
-                                  if (callback)
-                                  {
-                                      callback(refundStatus);
-                                  }
-                              },
-                              responsePayload,
-                              refundNo
-                            );
+                            try
+                            {
+                                Mapper<PayRefundModel> payloadUpdater(transPtr);
+                                payloadUpdater.updateBy(
+                                  {PayRefundModel::Cols::_response_payload},
+                                  [refundStatus, transPtr](const size_t) {},
+                                  [callback, refundStatus, transPtr](const DrogonDbException &e) {
+                                      LOG_ERROR << "Reconcile refund payload update error: "
+                                                << e.base().what();
+                                      transPtr->rollback();
+                                      if (callback)
+                                      {
+                                          callback(refundStatus);
+                                      }
+                                  },
+                                  Criteria(
+                                    PayRefundModel::Cols::_refund_no, CompareOperator::EQ, refundNo
+                                  ),
+                                  responsePayload
+                                );
+                            }
+                            catch (const std::exception &e)
+                            {
+                                LOG_ERROR << "[RefundService] Mapper construction failed: "
+                                          << e.what();
+                                transPtr->rollback();
+                                if (callback)
+                                {
+                                    callback(refundStatus);
+                                }
+                                return;
+                            }
+                            catch (...)
+                            {
+                                LOG_ERROR << "[RefundService] Mapper construction failed: "
+                                             "unknown exception";
+                                transPtr->rollback();
+                                if (callback)
+                                {
+                                    callback(refundStatus);
+                                }
+                                return;
+                            }
                             if (refundStatus == "REFUND_SUCCESS")
                             {
                                 try
