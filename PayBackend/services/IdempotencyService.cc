@@ -104,92 +104,134 @@ void IdempotencyService::checkDatabase(
               return;
           }
 
-          dbClient->execSqlAsync(
-            "SELECT request_hash, response_snapshot FROM pay_idempotency "
-            "WHERE idempotency_key = $1 "
-            "AND (expire_at IS NULL OR expire_at > NOW())",
-            [idempotencyKey, requestHash, sharedCb](const orm::Result &rows) {
-                if (!rows.empty())
-                {
-                    std::string cachedHash = rows[0]["request_hash"].c_str();
-
-                    if (cachedHash == requestHash)
+          try
+          {
+              // TTL filter uses client-side now() instead of DB-side NOW();
+              // second-level clock skew between app and DB is acceptable for
+              // the idempotency TTL (second-granularity expiry).
+              orm::Mapper<PayIdempotencyModel> idempMapper(dbClient);
+              idempMapper.findBy(
+                orm::Criteria(
+                  PayIdempotencyModel::Cols::_idempotency_key,
+                  orm::CompareOperator::EQ,
+                  idempotencyKey
+                ) &&
+                  (orm::Criteria(
+                     PayIdempotencyModel::Cols::_expire_at, orm::CompareOperator::IsNull
+                   ) ||
+                   orm::Criteria(
+                     PayIdempotencyModel::Cols::_expire_at,
+                     orm::CompareOperator::GT,
+                     trantor::Date::now()
+                   )),
+                [idempotencyKey,
+                 requestHash,
+                 sharedCb](const std::vector<PayIdempotencyModel> &rows) {
+                    if (!rows.empty())
                     {
-                        if (rows[0]["response_snapshot"].isNull())
+                        const std::string cachedHash = rows.front().getValueOfRequestHash();
+
+                        if (cachedHash == requestHash)
                         {
-                            LOG_INFO << "[IdempotencyService] Idempotency key in progress: key="
-                                     << idempotencyKey;
+                            if (!rows.front().getResponseSnapshot())
+                            {
+                                LOG_INFO << "[IdempotencyService] Idempotency key in progress: key="
+                                         << idempotencyKey;
+                                CheckResult checkResult;
+                                checkResult.status = CheckStatus::InProgress;
+                                checkResult.message = "idempotency request is already in progress";
+                                sharedCb->call(checkResult);
+                                return;
+                            }
+
+                            // Same request - backfill Redis and return
+                            Json::Value snapshot;
+                            Json::CharReaderBuilder builder;
+                            std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+                            std::string errors;
+                            const std::string &snapshotStr =
+                              rows.front().getValueOfResponseSnapshot();
+                            LOG_INFO
+                              << "[IdempotencyService] Loading from DB: key=" << idempotencyKey
+                              << ", snapshot length=" << snapshotStr.size();
+                            bool parseSuccess = reader->parse(
+                              snapshotStr.data(),
+                              snapshotStr.data() + snapshotStr.size(),
+                              &snapshot,
+                              &errors
+                            );
+                            Json::Value response = snapshot["response"];
+                            LOG_INFO
+                              << "[IdempotencyService] Parsed from DB: success=" << parseSuccess
+                              << ", has_response=" << snapshot.isMember("response")
+                              << ", has_data=" << response.isMember("data")
+                              << ", isNull=" << response.isNull()
+                              << ", members=" << response.getMemberNames().size()
+                              << ", errors=" << errors;
+
+                            if (!parseSuccess || response.isNull())
+                            {
+                                CheckResult checkResult;
+                                checkResult.status = CheckStatus::InProgress;
+                                checkResult.message = "idempotency response is not ready";
+                                sharedCb->call(checkResult);
+                                return;
+                            }
+
+                            LOG_INFO
+                              << "[IdempotencyService] Idempotency hit: key=" << idempotencyKey
+                              << ", returning cached response, has_data="
+                              << response.isMember("data");
                             CheckResult checkResult;
-                            checkResult.status = CheckStatus::InProgress;
-                            checkResult.message = "idempotency request is already in progress";
+                            checkResult.status = CheckStatus::Replay;
+                            checkResult.cachedResult = response;
                             sharedCb->call(checkResult);
-                            return;
                         }
-
-                        // Same request - backfill Redis and return
-                        Json::Value snapshot;
-                        Json::CharReaderBuilder builder;
-                        std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-                        std::string errors;
-                        const char *str = rows[0]["response_snapshot"].c_str();
-                        size_t strLen = strlen(str);
-                        LOG_INFO << "[IdempotencyService] Loading from DB: key=" << idempotencyKey
-                                 << ", snapshot length=" << strLen;
-                        bool parseSuccess = reader->parse(str, str + strLen, &snapshot, &errors);
-                        Json::Value response = snapshot["response"];
-                        LOG_INFO << "[IdempotencyService] Parsed from DB: success=" << parseSuccess
-                                 << ", has_response=" << snapshot.isMember("response")
-                                 << ", has_data=" << response.isMember("data")
-                                 << ", isNull=" << response.isNull()
-                                 << ", members=" << response.getMemberNames().size()
-                                 << ", errors=" << errors;
-
-                        if (!parseSuccess || response.isNull())
+                        else
                         {
+                            // Different request - conflict
+                            LOG_INFO
+                              << "[IdempotencyService] Idempotency conflict: key=" << idempotencyKey
+                              << ", cached_hash=" << cachedHash.substr(0, 8) << "..."
+                              << ", request_hash=" << requestHash.substr(0, 8) << "...";
                             CheckResult checkResult;
-                            checkResult.status = CheckStatus::InProgress;
-                            checkResult.message = "idempotency response is not ready";
+                            checkResult.status = CheckStatus::Conflict;
+                            checkResult.message = "idempotency key conflict";
                             sharedCb->call(checkResult);
-                            return;
                         }
+                        return;
+                    }
 
-                        LOG_INFO << "[IdempotencyService] Idempotency hit: key=" << idempotencyKey
-                                 << ", returning cached response, has_data="
-                                 << response.isMember("data");
-                        CheckResult checkResult;
-                        checkResult.status = CheckStatus::Replay;
-                        checkResult.cachedResult = response;
-                        sharedCb->call(checkResult);
-                    }
-                    else
-                    {
-                        // Different request - conflict
-                        LOG_INFO << "[IdempotencyService] Idempotency conflict: key="
-                                 << idempotencyKey << ", cached_hash=" << cachedHash.substr(0, 8)
-                                 << "..."
-                                 << ", request_hash=" << requestHash.substr(0, 8) << "...";
-                        CheckResult checkResult;
-                        checkResult.status = CheckStatus::Conflict;
-                        checkResult.message = "idempotency key conflict";
-                        sharedCb->call(checkResult);
-                    }
-                    return;
+                    CheckResult checkResult;
+                    checkResult.status = CheckStatus::Error;
+                    checkResult.message = "idempotency key disappeared after conflict";
+                    sharedCb->call(checkResult);
+                },
+                [sharedCb](const orm::DrogonDbException &e) {
+                    LOG_ERROR << "Idempotency DB select error: " << e.base().what();
+                    CheckResult checkResult;
+                    checkResult.status = CheckStatus::Error;
+                    checkResult.message = e.base().what();
+                    sharedCb->call(checkResult);
                 }
-
-                CheckResult checkResult;
-                checkResult.status = CheckStatus::Error;
-                checkResult.message = "idempotency key disappeared after conflict";
-                sharedCb->call(checkResult);
-            },
-            [sharedCb](const orm::DrogonDbException &e) {
-                LOG_ERROR << "Idempotency DB select error: " << e.base().what();
-                CheckResult checkResult;
-                checkResult.status = CheckStatus::Error;
-                checkResult.message = e.base().what();
-                sharedCb->call(checkResult);
-            },
-            idempotencyKey
-          );
+              );
+          }
+          catch (const std::exception &e)
+          {
+              LOG_ERROR << "[IdempotencyService] Mapper construction failed: " << e.what();
+              CheckResult checkResult;
+              checkResult.status = CheckStatus::Error;
+              checkResult.message = e.what();
+              sharedCb->call(checkResult);
+          }
+          catch (...)
+          {
+              LOG_ERROR << "[IdempotencyService] Mapper construction failed: unknown exception";
+              CheckResult checkResult;
+              checkResult.status = CheckStatus::Error;
+              checkResult.message = "mapper construction failed";
+              sharedCb->call(checkResult);
+          }
       },
       [sharedCb](const orm::DrogonDbException &e) {
           // On database error, fail the idempotency check

@@ -1,7 +1,15 @@
 #include "ReconciliationService.h"
+#include "../models/PayOrder.h"
+#include "../models/PayRefund.h"
 #include <drogon/drogon.h>
 
 using namespace drogon;
+
+namespace
+{
+using PayOrderModel = drogon_model::pay_test::PayOrder;
+using PayRefundModel = drogon_model::pay_test::PayRefund;
+}  // namespace
 
 ReconciliationService::ReconciliationService(
   std::shared_ptr<PaymentService> paymentService,
@@ -135,39 +143,60 @@ void ReconciliationService::syncPendingWeChatOrders()
         return;
     }
 
-    dbClient_->execSqlAsync(
-      // Sweep both PAYING and CREATED orders. CREATED is included so that an
-      // order whose third-party trade was created but whose local status update
-      // failed (partial failure between channel call and DB write) is recovered;
-      // the created_at filter avoids racing with an in-flight create request.
-      "SELECT order_no FROM pay_order WHERE status IN ($1, $2) AND channel = $3 "
-      "AND (status = 'PAYING' OR created_at < NOW() - INTERVAL '5 minutes') "
-      "ORDER BY updated_at DESC LIMIT $4",
-      [this](const drogon::orm::Result &r) {
-          for (const auto &row : r)
-          {
-              const std::string orderNo = row["order_no"].as<std::string>();
-              wechatClient_->queryTransaction(
-                orderNo, [this, orderNo](const Json::Value &result, const std::string &error) {
-                    if (!error.empty())
-                    {
-                        LOG_WARN << "WeChat query failed for order " << orderNo << ": " << error;
-                        return;
-                    }
-                    paymentService_
-                      ->syncOrderStatusFromWechat(orderNo, result, [](const std::string &) {});
+    try
+    {
+        // Sweep both PAYING and CREATED orders. CREATED is included so that an
+        // order whose third-party trade was created but whose local status update
+        // failed (partial failure between channel call and DB write) is recovered;
+        // the created_at filter avoids racing with an in-flight create request.
+        // The cutoff is computed client-side (was DB-side NOW() - INTERVAL
+        // '5 minutes'); second-level clock skew between app and DB is acceptable.
+        const auto cutoff = trantor::Date::now().after(-300.0);
+        orm::Mapper<PayOrderModel> orderMapper(dbClient_);
+        orderMapper.orderBy(PayOrderModel::Cols::_updated_at, orm::SortOrder::DESC)
+          .limit(reconcileBatchSize_)
+          .findBy(
+            (orm::Criteria(
+               PayOrderModel::Cols::_status,
+               orm::CompareOperator::In,
+               std::vector<std::string>{"PAYING", "CREATED"}
+             ) &&
+             orm::Criteria(PayOrderModel::Cols::_channel, orm::CompareOperator::EQ, "wechat")) &&
+              (orm::Criteria(PayOrderModel::Cols::_status, orm::CompareOperator::EQ, "PAYING") ||
+               orm::Criteria(PayOrderModel::Cols::_created_at, orm::CompareOperator::LT, cutoff)),
+            [this](const std::vector<PayOrderModel> &rows) {
+                for (const auto &row : rows)
+                {
+                    const std::string orderNo = row.getValueOfOrderNo();
+                    wechatClient_->queryTransaction(
+                      orderNo,
+                      [this, orderNo](const Json::Value &result, const std::string &error) {
+                          if (!error.empty())
+                          {
+                              LOG_WARN << "WeChat query failed for order " << orderNo << ": "
+                                       << error;
+                              return;
+                          }
+                          paymentService_->syncOrderStatusFromWechat(
+                            orderNo, result, [](const std::string &) {}
+                          );
+                      }
+                    );
                 }
-              );
-          }
-      },
-      [](const drogon::orm::DrogonDbException &e) {
-          LOG_ERROR << "WeChat reconcile query error: " << e.base().what();
-      },
-      "PAYING",
-      "CREATED",
-      "wechat",
-      reconcileBatchSize_
-    );
+            },
+            [](const orm::DrogonDbException &e) {
+                LOG_ERROR << "WeChat reconcile query error: " << e.base().what();
+            }
+          );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[ReconciliationService] Mapper construction failed: " << e.what();
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[ReconciliationService] Mapper construction failed: unknown exception";
+    }
 }
 
 void ReconciliationService::syncPendingAlipayOrders()
@@ -182,50 +211,70 @@ void ReconciliationService::syncPendingAlipayOrders()
         return;
     }
 
-    dbClient_->execSqlAsync(
-      // Sweep both PAYING and CREATED orders (see WeChat path comment); the
-      // created_at filter avoids racing with an in-flight create request.
-      "SELECT order_no FROM pay_order WHERE status IN ($1, $2) AND channel = $3 "
-      "AND (status = 'PAYING' OR created_at < NOW() - INTERVAL '5 minutes') "
-      "ORDER BY updated_at DESC LIMIT $4",
-      [this](const drogon::orm::Result &r) {
-          for (const auto &row : r)
-          {
-              const std::string orderNo = row["order_no"].as<std::string>();
-              alipayClient_->queryTrade(
-                orderNo, [this, orderNo](const Json::Value &result, const std::string &error) {
-                    if (!error.empty())
-                    {
-                        LOG_WARN << "Alipay query failed for order " << orderNo << ": " << error;
-                        return;
-                    }
-                    // Sync order status from Alipay response
-                    paymentService_->syncOrderStatusFromAlipay(
-                      orderNo, result, [orderNo](const std::string &status) {
-                          if (!status.empty())
+    try
+    {
+        // Sweep both PAYING and CREATED orders (see WeChat path comment); the
+        // created_at filter avoids racing with an in-flight create request.
+        // Client-side cutoff replaces DB-side NOW(); second-level skew is fine.
+        const auto cutoff = trantor::Date::now().after(-300.0);
+        orm::Mapper<PayOrderModel> orderMapper(dbClient_);
+        orderMapper.orderBy(PayOrderModel::Cols::_updated_at, orm::SortOrder::DESC)
+          .limit(reconcileBatchSize_)
+          .findBy(
+            (orm::Criteria(
+               PayOrderModel::Cols::_status,
+               orm::CompareOperator::In,
+               std::vector<std::string>{"PAYING", "CREATED"}
+             ) &&
+             orm::Criteria(PayOrderModel::Cols::_channel, orm::CompareOperator::EQ, "alipay")) &&
+              (orm::Criteria(PayOrderModel::Cols::_status, orm::CompareOperator::EQ, "PAYING") ||
+               orm::Criteria(PayOrderModel::Cols::_created_at, orm::CompareOperator::LT, cutoff)),
+            [this](const std::vector<PayOrderModel> &rows) {
+                for (const auto &row : rows)
+                {
+                    const std::string orderNo = row.getValueOfOrderNo();
+                    alipayClient_->queryTrade(
+                      orderNo,
+                      [this, orderNo](const Json::Value &result, const std::string &error) {
+                          if (!error.empty())
                           {
-                              LOG_INFO << "[ReconciliationService] Order status synced: order_no="
-                                       << orderNo << ", status=" << status << ", source=alipay";
+                              LOG_WARN << "Alipay query failed for order " << orderNo << ": "
+                                       << error;
+                              return;
                           }
-                          else
-                          {
-                              LOG_DEBUG << "[ReconciliationService] Order " << orderNo
-                                        << " status unchanged (no sync needed)";
-                          }
+                          // Sync order status from Alipay response
+                          paymentService_->syncOrderStatusFromAlipay(
+                            orderNo, result, [orderNo](const std::string &status) {
+                                if (!status.empty())
+                                {
+                                    LOG_INFO
+                                      << "[ReconciliationService] Order status synced: order_no="
+                                      << orderNo << ", status=" << status << ", source=alipay";
+                                }
+                                else
+                                {
+                                    LOG_DEBUG << "[ReconciliationService] Order " << orderNo
+                                              << " status unchanged (no sync needed)";
+                                }
+                            }
+                          );
                       }
                     );
                 }
-              );
-          }
-      },
-      [](const drogon::orm::DrogonDbException &e) {
-          LOG_ERROR << "Alipay reconcile query error: " << e.base().what();
-      },
-      "PAYING",
-      "CREATED",
-      "alipay",
-      reconcileBatchSize_
-    );
+            },
+            [](const orm::DrogonDbException &e) {
+                LOG_ERROR << "Alipay reconcile query error: " << e.base().what();
+            }
+          );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[ReconciliationService] Mapper construction failed: " << e.what();
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[ReconciliationService] Mapper construction failed: unknown exception";
+    }
 }
 
 void ReconciliationService::syncPendingRefunds()
@@ -235,31 +284,48 @@ void ReconciliationService::syncPendingRefunds()
         return;
     }
 
-    dbClient_->execSqlAsync(
-      "SELECT refund_no FROM pay_refund WHERE status IN ($1, $2) "
-      "ORDER BY updated_at DESC LIMIT $3",
-      [this](const drogon::orm::Result &r) {
-          for (const auto &row : r)
-          {
-              const std::string refundNo = row["refund_no"].as<std::string>();
-              wechatClient_->queryRefund(
-                refundNo, [this, refundNo](const Json::Value &result, const std::string &error) {
-                    if (!error.empty())
-                    {
-                        LOG_WARN << "Wechat refund query failed for " << refundNo << ": " << error;
-                        return;
-                    }
-                    refundService_
-                      ->syncRefundStatusFromWechat(refundNo, result, [](const std::string &) {});
+    try
+    {
+        orm::Mapper<PayRefundModel> refundMapper(dbClient_);
+        refundMapper.orderBy(PayRefundModel::Cols::_updated_at, orm::SortOrder::DESC)
+          .limit(reconcileBatchSize_)
+          .findBy(
+            orm::Criteria(
+              PayRefundModel::Cols::_status,
+              orm::CompareOperator::In,
+              std::vector<std::string>{"REFUND_INIT", "REFUNDING"}
+            ),
+            [this](const std::vector<PayRefundModel> &rows) {
+                for (const auto &row : rows)
+                {
+                    const std::string refundNo = row.getValueOfRefundNo();
+                    wechatClient_->queryRefund(
+                      refundNo,
+                      [this, refundNo](const Json::Value &result, const std::string &error) {
+                          if (!error.empty())
+                          {
+                              LOG_WARN << "Wechat refund query failed for " << refundNo << ": "
+                                       << error;
+                              return;
+                          }
+                          refundService_->syncRefundStatusFromWechat(
+                            refundNo, result, [](const std::string &) {}
+                          );
+                      }
+                    );
                 }
-              );
-          }
-      },
-      [](const drogon::orm::DrogonDbException &e) {
-          LOG_ERROR << "WeChat refund reconcile query error: " << e.base().what();
-      },
-      "REFUND_INIT",
-      "REFUNDING",
-      reconcileBatchSize_
-    );
+            },
+            [](const orm::DrogonDbException &e) {
+                LOG_ERROR << "WeChat refund reconcile query error: " << e.base().what();
+            }
+          );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[ReconciliationService] Mapper construction failed: " << e.what();
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[ReconciliationService] Mapper construction failed: unknown exception";
+    }
 }
