@@ -862,10 +862,13 @@ void CallbackService::handlePaymentCallback(
                                                                     // callback (or reconcile) that
                                                                     // already advanced this payment
                                                                     // to SUCCESS/REFUNDED causes
-                                                                    // affectedRows()==0 and we skip
+                                                                    // an empty RETURNING set and
+                                                                    // we skip
                                                                     // the downstream order/ledger
                                                                     // writes instead of overwriting
-                                                                    // and double-ledgering.
+                                                                    // and double-ledgering. Uses
+                                                                    // UPDATE...RETURNING (raw-SQL
+                                                                    // exemption #2).
                                                                     transPtr
                                                                       ->execSqlAsync(
                                                                         "UPDATE pay_payment "
@@ -874,7 +877,8 @@ void CallbackService::handlePaymentCallback(
                                                                         "response_payload = $3 "
                                                                         "WHERE payment_no = $4 "
                                                                         "AND status IN ('INIT', "
-                                                                        "'PROCESSING')",
+                                                                        "'PROCESSING') RETURNING "
+                                                                        "1",
                                                                         [this,
                                                                          cbPtr,
                                                                          orderStatus,
@@ -894,9 +898,7 @@ void CallbackService::handlePaymentCallback(
                                                                           const drogon::orm::Result
                                                                             &r
                                                                         ) mutable {
-                                                                            if (
-                                                                              r.affectedRows() == 0
-                                                                            )
+                                                                            if (r.size() == 0)
                                                                             {
                                                                                 LOG_INFO
                                                                                   << "[CallbackServ"
@@ -2215,15 +2217,17 @@ void CallbackService::handleRefundCallback(
                                                     // transaction, so without a CAS guard a
                                                     // concurrent callback could overwrite a
                                                     // REFUND_SUCCESS that another transaction just
-                                                    // wrote. affectedRows()==0 means a concurrent
-                                                    // transaction already advanced this refund; we
-                                                    // treat it as already-processed and return
-                                                    // success.
+                                                    // wrote. An empty RETURNING set means a
+                                                    // concurrent transaction already advanced this
+                                                    // refund; we treat it as already-processed and
+                                                    // return success. Uses UPDATE...RETURNING
+                                                    // (raw-SQL exemption #2).
                                                     transPtr->execSqlAsync(
                                                       "UPDATE pay_refund "
                                                       "SET status = $1, channel_refund_no = $2 "
                                                       "WHERE refund_no = $3 "
-                                                      "AND status IN ('REFUND_INIT', 'REFUNDING')",
+                                                      "AND status IN ('REFUND_INIT', 'REFUNDING') "
+                                                      "RETURNING 1",
                                                       [this,
                                                        cbPtr,
                                                        refundStatus,
@@ -2241,7 +2245,7 @@ void CallbackService::handleRefundCallback(
                                                        idempotencyKey](
                                                         const drogon::orm::Result &casResult
                                                       ) {
-                                                          if (casResult.affectedRows() == 0)
+                                                          if (casResult.size() == 0)
                                                           {
                                                               LOG_INFO << "[CallbackService] "
                                                                           "Refund already "

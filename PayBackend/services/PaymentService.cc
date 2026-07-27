@@ -1639,16 +1639,17 @@ void PaymentService::syncOrderStatusFromWechat(
                     payment.setResponsePayload(responsePayload);
                     // CAS-style status transition: only update if still non-final, so a
                     // concurrent callback/reconcile that already advanced this payment
-                    // is not overwritten (lost-update prevention).
+                    // is not overwritten (lost-update prevention). Uses UPDATE...RETURNING
+                    // (raw-SQL exemption #2) so an empty result set reveals the lost race.
                     transPtr->execSqlAsync(
                       "UPDATE pay_payment "
                       "SET status = $1, channel_trade_no = $2, response_payload = $3 "
                       "WHERE payment_no = $4 "
-                      "AND status IN ('INIT', 'PROCESSING')",
+                      "AND status IN ('INIT', 'PROCESSING') RETURNING 1",
                       [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
                         const Result &casResult
                       ) {
-                          if (casResult.affectedRows() == 0)
+                          if (casResult.size() == 0)
                           {
                               LOG_INFO << "[PaymentService] Reconcile: payment already advanced by "
                                           "concurrent txn: "
@@ -2078,16 +2079,18 @@ void PaymentService::syncOrderStatusFromAlipay(
                     payment.setStatus(paymentStatus);
                     payment.setChannelTradeNo(transactionId);
                     payment.setResponsePayload(responsePayload);
-                    // CAS-style status transition (mirrors WeChat reconcile path).
+                    // CAS-style status transition (mirrors WeChat reconcile path). Uses
+                    // UPDATE...RETURNING (raw-SQL exemption #2) so an empty result set
+                    // reveals the lost race.
                     transPtr->execSqlAsync(
                       "UPDATE pay_payment "
                       "SET status = $1, channel_trade_no = $2, response_payload = $3 "
                       "WHERE payment_no = $4 "
-                      "AND status IN ('INIT', 'PROCESSING')",
+                      "AND status IN ('INIT', 'PROCESSING') RETURNING 1",
                       [this, orderNo, orderStatus, paymentNo, callback, transPtr, transDb](
                         const Result &casResult
                       ) {
-                          if (casResult.affectedRows() == 0)
+                          if (casResult.size() == 0)
                           {
                               LOG_INFO
                                 << "[PaymentService] Alipay reconcile: payment already advanced "
