@@ -973,6 +973,9 @@ void RefundService::proceedWithInsert(
                     }
 
                     // 2. Sum already-refunded amounts under the lock.
+                    // Aggregate SUM (raw-SQL exemption #3): the Mapper cannot
+                    // express SUM; the query must run inside the row-lock
+                    // transaction so the cumulative check stays race-free.
                     transPtr->execSqlAsync(
                       "SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) AS sum_amount "
                       "FROM pay_refund WHERE order_no = $1 "

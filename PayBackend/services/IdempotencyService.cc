@@ -349,21 +349,40 @@ void IdempotencyService::clearReservation(
 
     auto dbClient = dbClient_;
 
-    dbClient->execSqlAsync(
-      "DELETE FROM pay_idempotency "
-      "WHERE idempotency_key = $1 AND request_hash = $2 AND response_snapshot IS NULL",
-      [idempotencyKey, sharedCb](const orm::Result &result) {
-          LOG_INFO << "[IdempotencyService] Cleared in-flight reservation key=" << idempotencyKey
-                   << " rows=" << result.affectedRows();
-          sharedCb->call(true);
-      },
-      [sharedCb](const orm::DrogonDbException &e) {
-          LOG_ERROR << "Idempotency clearReservation error: " << e.base().what();
-          sharedCb->call(false);
-      },
-      idempotencyKey,
-      requestHash
-    );
+    try
+    {
+        orm::Mapper<PayIdempotencyModel> idempMapper(dbClient);
+        idempMapper.deleteBy(
+          orm::Criteria(
+            PayIdempotencyModel::Cols::_idempotency_key, orm::CompareOperator::EQ, idempotencyKey
+          ) &&
+            orm::Criteria(
+              PayIdempotencyModel::Cols::_request_hash, orm::CompareOperator::EQ, requestHash
+            ) &&
+            orm::Criteria(
+              PayIdempotencyModel::Cols::_response_snapshot, orm::CompareOperator::IsNull
+            ),
+          [idempotencyKey, sharedCb](const size_t rows) {
+              LOG_INFO << "[IdempotencyService] Cleared in-flight reservation key="
+                       << idempotencyKey << " rows=" << rows;
+              sharedCb->call(true);
+          },
+          [sharedCb](const orm::DrogonDbException &e) {
+              LOG_ERROR << "Idempotency clearReservation error: " << e.base().what();
+              sharedCb->call(false);
+          }
+        );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[IdempotencyService] Mapper construction failed: " << e.what();
+        sharedCb->call(false);
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[IdempotencyService] Mapper construction failed: unknown exception";
+        sharedCb->call(false);
+    }
 }
 
 void IdempotencyService::purgeExpired(UpdateCallback &&callback)
@@ -372,6 +391,8 @@ void IdempotencyService::purgeExpired(UpdateCallback &&callback)
     auto sharedCb = std::make_shared<pay::utils::OnceCallback<void(bool)>>(onceCb);
     auto dbClient = dbClient_;
 
+    // Batch GC (raw-SQL exemption #3): server-side NOW() comparison over the
+    // full table; Mapper deleteBy would depend on the client-side clock.
     dbClient->execSqlAsync(
       "DELETE FROM pay_idempotency WHERE expire_at IS NOT NULL AND expire_at < NOW()",
       [sharedCb](const orm::Result &result) {

@@ -4,6 +4,7 @@
 #include "../models/PayPayment.h"
 #include "../models/PayLedger.h"
 #include "../models/PayIdempotency.h"
+#include "../models/PayRefund.h"
 #include "../utils/OnceCallback.h"
 #include "../utils/PayUtils.h"
 #include <drogon/drogon.h>
@@ -21,6 +22,7 @@ using PayOrderModel = drogon_model::pay_test::PayOrder;
 using PayPaymentModel = drogon_model::pay_test::PayPayment;
 using PayLedgerModel = drogon_model::pay_test::PayLedger;
 using PayIdempotencyModel = drogon_model::pay_test::PayIdempotency;
+using PayRefundModel = drogon_model::pay_test::PayRefund;
 }  // namespace
 
 namespace
@@ -2319,70 +2321,184 @@ void PaymentService::reconcileSummary(const std::string &date, PaymentCallback &
         }
     };
 
-    // Query paying orders
-    dbClient_->execSqlAsync(
-      "SELECT COUNT(*) AS cnt, MIN(updated_at) AS oldest_updated "
-      "FROM pay_order WHERE status = $1",
-      [summary, finishIfReady](const Result &r) {
-          if (!r.empty())
-          {
-              const auto &row = r.front();
-              (*summary)["paying_orders"] = row["cnt"].as<int64_t>();
-              if (!row["oldest_updated"].isNull())
+    // Query paying orders (COUNT + oldest updated_at). The aggregate pair is
+    // split into Mapper::count() and an ORDER BY ... LIMIT 1 probe; atomic
+    // consistency between the two values is not required for this monitoring
+    // summary.
+    try
+    {
+        Mapper<PayOrderModel> orderCounter(dbClient_);
+        orderCounter.count(
+          Criteria(PayOrderModel::Cols::_status, CompareOperator::EQ, "PAYING"),
+          [this, summary, finishIfReady, sharedCb, responded](const size_t cnt) {
+              (*summary)["paying_orders"] = static_cast<Json::Int64>(cnt);
+              try
               {
-                  (*summary)["oldest_paying_updated"] = row["oldest_updated"].as<std::string>();
+                  Mapper<PayOrderModel> oldestProbe(dbClient_);
+                  oldestProbe.orderBy(PayOrderModel::Cols::_updated_at, SortOrder::ASC)
+                    .limit(1)
+                    .findBy(
+                      Criteria(PayOrderModel::Cols::_status, CompareOperator::EQ, "PAYING"),
+                      [summary, finishIfReady](const std::vector<PayOrderModel> &rows) {
+                          if (!rows.empty() && rows.front().getUpdatedAt())
+                          {
+                              (*summary)["oldest_paying_updated"] =
+                                rows.front().getValueOfUpdatedAt().toDbStringLocal();
+                          }
+                          finishIfReady();
+                      },
+                      [sharedCb, responded](const DrogonDbException &e) {
+                          if (responded->exchange(true))
+                          {
+                              return;
+                          }
+                          if (*sharedCb)
+                          {
+                              Json::Value response;
+                              response["code"] = 1003;
+                              response["message"] =
+                                "Database error: " + std::string(e.base().what());
+                              (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                          }
+                      }
+                    );
+              }
+              catch (const std::exception &e)
+              {
+                  if (!responded->exchange(true))
+                  {
+                      reportMapperFailure(sharedCb, e.what());
+                  }
+              }
+              catch (...)
+              {
+                  if (!responded->exchange(true))
+                  {
+                      reportMapperFailure(sharedCb, "unknown exception");
+                  }
+              }
+          },
+          [sharedCb, responded](const DrogonDbException &e) {
+              if (responded->exchange(true))
+              {
+                  return;
+              }
+              if (*sharedCb)
+              {
+                  Json::Value response;
+                  response["code"] = 1003;
+                  response["message"] = "Database error: " + std::string(e.base().what());
+                  (*sharedCb)(response, std::make_error_code(std::errc::io_error));
               }
           }
-          finishIfReady();
-      },
-      [sharedCb, responded](const DrogonDbException &e) {
-          if (responded->exchange(true))
-          {
-              return;
-          }
-          if (*sharedCb)
-          {
-              Json::Value response;
-              response["code"] = 1003;
-              response["message"] = "Database error: " + std::string(e.base().what());
-              (*sharedCb)(response, std::make_error_code(std::errc::io_error));
-          }
-      },
-      "PAYING"
-    );
+        );
+    }
+    catch (const std::exception &e)
+    {
+        if (!responded->exchange(true))
+        {
+            reportMapperFailure(sharedCb, e.what());
+        }
+    }
+    catch (...)
+    {
+        if (!responded->exchange(true))
+        {
+            reportMapperFailure(sharedCb, "unknown exception");
+        }
+    }
 
-    // Query refunding refunds
-    dbClient_->execSqlAsync(
-      "SELECT COUNT(*) AS cnt, MIN(updated_at) AS oldest_updated "
-      "FROM pay_refund WHERE status IN ($1, $2)",
-      [summary, finishIfReady](const Result &r) {
-          if (!r.empty())
-          {
-              const auto &row = r.front();
-              (*summary)["refunding_refunds"] = row["cnt"].as<int64_t>();
-              if (!row["oldest_updated"].isNull())
+    // Query refunding refunds (same count + oldest-probe split as above).
+    try
+    {
+        Mapper<PayRefundModel> refundCounter(dbClient_);
+        refundCounter.count(
+          Criteria(
+            PayRefundModel::Cols::_status,
+            CompareOperator::In,
+            std::vector<std::string>{"REFUND_INIT", "REFUNDING"}
+          ),
+          [this, summary, finishIfReady, sharedCb, responded](const size_t cnt) {
+              (*summary)["refunding_refunds"] = static_cast<Json::Int64>(cnt);
+              try
               {
-                  (*summary)["oldest_refund_updated"] = row["oldest_updated"].as<std::string>();
+                  Mapper<PayRefundModel> oldestProbe(dbClient_);
+                  oldestProbe.orderBy(PayRefundModel::Cols::_updated_at, SortOrder::ASC)
+                    .limit(1)
+                    .findBy(
+                      Criteria(
+                        PayRefundModel::Cols::_status,
+                        CompareOperator::In,
+                        std::vector<std::string>{"REFUND_INIT", "REFUNDING"}
+                      ),
+                      [summary, finishIfReady](const std::vector<PayRefundModel> &rows) {
+                          if (!rows.empty() && rows.front().getUpdatedAt())
+                          {
+                              (*summary)["oldest_refund_updated"] =
+                                rows.front().getValueOfUpdatedAt().toDbStringLocal();
+                          }
+                          finishIfReady();
+                      },
+                      [sharedCb, responded](const DrogonDbException &e) {
+                          if (responded->exchange(true))
+                          {
+                              return;
+                          }
+                          if (*sharedCb)
+                          {
+                              Json::Value response;
+                              response["code"] = 1003;
+                              response["message"] =
+                                "Database error: " + std::string(e.base().what());
+                              (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                          }
+                      }
+                    );
+              }
+              catch (const std::exception &e)
+              {
+                  if (!responded->exchange(true))
+                  {
+                      reportMapperFailure(sharedCb, e.what());
+                  }
+              }
+              catch (...)
+              {
+                  if (!responded->exchange(true))
+                  {
+                      reportMapperFailure(sharedCb, "unknown exception");
+                  }
+              }
+          },
+          [sharedCb, responded](const DrogonDbException &e) {
+              if (responded->exchange(true))
+              {
+                  return;
+              }
+              if (*sharedCb)
+              {
+                  Json::Value response;
+                  response["code"] = 1003;
+                  response["message"] = "Database error: " + std::string(e.base().what());
+                  (*sharedCb)(response, std::make_error_code(std::errc::io_error));
               }
           }
-          finishIfReady();
-      },
-      [sharedCb, responded](const DrogonDbException &e) {
-          if (responded->exchange(true))
-          {
-              return;
-          }
-          if (*sharedCb)
-          {
-              Json::Value response;
-              response["code"] = 1003;
-              response["message"] = "Database error: " + std::string(e.base().what());
-              (*sharedCb)(response, std::make_error_code(std::errc::io_error));
-          }
-      },
-      "REFUND_INIT",
-      "REFUNDING"
-    );
+        );
+    }
+    catch (const std::exception &e)
+    {
+        if (!responded->exchange(true))
+        {
+            reportMapperFailure(sharedCb, e.what());
+        }
+    }
+    catch (...)
+    {
+        if (!responded->exchange(true))
+        {
+            reportMapperFailure(sharedCb, "unknown exception");
+        }
+    }
 }
 
 std::string PaymentService::generatePaymentNo()
