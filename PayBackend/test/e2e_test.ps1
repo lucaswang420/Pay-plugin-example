@@ -7,7 +7,8 @@
 
 # Configuration
 $BaseUrl = if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:5566" }
-$ApiKey = if ($env:API_KEY) { $env:API_KEY } else { "test-api-key" }
+# Default matches PAY_API_KEY in PayBackend/.env; override via $env:API_KEY
+$ApiKey = if ($env:API_KEY) { $env:API_KEY } else { "test_key_123456" }
 $TestResults = @()
 
 # =============================================================================
