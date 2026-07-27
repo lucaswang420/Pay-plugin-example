@@ -101,10 +101,43 @@ void insertLedgerEntry(
 
     if (paymentNo.empty())
     {
-        dbClient->execSqlAsync(
-          "SELECT 1 FROM pay_ledger WHERE order_no = $1 "
-          "AND entry_type = $2 AND payment_no IS NULL LIMIT 1",
-          [insertRow](const Result &rows) {
+        try
+        {
+            Mapper<PayLedgerModel> ledgerLookup(dbClient);
+            ledgerLookup.limit(1).findBy(
+              Criteria(PayLedgerModel::Cols::_order_no, CompareOperator::EQ, orderNo) &&
+                Criteria(PayLedgerModel::Cols::_entry_type, CompareOperator::EQ, entryType) &&
+                Criteria(PayLedgerModel::Cols::_payment_no, CompareOperator::IsNull),
+              [insertRow](const std::vector<PayLedgerModel> &rows) {
+                  if (rows.empty())
+                  {
+                      insertRow();
+                  }
+              },
+              [](const DrogonDbException &e) {
+                  LOG_ERROR << "Ledger lookup error: " << e.base().what();
+              }
+            );
+        }
+        catch (const std::exception &e)
+        {
+            LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+        }
+        catch (...)
+        {
+            LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+        }
+        return;
+    }
+
+    try
+    {
+        Mapper<PayLedgerModel> ledgerLookup(dbClient);
+        ledgerLookup.limit(1).findBy(
+          Criteria(PayLedgerModel::Cols::_order_no, CompareOperator::EQ, orderNo) &&
+            Criteria(PayLedgerModel::Cols::_entry_type, CompareOperator::EQ, entryType) &&
+            Criteria(PayLedgerModel::Cols::_payment_no, CompareOperator::EQ, paymentNo),
+          [insertRow](const std::vector<PayLedgerModel> &rows) {
               if (rows.empty())
               {
                   insertRow();
@@ -112,27 +145,17 @@ void insertLedgerEntry(
           },
           [](const DrogonDbException &e) {
               LOG_ERROR << "Ledger lookup error: " << e.base().what();
-          },
-          orderNo,
-          entryType
-        );
-        return;
-    }
-
-    dbClient->execSqlAsync(
-      "SELECT 1 FROM pay_ledger WHERE order_no = $1 "
-      "AND entry_type = $2 AND payment_no = $3 LIMIT 1",
-      [insertRow](const Result &rows) {
-          if (rows.empty())
-          {
-              insertRow();
           }
-      },
-      [](const DrogonDbException &e) { LOG_ERROR << "Ledger lookup error: " << e.base().what(); },
-      orderNo,
-      entryType,
-      paymentNo
-    );
+        );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+    }
 }
 
 void storeIdempotencySnapshot(
