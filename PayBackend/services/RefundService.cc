@@ -1270,32 +1270,62 @@ void RefundService::updateRefundWithError(
   const Json::Value &errJson
 )
 {
-    Mapper<PayRefundModel> refundMapper(dbClient_);
-    auto criteria = Criteria(PayRefundModel::Cols::_refund_no, CompareOperator::EQ, refundNo);
-    refundMapper.findOne(
-      criteria,
-      [this, errorMessage, errJson, refundNo](PayRefundModel refund) {
-          refund.setStatus("REFUND_FAIL");
-          Mapper<PayRefundModel> refundUpdater(dbClient_);
-          refundUpdater.update(
-            refund,
-            [this, errJson, refundNo](const size_t) {
-                dbClient_->execSqlAsync(
-                  "UPDATE pay_refund SET response_payload = $1 "
-                  "WHERE refund_no = $2",
-                  [](const Result &) {},
-                  [](const DrogonDbException &e) {
-                      LOG_WARN << "Refund error payload update error: " << e.base().what();
-                  },
-                  toJsonString(errJson),
-                  refundNo
-                );
-            },
-            [](const DrogonDbException &) {}
-          );
-      },
-      [](const DrogonDbException &) {}
-    );
+    try
+    {
+        Mapper<PayRefundModel> refundMapper(dbClient_);
+        auto criteria = Criteria(PayRefundModel::Cols::_refund_no, CompareOperator::EQ, refundNo);
+        refundMapper.findOne(
+          criteria,
+          [this, errorMessage, errJson, refundNo](PayRefundModel refund) {
+              refund.setStatus("REFUND_FAIL");
+              try
+              {
+                  Mapper<PayRefundModel> refundUpdater(dbClient_);
+                  refundUpdater.update(
+                    refund,
+                    [this, errJson, refundNo](const size_t) {
+                        dbClient_->execSqlAsync(
+                          "UPDATE pay_refund SET response_payload = $1 "
+                          "WHERE refund_no = $2",
+                          [](const Result &) {},
+                          [](const DrogonDbException &e) {
+                              LOG_WARN << "Refund error payload update error: "
+                                       << e.base().what();
+                          },
+                          toJsonString(errJson),
+                          refundNo
+                        );
+                    },
+                    [refundNo](const DrogonDbException &e) {
+                        LOG_ERROR << "[RefundService] updateRefundWithError DB write failed for "
+                                     "refund_no="
+                                  << refundNo << ": " << e.base().what();
+                    }
+                  );
+              }
+              catch (const std::exception &e)
+              {
+                  LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+              }
+              catch (...)
+              {
+                  LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+              }
+          },
+          [refundNo](const DrogonDbException &e) {
+              LOG_ERROR << "[RefundService] updateRefundWithError lookup failed for refund_no="
+                        << refundNo << ": " << e.base().what();
+          }
+        );
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+    }
+    catch (...)
+    {
+        LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+    }
 }
 
 void RefundService::updateRefundWithSuccess(
