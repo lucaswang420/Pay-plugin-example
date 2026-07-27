@@ -51,9 +51,9 @@ class ReconciliationService
     void reconcile(std::function<void(int success, int failed)> &&callback);
 
   private:
-    void syncPendingWeChatOrders();
-    void syncPendingAlipayOrders();
-    void syncPendingRefunds();
+    void syncPendingWeChatOrders(const std::shared_ptr<int> &failedCount);
+    void syncPendingAlipayOrders(const std::shared_ptr<int> &failedCount);
+    void syncPendingRefunds(const std::shared_ptr<int> &failedCount);
 
     bool isWeChatConfigured() const;
     bool isAlipayConfigured() const;

@@ -53,14 +53,15 @@ void ReconciliationService::stopReconcileTimer()
 
 void ReconciliationService::reconcile(std::function<void(int success, int failed)> &&callback)
 {
-    // Track success and failed counts
+    // Track dispatched sweeps and dispatch-time failures
     auto successCount = std::make_shared<int>(0);
     auto failedCount = std::make_shared<int>(0);
 
     // Sync pending WeChat Pay orders (only if configured)
     if (isWeChatConfigured())
     {
-        syncPendingWeChatOrders();
+        ++(*successCount);
+        syncPendingWeChatOrders(failedCount);
     }
     else
     {
@@ -70,7 +71,8 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
     // Sync pending Alipay orders (only if configured)
     if (isAlipayConfigured())
     {
-        syncPendingAlipayOrders();
+        ++(*successCount);
+        syncPendingAlipayOrders(failedCount);
     }
     else
     {
@@ -80,7 +82,8 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
     // Sync pending refunds (only if WeChat is configured)
     if (isWeChatConfigured())
     {
-        syncPendingRefunds();
+        ++(*successCount);
+        syncPendingRefunds(failedCount);
     }
     else
     {
@@ -91,6 +94,8 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
     // unbounded (P2). The read path already filters expired rows out, but they
     // still accumulate on disk; this periodic purge reclaims them. Fire-and-
     // forget: GC failures must not block reconciliation.
+    // Batch GC (raw-SQL exemption #3): server-side NOW() comparison over the
+    // full table; Mapper deleteBy would depend on the client-side clock.
     if (dbClient_)
     {
         dbClient_->execSqlAsync(
@@ -108,6 +113,10 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
         );
     }
 
+    // NOTE: callback fires when reconcile sweeps are dispatched, not completed.
+    // success = number of sweeps triggered; failed = dispatch-time failures
+    // (Mapper construction). Per-sweep async results are logged; failure counts
+    // feed monitoring via logs.
     callback(*successCount, *failedCount);
 }
 
@@ -131,7 +140,7 @@ bool ReconciliationService::isAlipayConfigured() const
     return alipayClient_->isConfigured();
 }
 
-void ReconciliationService::syncPendingWeChatOrders()
+void ReconciliationService::syncPendingWeChatOrders(const std::shared_ptr<int> &failedCount)
 {
     if (!dbClient_)
     {
@@ -192,14 +201,16 @@ void ReconciliationService::syncPendingWeChatOrders()
     catch (const std::exception &e)
     {
         LOG_ERROR << "[ReconciliationService] Mapper construction failed: " << e.what();
+        ++(*failedCount);
     }
     catch (...)
     {
         LOG_ERROR << "[ReconciliationService] Mapper construction failed: unknown exception";
+        ++(*failedCount);
     }
 }
 
-void ReconciliationService::syncPendingAlipayOrders()
+void ReconciliationService::syncPendingAlipayOrders(const std::shared_ptr<int> &failedCount)
 {
     if (!dbClient_)
     {
@@ -270,14 +281,16 @@ void ReconciliationService::syncPendingAlipayOrders()
     catch (const std::exception &e)
     {
         LOG_ERROR << "[ReconciliationService] Mapper construction failed: " << e.what();
+        ++(*failedCount);
     }
     catch (...)
     {
         LOG_ERROR << "[ReconciliationService] Mapper construction failed: unknown exception";
+        ++(*failedCount);
     }
 }
 
-void ReconciliationService::syncPendingRefunds()
+void ReconciliationService::syncPendingRefunds(const std::shared_ptr<int> &failedCount)
 {
     if (!dbClient_ || !wechatClient_)
     {
@@ -323,9 +336,11 @@ void ReconciliationService::syncPendingRefunds()
     catch (const std::exception &e)
     {
         LOG_ERROR << "[ReconciliationService] Mapper construction failed: " << e.what();
+        ++(*failedCount);
     }
     catch (...)
     {
         LOG_ERROR << "[ReconciliationService] Mapper construction failed: unknown exception";
+        ++(*failedCount);
     }
 }
