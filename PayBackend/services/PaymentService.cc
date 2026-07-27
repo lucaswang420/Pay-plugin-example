@@ -1389,8 +1389,12 @@ void PaymentService::syncOrderStatusFromWechat(
                 );
             });
         },
-        [](const DrogonDbException &e) {
+        [callback](const DrogonDbException &e) {
             LOG_ERROR << "Reconcile payment select error: " << e.base().what();
+            if (callback)
+            {
+                callback("");
+            }
         }
       );
 }
@@ -1695,8 +1699,12 @@ void PaymentService::syncOrderStatusFromAlipay(
                 );
             });
         },
-        [](const DrogonDbException &e) {
+        [callback](const DrogonDbException &e) {
             LOG_ERROR << "Alipay reconcile payment select error: " << e.base().what();
+            if (callback)
+            {
+                callback("");
+            }
         }
       );
 }
