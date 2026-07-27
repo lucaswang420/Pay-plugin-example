@@ -481,7 +481,19 @@ void CallbackService::handlePaymentCallback(
            body,
            signature,
            serialNo,
-           plainJson](const drogon::orm::DrogonDbException &) {
+           plainJson](const drogon::orm::DrogonDbException &e) {
+              // Only UnexpectedRows means "key not found"; any other DB failure
+              // must NOT be treated as a new callback (risk of double handling).
+              if (dynamic_cast<const drogon::orm::UnexpectedRows *>(&e) == nullptr)
+              {
+                  LOG_ERROR << "[CallbackService] Idempotency lookup DB error: "
+                            << e.base().what();
+                  Json::Value error;
+                  error["code"] = "FAIL";
+                  error["message"] = std::string("db error: ") + e.base().what();
+                  (*cbPtr)(error, pay::makePayError(1400, "idempotency lookup failed"));
+                  return;
+              }
               LOG_INFO << "[CallbackService] Idempotency key not found, processing new callback";
               const std::string requestHash = drogon::utils::getMd5(body);
               PayIdempotencyModel idemp;
@@ -1364,7 +1376,19 @@ void CallbackService::handleRefundCallback(
            serialNo,
            plaintext,
            body,
-           plainJson](const drogon::orm::DrogonDbException &) {
+           plainJson](const drogon::orm::DrogonDbException &e) {
+              // Only UnexpectedRows means "key not found"; any other DB failure
+              // must NOT be treated as a new callback (risk of double handling).
+              if (dynamic_cast<const drogon::orm::UnexpectedRows *>(&e) == nullptr)
+              {
+                  LOG_ERROR << "[CallbackService] Refund idempotency lookup DB error: "
+                            << e.base().what();
+                  Json::Value error;
+                  error["code"] = "FAIL";
+                  error["message"] = std::string("db error: ") + e.base().what();
+                  (*cbPtr)(error, pay::makePayError(1400, "idempotency lookup failed"));
+                  return;
+              }
               const std::string requestHash = drogon::utils::getMd5(body);
               PayIdempotencyModel idemp;
               idemp.setIdempotencyKey(idempotencyKey);
