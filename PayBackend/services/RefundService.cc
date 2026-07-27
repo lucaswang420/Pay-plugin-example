@@ -1054,7 +1054,12 @@ void RefundService::proceedWithInsert(
                                                    << ", channel=" << channel
                                                    << ", amount=" << amount;
 
-                                          // Commit the transaction before the channel call.
+                                          // Explicit COMMIT (raw-SQL exemption candidate): the
+                                          // refund row must be durably committed BEFORE the
+                                          // external channel call, and the commit error path must
+                                          // run before any side effect. An implicit
+                                          // destructor-time commit would race with the network
+                                          // call, so the manual COMMIT stays.
                                           transPtr->execSqlAsync(
                                             "COMMIT",
                                             [this,
