@@ -2575,176 +2575,90 @@ void PaymentService::queryOrderList(
     LOG_DEBUG << "[PAYMENT_SERVICE] Executing parameterized SQL with " << params.size()
               << " parameters";
 
-    // Execute parameterized query to prevent SQL injection
-    if (params.size() == 4)
+    // Parameter count varies at run time (2-4), which the variadic
+    // execSqlAsync() cannot express; bind via the SqlBinder streaming
+    // interface (still fully parameterized -- prevents SQL injection).
+    // NOTE: raw SQL retained pending JOIN-compliance analysis (LEFT JOIN is
+    // not expressible via Mapper); tracked as a db-operations follow-up.
+    auto binder = *dbClient_ << sql;
+    for (const auto &p : params)
     {
-        dbClient_->execSqlAsync(
-          sql,
-          [callback](const Result &result) {
-              try
-              {
-                  Json::Value response;
-                  response["code"] = 200;
-                  response["message"] = "Success";
-                  response["data"] = Json::Value(Json::arrayValue);
-
-                  for (size_t i = 0; i < result.size(); ++i)
-                  {
-                      const auto &row = result[i];
-
-                      Json::Value order;
-                      order["order_no"] = row["order_no"].as<std::string>();
-                      order["user_id"] = row["user_id"].as<int64_t>();
-                      order["amount"] = row["amount"].as<std::string>();
-                      order["currency"] = row["currency"].as<std::string>();
-                      order["status"] = row["status"].as<std::string>();
-                      order["channel"] = row["channel"].as<std::string>();
-                      order["title"] = row["title"].as<std::string>();
-                      order["created_at"] = row["created_at"].as<std::string>();
-                      order["updated_at"] = row["updated_at"].as<std::string>();
-
-                      // Add payment info if exists
-                      if (!row["payment_no"].isNull())
-                      {
-                          order["payment_no"] = row["payment_no"].as<std::string>();
-                      }
-                      if (!row["channel_trade_no"].isNull())
-                      {
-                          order["trade_no"] = row["channel_trade_no"].as<std::string>();
-                      }
-                      if (!row["updated_at"].isNull())
-                      {
-                          order["paid_at"] = row["updated_at"].as<std::string>();
-                      }
-                      if (!row["response_payload"].isNull())
-                      {
-                          // Parse JSON from response_payload
-                          try
-                          {
-                              Json::Value channelResponse;
-                              Json::Reader reader;
-                              reader
-                                .parse(row["response_payload"].as<std::string>(), channelResponse);
-                              order["channel_response"] = channelResponse;
-                          }
-                          catch (...)
-                          {
-                              // If parsing fails, skip channel_response
-                          }
-                      }
-
-                      response["data"].append(order);
-                  }
-
-                  LOG_DEBUG << "[PAYMENT_SERVICE] queryOrderList found " << response["data"].size()
-                            << " orders";
-                  callback(response, std::error_code());
-              }
-              catch (const std::exception &e)
-              {
-                  LOG_ERROR << "[PAYMENT_SERVICE] Exception in queryOrderList: " << e.what();
-                  Json::Value error;
-                  error["code"] = 1500;
-                  error["message"] = "Internal server error";
-                  callback(error, std::make_error_code(std::errc::io_error));
-              }
-          },
-          [callback](const DrogonDbException &e) {
-              LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: "
-                        << e.base().what();
-              Json::Value error;
-              error["code"] = 1500;
-              error["message"] = "Database error: " + std::string(e.base().what());
-              callback(error, std::make_error_code(std::errc::io_error));
-          },
-          params[0].c_str(),
-          params[1].c_str(),
-          params[2].c_str(),
-          params[3].c_str()
-        );
+        binder << p;
     }
-    else
-    {
-        // Handle cases with fewer parameters (dynamic filtering)
-        dbClient_->execSqlAsync(
-          sql,
-          [callback](const Result &result) {
-              try
+    binder >>
+      [callback](const Result &result) {
+          try
+          {
+              Json::Value response;
+              response["code"] = 200;
+              response["message"] = "Success";
+              response["data"] = Json::Value(Json::arrayValue);
+
+              for (size_t i = 0; i < result.size(); ++i)
               {
-                  Json::Value response;
-                  response["code"] = 200;
-                  response["message"] = "Success";
-                  response["data"] = Json::Value(Json::arrayValue);
+                  const auto &row = result[i];
 
-                  for (size_t i = 0; i < result.size(); ++i)
+                  Json::Value order;
+                  order["order_no"] = row["order_no"].as<std::string>();
+                  order["user_id"] = row["user_id"].as<int64_t>();
+                  order["amount"] = row["amount"].as<std::string>();
+                  order["currency"] = row["currency"].as<std::string>();
+                  order["status"] = row["status"].as<std::string>();
+                  order["channel"] = row["channel"].as<std::string>();
+                  order["title"] = row["title"].as<std::string>();
+                  order["created_at"] = row["created_at"].as<std::string>();
+                  order["updated_at"] = row["updated_at"].as<std::string>();
+
+                  // Add payment info if exists
+                  if (!row["payment_no"].isNull())
                   {
-                      const auto &row = result[i];
-
-                      Json::Value order;
-                      order["order_no"] = row["order_no"].as<std::string>();
-                      order["user_id"] = row["user_id"].as<int64_t>();
-                      order["amount"] = row["amount"].as<std::string>();
-                      order["currency"] = row["currency"].as<std::string>();
-                      order["status"] = row["status"].as<std::string>();
-                      order["channel"] = row["channel"].as<std::string>();
-                      order["title"] = row["title"].as<std::string>();
-                      order["created_at"] = row["created_at"].as<std::string>();
-                      order["updated_at"] = row["updated_at"].as<std::string>();
-
-                      // Add payment info if exists
-                      if (!row["payment_no"].isNull())
+                      order["payment_no"] = row["payment_no"].as<std::string>();
+                  }
+                  if (!row["channel_trade_no"].isNull())
+                  {
+                      order["trade_no"] = row["channel_trade_no"].as<std::string>();
+                  }
+                  if (!row["updated_at"].isNull())
+                  {
+                      order["paid_at"] = row["updated_at"].as<std::string>();
+                  }
+                  if (!row["response_payload"].isNull())
+                  {
+                      // Parse JSON from response_payload
+                      try
                       {
-                          order["payment_no"] = row["payment_no"].as<std::string>();
+                          Json::Value channelResponse;
+                          Json::Reader reader;
+                          reader.parse(row["response_payload"].as<std::string>(), channelResponse);
+                          order["channel_response"] = channelResponse;
                       }
-                      if (!row["channel_trade_no"].isNull())
+                      catch (...)
                       {
-                          order["trade_no"] = row["channel_trade_no"].as<std::string>();
+                          // If parsing fails, skip channel_response
                       }
-                      if (!row["updated_at"].isNull())
-                      {
-                          order["paid_at"] = row["updated_at"].as<std::string>();
-                      }
-                      if (!row["response_payload"].isNull())
-                      {
-                          // Parse JSON from response_payload
-                          try
-                          {
-                              Json::Value channelResponse;
-                              Json::Reader reader;
-                              reader
-                                .parse(row["response_payload"].as<std::string>(), channelResponse);
-                              order["channel_response"] = channelResponse;
-                          }
-                          catch (...)
-                          {
-                              // If parsing fails, skip channel_response
-                          }
-                      }
-
-                      response["data"].append(order);
                   }
 
-                  LOG_DEBUG << "[PAYMENT_SERVICE] queryOrderList found " << response["data"].size()
-                            << " orders";
-                  callback(response, std::error_code());
+                  response["data"].append(order);
               }
-              catch (const std::exception &e)
-              {
-                  LOG_ERROR << "[PAYMENT_SERVICE] Exception in queryOrderList: " << e.what();
-                  Json::Value error;
-                  error["code"] = 1500;
-                  error["message"] = "Internal server error";
-                  callback(error, std::make_error_code(std::errc::io_error));
-              }
-          },
-          [callback](const DrogonDbException &e) {
-              LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: "
-                        << e.base().what();
+
+              LOG_DEBUG << "[PAYMENT_SERVICE] queryOrderList found " << response["data"].size()
+                        << " orders";
+              callback(response, std::error_code());
+          }
+          catch (const std::exception &e)
+          {
+              LOG_ERROR << "[PAYMENT_SERVICE] Exception in queryOrderList: " << e.what();
               Json::Value error;
               error["code"] = 1500;
-              error["message"] = "Database error: " + std::string(e.base().what());
+              error["message"] = "Internal server error";
               callback(error, std::make_error_code(std::errc::io_error));
           }
-        );
-    }
+      } >>
+      [callback](const DrogonDbException &e) {
+          LOG_ERROR << "[PAYMENT_SERVICE] Database error in queryOrderList: " << e.base().what();
+          Json::Value error;
+          error["code"] = 1500;
+          error["message"] = "Database error: " + std::string(e.base().what());
+          callback(error, std::make_error_code(std::errc::io_error));
+      };
 }
