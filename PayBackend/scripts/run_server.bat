@@ -4,27 +4,35 @@ REM Run script for Pay Plugin Backend
 
 REM Parse command line arguments
 set BUILD_MODE=Release
-if "%1"=="-debug" set BUILD_MODE=Debug
-if "%1"=="-release" set BUILD_MODE=Release
+set PRESET=windows-msvc
+if "%1"=="-debug" (
+    set BUILD_MODE=Debug
+    set PRESET=windows-msvc-debug
+)
+if "%1"=="-release" (
+    set BUILD_MODE=Release
+    set PRESET=windows-msvc
+)
 
 echo ========================================
 echo Starting Pay Plugin Backend
 echo Build Mode: %BUILD_MODE%
+echo Preset:     %PRESET%
 echo ========================================
 
 REM Change to PayBackend directory
 cd /d "%~dp0.."
 echo Working directory: %CD%
 
-REM Check if build directory exists
-if not exist build (
-    echo Error: build directory not found!
+REM Check if preset build directory exists
+if not exist build\%PRESET% (
+    echo Error: build\%PRESET% directory not found!
     echo Please run build.bat first.
     pause
     exit /b 1
 )
 
-cd build
+cd build\%PRESET%
 
 REM Load Conan environment if available
 if exist conanrun.bat (
@@ -34,14 +42,16 @@ if exist conanrun.bat (
 
 REM Check if the requested build exists
 if not exist %BUILD_MODE%\PayServer.exe (
-    echo Error: PayServer.exe not found in %BUILD_MODE% directory!
+    echo Error: PayServer.exe not found in build\%PRESET%\%BUILD_MODE%!
     echo Please run build.bat first to build the %BUILD_MODE% version.
     pause
     exit /b 1
 )
 
 echo Starting server (%BUILD_MODE% build)...
-%BUILD_MODE%\PayServer.exe
+REM Run from the output directory so config.json/.env/certs are found in cwd
+cd %BUILD_MODE%
+PayServer.exe
 
 :end
 pause
