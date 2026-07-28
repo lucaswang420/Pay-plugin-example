@@ -559,28 +559,32 @@ void CallbackService::handlePaymentCallback(
                   LOG_INFO
                     << "[CallbackService] Idempotency key not found, processing new callback";
                   const std::string requestHash = drogon::utils::getMd5(body);
-                  PayIdempotencyModel idemp;
-                  idemp.setIdempotencyKey(idempotencyKey);
-                  idemp.setRequestHash(requestHash);
                   // Reserve with response_snapshot = NULL (P2-4.2). The snapshot is
                   // finalized (set to the response) only after the business
                   // transaction commits below, so a crash between the reservation
                   // and the commit leaves an in-flight (NULL-snapshot) row rather
                   // than one that falsely reads as "completed".
-                  idemp.setResponseSnapshotToNull();
                   const auto now = trantor::Date::now();
                   const auto expiresAt = trantor::Date(
                     now.microSecondsSinceEpoch() + static_cast<int64_t>(7) * 24 * 60 * 60 * 1000000
                   );
-                  idemp.setExpireAt(expiresAt);
 
                   // Insert idempotency record on main client (outside transaction)
                   // so it's committed and visible to subsequent calls immediately.
+                  // Raw SQL exemption (db-operations): Mapper::insert cannot express
+                  // ON CONFLICT DO NOTHING, which is required here for deterministic
+                  // duplicate detection -- the PG backend only throws a generic
+                  // Failure whose message text depends on the server locale, so
+                  // matching "duplicate key"/"23505" in the error string is
+                  // unreliable. RETURNING gives a deterministic row count:
+                  // 1 = first insert, 0 = concurrent duplicate.
                   try
                   {
-                      drogon::orm::Mapper<PayIdempotencyModel> idempInsert(dbClient_);
-                      idempInsert.insert(
-                        idemp,
+                      dbClient_->execSqlAsync(
+                        "INSERT INTO pay_idempotency (idempotency_key, request_hash, "
+                        "response_snapshot, expire_at) VALUES ($1, $2, NULL, $3) "
+                        "ON CONFLICT (idempotency_key) DO NOTHING "
+                        "RETURNING idempotency_key",
                         [this,
                          cbPtr,
                          idempotencyKey,
@@ -591,7 +595,20 @@ void CallbackService::handlePaymentCallback(
                          body,
                          signature,
                          serialNo,
-                         plainJson](const PayIdempotencyModel &) {
+                         plainJson](const drogon::orm::Result &insertResult) {
+                            if (insertResult.empty())
+                            {
+                                // 0 rows inserted: a concurrent callback already
+                                // reserved this key. Acknowledge idempotently.
+                                LOG_INFO << "[CallbackService] Duplicate callback ignored "
+                                            "(idempotent) for key: "
+                                         << idempotencyKey;
+                                Json::Value ok;
+                                ok["code"] = "SUCCESS";
+                                ok["message"] = "OK";
+                                (*cbPtr)(ok, std::error_code());
+                                return;
+                            }
                             LOG_INFO
                               << "[CallbackService] Creating database transaction for order: "
                               << orderNo;
@@ -1731,33 +1748,20 @@ void CallbackService::handlePaymentCallback(
                               );
                         },
                         [cbPtr, idempotencyKey](const drogon::orm::DrogonDbException &e) {
-                            const std::string what = e.base().what();
-                            // Duplicate key = already processed by concurrent call
-                            if (
-                              what.find("duplicate key") != std::string::npos ||
-                              what.find("23505") != std::string::npos
-                            )
-                            {
-                                LOG_INFO
-                                  << "[CallbackService] Duplicate callback ignored (idempotent) "
-                                     "for key: "
-                                  << idempotencyKey;
-                                Json::Value ok;
-                                ok["code"] = "SUCCESS";
-                                ok["message"] = "OK";
-                                (*cbPtr)(ok, std::error_code());
-                                return;
-                            }
-
                             // Real DB failure: report FAIL so the channel retries instead
-                            // of acknowledging an unprocessed callback.
+                            // of acknowledging an unprocessed callback. Duplicates no
+                            // longer surface here (ON CONFLICT DO NOTHING resolves them
+                            // on the success path with an empty result).
                             LOG_ERROR << "[CallbackService] Idempotency insert failed for key: "
-                                      << idempotencyKey << ", error: " << what;
+                                      << idempotencyKey << ", error: " << e.base().what();
                             Json::Value error;
                             error["code"] = "FAIL";
-                            error["message"] = std::string("db error: ") + what;
+                            error["message"] = std::string("db error: ") + e.base().what();
                             (*cbPtr)(error, pay::makePayError(1400, "idempotency insert failed"));
-                        }
+                        },
+                        idempotencyKey,
+                        requestHash,
+                        expiresAt
                       );
                   }
                   catch (const std::exception &e)
@@ -2167,23 +2171,24 @@ void CallbackService::handleRefundCallback(
                       return;
                   }
                   const std::string requestHash = drogon::utils::getMd5(body);
-                  PayIdempotencyModel idemp;
-                  idemp.setIdempotencyKey(idempotencyKey);
-                  idemp.setRequestHash(requestHash);
                   // Reserve with response_snapshot = NULL (P2-4.2). Finalized after
                   // the business transaction commits below.
-                  idemp.setResponseSnapshotToNull();
                   const auto now = trantor::Date::now();
                   const auto expiresAt = trantor::Date(
                     now.microSecondsSinceEpoch() + static_cast<int64_t>(7) * 24 * 60 * 60 * 1000000
                   );
-                  idemp.setExpireAt(expiresAt);
 
+                  // Raw SQL exemption (db-operations): see the payment-callback path
+                  // above -- ON CONFLICT DO NOTHING RETURNING is the only
+                  // deterministic duplicate-key check (the PG backend throws a
+                  // generic, locale-dependent Failure), and Mapper cannot express it.
                   try
                   {
-                      drogon::orm::Mapper<PayIdempotencyModel> idempInsert(dbClient_);
-                      idempInsert.insert(
-                        idemp,
+                      dbClient_->execSqlAsync(
+                        "INSERT INTO pay_idempotency (idempotency_key, request_hash, "
+                        "response_snapshot, expire_at) VALUES ($1, $2, NULL, $3) "
+                        "ON CONFLICT (idempotency_key) DO NOTHING "
+                        "RETURNING idempotency_key",
                         [this,
                          cbPtr,
                          refundNo,
@@ -2194,7 +2199,20 @@ void CallbackService::handleRefundCallback(
                          plaintext,
                          body,
                          plainJson,
-                         idempotencyKey](const PayIdempotencyModel &) {
+                         idempotencyKey](const drogon::orm::Result &insertResult) {
+                            if (insertResult.empty())
+                            {
+                                // 0 rows inserted: a concurrent refund callback already
+                                // reserved this key. Acknowledge idempotently.
+                                LOG_INFO << "[CallbackService] Duplicate refund callback "
+                                            "ignored (idempotent) for key: "
+                                         << idempotencyKey;
+                                Json::Value ok;
+                                ok["code"] = "SUCCESS";
+                                ok["message"] = "OK";
+                                (*cbPtr)(ok, std::error_code());
+                                return;
+                            }
                             const std::string refundStatus =
                               pay::utils::mapRefundStatus(refundStatusRaw);
                             if (refundStatus.empty())
@@ -2871,12 +2889,22 @@ void CallbackService::handleRefundCallback(
                                 reportMapperFailure(cbPtr, "unknown exception");
                             }
                         },
-                        [cbPtr](const drogon::orm::DrogonDbException &e) {
+                        [cbPtr, idempotencyKey](const drogon::orm::DrogonDbException &e) {
+                            // Real DB failure: report FAIL so the channel retries instead
+                            // of acknowledging an unprocessed callback. Duplicates no
+                            // longer surface here (ON CONFLICT DO NOTHING resolves them
+                            // on the success path with an empty result).
+                            LOG_ERROR
+                              << "[CallbackService] Refund idempotency insert failed for key: "
+                              << idempotencyKey << ", error: " << e.base().what();
                             Json::Value error;
                             error["code"] = "FAIL";
                             error["message"] = std::string("db error: ") + e.base().what();
-                            (*cbPtr)(error, pay::makePayError(1400, "db transaction unavailable"));
-                        }
+                            (*cbPtr)(error, pay::makePayError(1400, "idempotency insert failed"));
+                        },
+                        idempotencyKey,
+                        requestHash,
+                        expiresAt
                       );
                   }
                   catch (const std::exception &e)
