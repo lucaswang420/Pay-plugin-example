@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git ls-files '*.cc' '*.h' '*.cpp' '*.hpp' | ForEach-Object { if ($_ -notmatch '[/\\\\]models[/\\\\]') { clang-format -i $_ } }"
+            "command": "git ls-files '*.cc' '*.h' '*.cpp' '*.hpp' | grep -Ev '(^|/)models/' | xargs -r clang-format -i"
           }
         ]
       }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd PayBackend && build/Release/test_payplugin.exe"
+            "command": "cd PayBackend && build/windows-msvc/test/Release/PayBackendTests.exe"
           }
         ]
       },
