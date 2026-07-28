@@ -1514,15 +1514,14 @@ void PaymentService::syncOrderStatusFromWechat(
                                                 callback](
                                                  const std::shared_ptr<Transaction> &transPtr
                                                ) mutable {
-                    auto rollbackDone =
-                      [callback, orderStatus, transPtr](const DrogonDbException &e) {
-                          LOG_ERROR << "Reconcile transaction error: " << e.base().what();
-                          transPtr->rollback();
-                          if (callback)
-                          {
-                              callback(orderStatus);
-                          }
-                      };
+                    auto rollbackDone = [callback, transPtr](const DrogonDbException &e) {
+                        LOG_ERROR << "Reconcile transaction error: " << e.base().what();
+                        transPtr->rollback();
+                        if (callback)
+                        {
+                            callback("");
+                        }
+                    };
 
                     auto transDb = std::static_pointer_cast<DbClient>(transPtr);
 
@@ -1551,7 +1550,8 @@ void PaymentService::syncOrderStatusFromWechat(
                                           Mapper<PayOrderModel> orderUpdater(transPtr);
                                           orderUpdater.update(
                                             order,
-                                            [userId,
+                                            [callback,
+                                             userId,
                                              orderNo,
                                              paymentNo,
                                              orderAmount,
@@ -1569,16 +1569,18 @@ void PaymentService::syncOrderStatusFromWechat(
                                                       orderAmount
                                                     );
                                                 }
+                                                if (callback)
+                                                {
+                                                    callback(orderStatus);
+                                                }
                                             },
-                                            [callback,
-                                             orderStatus,
-                                             transPtr](const DrogonDbException &e) {
+                                            [callback, transPtr](const DrogonDbException &e) {
                                                 LOG_ERROR << "Reconcile order update error: "
                                                           << e.base().what();
                                                 transPtr->rollback();
                                                 if (callback)
                                                 {
-                                                    callback(orderStatus);
+                                                    callback("");
                                                 }
                                             }
                                           );
@@ -1589,7 +1591,7 @@ void PaymentService::syncOrderStatusFromWechat(
                                           transPtr->rollback();
                                           if (callback)
                                           {
-                                              callback(orderStatus);
+                                              callback("");
                                           }
                                       }
                                       catch (...)
@@ -1599,25 +1601,26 @@ void PaymentService::syncOrderStatusFromWechat(
                                           transPtr->rollback();
                                           if (callback)
                                           {
-                                              callback(orderStatus);
+                                              callback("");
                                           }
                                       }
+                                      // The callback fires from the update lambdas above;
+                                      // reporting success here would race the async update
+                                      // and mask its failure.
+                                      return;
                                   }
-                                  else
-                                  {
-                                      // Order already PAID, no update needed
-                                  }
+                                  // Order already PAID, no update needed
                                   if (callback)
                                   {
                                       callback(orderStatus);
                                   }
                               },
-                              [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                              [callback, transPtr](const DrogonDbException &e) {
                                   LOG_ERROR << "Reconcile order select error: " << e.base().what();
                                   transPtr->rollback();
                                   if (callback)
                                   {
-                                      callback(orderStatus);
+                                      callback("");
                                   }
                               }
                             );
@@ -1628,7 +1631,7 @@ void PaymentService::syncOrderStatusFromWechat(
                             transPtr->rollback();
                             if (callback)
                             {
-                                callback(orderStatus);
+                                callback("");
                             }
                         }
                         catch (...)
@@ -1637,7 +1640,7 @@ void PaymentService::syncOrderStatusFromWechat(
                             transPtr->rollback();
                             if (callback)
                             {
-                                callback(orderStatus);
+                                callback("");
                             }
                         }
                         return;
@@ -1739,15 +1742,13 @@ void PaymentService::syncOrderStatusFromWechat(
                                                   callback(orderStatus);
                                               }
                                           },
-                                          [callback,
-                                           orderStatus,
-                                           transPtr](const DrogonDbException &e) {
+                                          [callback, transPtr](const DrogonDbException &e) {
                                               LOG_ERROR << "Reconcile order update error: "
                                                         << e.base().what();
                                               transPtr->rollback();
                                               if (callback)
                                               {
-                                                  callback(orderStatus);
+                                                  callback("");
                                               }
                                           }
                                         );
@@ -1758,7 +1759,7 @@ void PaymentService::syncOrderStatusFromWechat(
                                         transPtr->rollback();
                                         if (callback)
                                         {
-                                            callback(orderStatus);
+                                            callback("");
                                         }
                                     }
                                     catch (...)
@@ -1768,17 +1769,17 @@ void PaymentService::syncOrderStatusFromWechat(
                                         transPtr->rollback();
                                         if (callback)
                                         {
-                                            callback(orderStatus);
+                                            callback("");
                                         }
                                     }
                                 },
-                                [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                                [callback, transPtr](const DrogonDbException &e) {
                                     LOG_ERROR << "Reconcile order select error: "
                                               << e.base().what();
                                     transPtr->rollback();
                                     if (callback)
                                     {
-                                        callback(orderStatus);
+                                        callback("");
                                     }
                                 }
                               );
@@ -1789,7 +1790,7 @@ void PaymentService::syncOrderStatusFromWechat(
                               transPtr->rollback();
                               if (callback)
                               {
-                                  callback(orderStatus);
+                                  callback("");
                               }
                           }
                           catch (...)
@@ -1798,7 +1799,7 @@ void PaymentService::syncOrderStatusFromWechat(
                               transPtr->rollback();
                               if (callback)
                               {
-                                  callback(orderStatus);
+                                  callback("");
                               }
                           }
                       },
@@ -1954,15 +1955,14 @@ void PaymentService::syncOrderStatusFromAlipay(
                                                 callback](
                                                  const std::shared_ptr<Transaction> &transPtr
                                                ) mutable {
-                    auto rollbackDone =
-                      [callback, orderStatus, transPtr](const DrogonDbException &e) {
-                          LOG_ERROR << "Alipay reconcile transaction error: " << e.base().what();
-                          transPtr->rollback();
-                          if (callback)
-                          {
-                              callback(orderStatus);
-                          }
-                      };
+                    auto rollbackDone = [callback, transPtr](const DrogonDbException &e) {
+                        LOG_ERROR << "Alipay reconcile transaction error: " << e.base().what();
+                        transPtr->rollback();
+                        if (callback)
+                        {
+                            callback("");
+                        }
+                    };
 
                     auto transDb = std::static_pointer_cast<DbClient>(transPtr);
 
@@ -1991,7 +1991,8 @@ void PaymentService::syncOrderStatusFromAlipay(
                                           Mapper<PayOrderModel> orderUpdater(transPtr);
                                           orderUpdater.update(
                                             order,
-                                            [userId,
+                                            [callback,
+                                             userId,
                                              orderNo,
                                              paymentNo,
                                              orderAmount,
@@ -2009,16 +2010,18 @@ void PaymentService::syncOrderStatusFromAlipay(
                                                       orderAmount
                                                     );
                                                 }
+                                                if (callback)
+                                                {
+                                                    callback(orderStatus);
+                                                }
                                             },
-                                            [callback,
-                                             orderStatus,
-                                             transPtr](const DrogonDbException &e) {
+                                            [callback, transPtr](const DrogonDbException &e) {
                                                 LOG_ERROR << "Alipay reconcile order update error: "
                                                           << e.base().what();
                                                 transPtr->rollback();
                                                 if (callback)
                                                 {
-                                                    callback(orderStatus);
+                                                    callback("");
                                                 }
                                             }
                                           );
@@ -2030,7 +2033,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                                           transPtr->rollback();
                                           if (callback)
                                           {
-                                              callback(orderStatus);
+                                              callback("");
                                           }
                                       }
                                       catch (...)
@@ -2040,26 +2043,27 @@ void PaymentService::syncOrderStatusFromAlipay(
                                           transPtr->rollback();
                                           if (callback)
                                           {
-                                              callback(orderStatus);
+                                              callback("");
                                           }
                                       }
+                                      // The callback fires from the update lambdas above;
+                                      // reporting success here would race the async update
+                                      // and mask its failure.
+                                      return;
                                   }
-                                  else
-                                  {
-                                      // Order already PAID, no update needed
-                                  }
+                                  // Order already PAID, no update needed
                                   if (callback)
                                   {
                                       callback(orderStatus);
                                   }
                               },
-                              [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                              [callback, transPtr](const DrogonDbException &e) {
                                   LOG_ERROR << "Alipay reconcile order select error: "
                                             << e.base().what();
                                   transPtr->rollback();
                                   if (callback)
                                   {
-                                      callback(orderStatus);
+                                      callback("");
                                   }
                               }
                             );
@@ -2070,7 +2074,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                             transPtr->rollback();
                             if (callback)
                             {
-                                callback(orderStatus);
+                                callback("");
                             }
                         }
                         catch (...)
@@ -2079,7 +2083,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                             transPtr->rollback();
                             if (callback)
                             {
-                                callback(orderStatus);
+                                callback("");
                             }
                         }
                         return;
@@ -2181,15 +2185,13 @@ void PaymentService::syncOrderStatusFromAlipay(
                                                   callback(orderStatus);
                                               }
                                           },
-                                          [callback,
-                                           orderStatus,
-                                           transPtr](const DrogonDbException &e) {
+                                          [callback, transPtr](const DrogonDbException &e) {
                                               LOG_ERROR << "Alipay reconcile order update error: "
                                                         << e.base().what();
                                               transPtr->rollback();
                                               if (callback)
                                               {
-                                                  callback(orderStatus);
+                                                  callback("");
                                               }
                                           }
                                         );
@@ -2201,7 +2203,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                                         transPtr->rollback();
                                         if (callback)
                                         {
-                                            callback(orderStatus);
+                                            callback("");
                                         }
                                     }
                                     catch (...)
@@ -2211,17 +2213,17 @@ void PaymentService::syncOrderStatusFromAlipay(
                                         transPtr->rollback();
                                         if (callback)
                                         {
-                                            callback(orderStatus);
+                                            callback("");
                                         }
                                     }
                                 },
-                                [callback, orderStatus, transPtr](const DrogonDbException &e) {
+                                [callback, transPtr](const DrogonDbException &e) {
                                     LOG_ERROR << "Alipay reconcile order select error: "
                                               << e.base().what();
                                     transPtr->rollback();
                                     if (callback)
                                     {
-                                        callback(orderStatus);
+                                        callback("");
                                     }
                                 }
                               );
@@ -2232,7 +2234,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                               transPtr->rollback();
                               if (callback)
                               {
-                                  callback(orderStatus);
+                                  callback("");
                               }
                           }
                           catch (...)
@@ -2241,7 +2243,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                               transPtr->rollback();
                               if (callback)
                               {
-                                  callback(orderStatus);
+                                  callback("");
                               }
                           }
                       },

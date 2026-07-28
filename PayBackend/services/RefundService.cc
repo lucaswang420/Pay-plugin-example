@@ -5,6 +5,7 @@
 #include "../models/PayLedger.h"
 #include "../models/PayIdempotency.h"
 #include "../utils/PayUtils.h"
+#include "../utils/OnceCallback.h"
 #include <drogon/drogon.h>
 #include <random>
 #include <sstream>
@@ -1839,9 +1840,17 @@ void RefundService::queryRefund(const std::string &refundNo, RefundCallback &&ca
 void RefundService::syncRefundStatusFromWechat(
   const std::string &refundNo,
   const Json::Value &result,
-  std::function<void(const std::string &status)> &&callback
+  std::function<void(const std::string &status)> &&rawCallback
 )
 {
+    // Once-only wrapper: the payload update, ledger lookup and their error
+    // branches run on the same transaction and could otherwise each invoke
+    // the callback.
+    auto onceCb = pay::utils::makeOnceCallback<void(const std::string &)>(std::move(rawCallback));
+    std::function<void(const std::string &)> callback = [onceCb](const std::string &status) {
+        onceCb.call(status);
+    };
+
     const std::string wechatStatus = result.get("status", "").asString();
     if (wechatStatus.empty())
     {
@@ -1908,15 +1917,14 @@ void RefundService::syncRefundStatusFromWechat(
                                               refundAmount](
                                                const std::shared_ptr<Transaction> &transPtr
                                              ) mutable {
-                  auto rollbackDone =
-                    [callback, refundStatus, transPtr](const DrogonDbException &e) {
-                        LOG_ERROR << "Reconcile refund update error: " << e.base().what();
-                        transPtr->rollback();
-                        if (callback)
-                        {
-                            callback(refundStatus);
-                        }
-                    };
+                  auto rollbackDone = [callback, transPtr](const DrogonDbException &e) {
+                      LOG_ERROR << "Reconcile refund update error: " << e.base().what();
+                      transPtr->rollback();
+                      if (callback)
+                      {
+                          callback("");
+                      }
+                  };
 
                   auto transDb = std::static_pointer_cast<DbClient>(transPtr);
 
@@ -1943,14 +1951,22 @@ void RefundService::syncRefundStatusFromWechat(
                                 Mapper<PayRefundModel> payloadUpdater(transPtr);
                                 payloadUpdater.updateBy(
                                   {PayRefundModel::Cols::_response_payload},
-                                  [refundStatus, transPtr](const size_t) {},
-                                  [callback, refundStatus, transPtr](const DrogonDbException &e) {
+                                  [callback, refundStatus, transPtr](const size_t) {
+                                      // Last write on the non-ledger path: report
+                                      // the synced status. The REFUND_SUCCESS path
+                                      // reports from the ledger lookup below.
+                                      if (refundStatus != "REFUND_SUCCESS" && callback)
+                                      {
+                                          callback(refundStatus);
+                                      }
+                                  },
+                                  [callback, transPtr](const DrogonDbException &e) {
                                       LOG_ERROR << "Reconcile refund payload update error: "
                                                 << e.base().what();
                                       transPtr->rollback();
                                       if (callback)
                                       {
-                                          callback(refundStatus);
+                                          callback("");
                                       }
                                   },
                                   Criteria(
@@ -1966,7 +1982,7 @@ void RefundService::syncRefundStatusFromWechat(
                                 transPtr->rollback();
                                 if (callback)
                                 {
-                                    callback(refundStatus);
+                                    callback("");
                                 }
                                 return;
                             }
@@ -1977,7 +1993,7 @@ void RefundService::syncRefundStatusFromWechat(
                                 transPtr->rollback();
                                 if (callback)
                                 {
-                                    callback(refundStatus);
+                                    callback("");
                                 }
                                 return;
                             }
@@ -1991,9 +2007,12 @@ void RefundService::syncRefundStatusFromWechat(
                                     );
                                     orderMapper.findOne(
                                       orderCriteria,
-                                      [orderNo, paymentNo, refundAmount, transDb](
-                                        const PayOrderModel &order
-                                      ) {
+                                      [callback,
+                                       refundStatus,
+                                       orderNo,
+                                       paymentNo,
+                                       refundAmount,
+                                       transDb](const PayOrderModel &order) {
                                           insertLedgerEntry(
                                             transDb,
                                             order.getValueOfUserId(),
@@ -2002,16 +2021,18 @@ void RefundService::syncRefundStatusFromWechat(
                                             "REFUND",
                                             refundAmount
                                           );
+                                          if (callback)
+                                          {
+                                              callback(refundStatus);
+                                          }
                                       },
-                                      [callback,
-                                       refundStatus,
-                                       transPtr](const DrogonDbException &e) {
+                                      [callback, transPtr](const DrogonDbException &e) {
                                           LOG_ERROR << "Refund ledger order lookup error: "
                                                     << e.base().what();
                                           transPtr->rollback();
                                           if (callback)
                                           {
-                                              callback(refundStatus);
+                                              callback("");
                                           }
                                       }
                                     );
@@ -2023,7 +2044,7 @@ void RefundService::syncRefundStatusFromWechat(
                                     transPtr->rollback();
                                     if (callback)
                                     {
-                                        callback(refundStatus);
+                                        callback("");
                                     }
                                 }
                                 catch (...)
@@ -2033,7 +2054,7 @@ void RefundService::syncRefundStatusFromWechat(
                                     transPtr->rollback();
                                     if (callback)
                                     {
-                                        callback(refundStatus);
+                                        callback("");
                                     }
                                 }
                             }
@@ -2047,7 +2068,7 @@ void RefundService::syncRefundStatusFromWechat(
                       transPtr->rollback();
                       if (callback)
                       {
-                          callback(refundStatus);
+                          callback("");
                       }
                   }
                   catch (...)
@@ -2056,7 +2077,7 @@ void RefundService::syncRefundStatusFromWechat(
                       transPtr->rollback();
                       if (callback)
                       {
-                          callback(refundStatus);
+                          callback("");
                       }
                   }
               });
