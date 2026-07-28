@@ -95,7 +95,7 @@ void reportMapperFailure(
     LOG_ERROR << "[CallbackService] Mapper construction failed: " << what;
     Json::Value error;
     error["code"] = "FAIL";
-    error["message"] = std::string("db error: ") + what;
+    error["message"] = "internal error";
     (*cbPtr)(error, pay::makePayError(1400, "db mapper unavailable"));
 }
 
@@ -466,7 +466,7 @@ void CallbackService::handlePaymentCallback(
                                 << e.base().what();
                       Json::Value error;
                       error["code"] = "FAIL";
-                      error["message"] = std::string("db error: ") + e.base().what();
+                      error["message"] = "internal error";
                       (*cbPtr)(error, pay::makePayError(1400, "db transaction unavailable"));
                   };
 
@@ -552,7 +552,7 @@ void CallbackService::handlePaymentCallback(
                                 << e.base().what();
                       Json::Value error;
                       error["code"] = "FAIL";
-                      error["message"] = std::string("db error: ") + e.base().what();
+                      error["message"] = "internal error";
                       (*cbPtr)(error, pay::makePayError(1400, "idempotency lookup failed"));
                       return;
                   }
@@ -629,10 +629,12 @@ void CallbackService::handlePaymentCallback(
                                 ) mutable {
                                     auto respondDbError =
                                       [cbPtr](const drogon::orm::DrogonDbException &e) {
+                                          LOG_ERROR << "[CallbackService] DB error in callback "
+                                                       "transaction: "
+                                                    << e.base().what();
                                           Json::Value error;
                                           error["code"] = "FAIL";
-                                          error["message"] =
-                                            std::string("db error: ") + e.base().what();
+                                          error["message"] = "internal error";
                                           (*cbPtr)(
                                             error,
                                             pay::makePayError(1400, "db transaction unavailable")
@@ -1124,18 +1126,7 @@ void CallbackService::handlePaymentCallback(
                                                                                 orderUpdater
                                                                                   .update(
                                                                                     order,
-                                                                                    [cbPtr,
-                                                                                     orderStatus,
-                                                                                     paymentNo,
-                                                                                     transDb,
-                                                                                     orderNo,
-                                                                                     order,
-                                                                                     transPtr,
-                                                                                     idempotencyKey,
-                                                                                     plaintext,
-                                                                                     this](
-                                                                                      const size_t
-                                                                                    ) {
+                                                                                    [cbPtr, orderStatus, paymentNo, transDb, orderNo, order, transPtr, idempotencyKey, plaintext, this](const size_t) {
                                                                                         LOG_INFO
                                                                                           << "[Call"
                                                                                              "backS"
@@ -1238,7 +1229,13 @@ void CallbackService::handlePaymentCallback(
                                                                                                                           error_code()
                                                                                                                       );
                                                                                                                   },
-                                                                                                                  [cbPtr, orderNo, transPtr](const drogon::orm::DrogonDbException &e) {
+                                                                                                                  [cbPtr,
+                                                                                                                   orderNo,
+                                                                                                                   transPtr](
+                                                                                                                    const drogon::
+                                                                                                                      orm::DrogonDbException
+                                                                                                                        &e
+                                                                                                                  ) {
                                                                                                                       LOG_ERROR
                                                                                                                         << "[CallbackServic"
                                                                                                                            "e] Failed to "
@@ -1254,11 +1251,7 @@ void CallbackService::handlePaymentCallback(
                                                                                                                           "FAIL";
                                                                                                                       err
                                                                                                                         ["message"] =
-                                                                                                                          std::string(
-                                                                                                                            "db error: "
-                                                                                                                          ) +
-                                                                                                                          e.base()
-                                                                                                                            .what();
+                                                                                                                          "internal error";
                                                                                                                       (*cbPtr)(
                                                                                                                         err,
                                                                                                                         pay::makePayError(
@@ -1291,11 +1284,7 @@ void CallbackService::handlePaymentCallback(
                                                                                                                   "FAIL";
                                                                                                               err
                                                                                                                 ["message"] =
-                                                                                                                  std::string(
-                                                                                                                    "db error: "
-                                                                                                                  ) +
-                                                                                                                  e.base()
-                                                                                                                    .what();
+                                                                                                                  "internal error";
                                                                                                               (*cbPtr)(
                                                                                                                 err,
                                                                                                                 pay::makePayError(
@@ -1756,7 +1745,7 @@ void CallbackService::handlePaymentCallback(
                                       << idempotencyKey << ", error: " << e.base().what();
                             Json::Value error;
                             error["code"] = "FAIL";
-                            error["message"] = std::string("db error: ") + e.base().what();
+                            error["message"] = "internal error";
                             (*cbPtr)(error, pay::makePayError(1400, "idempotency insert failed"));
                         },
                         idempotencyKey,
@@ -2072,7 +2061,7 @@ void CallbackService::handleRefundCallback(
                         << e.base().what();
                       Json::Value error;
                       error["code"] = "FAIL";
-                      error["message"] = std::string("db error: ") + e.base().what();
+                      error["message"] = "internal error";
                       (*cbPtr)(error, pay::makePayError(1400, "db transaction unavailable"));
                   };
 
@@ -2166,7 +2155,7 @@ void CallbackService::handleRefundCallback(
                                 << e.base().what();
                       Json::Value error;
                       error["code"] = "FAIL";
-                      error["message"] = std::string("db error: ") + e.base().what();
+                      error["message"] = "internal error";
                       (*cbPtr)(error, pay::makePayError(1400, "idempotency lookup failed"));
                       return;
                   }
@@ -2365,12 +2354,14 @@ void CallbackService::handleRefundCallback(
                                                       [cbPtr, transPtr](
                                                         const drogon::orm::DrogonDbException &e
                                                       ) {
+                                                          LOG_ERROR
+                                                            << "[CallbackService] DB error in "
+                                                               "refund callback transaction: "
+                                                            << e.base().what();
                                                           transPtr->rollback();
                                                           Json::Value error;
                                                           error["code"] = "FAIL";
-                                                          error["message"] =
-                                                            std::string("db error: ") +
-                                                            e.base().what();
+                                                          error["message"] = "internal error";
                                                           (*cbPtr)(
                                                             error,
                                                             pay::makePayError(
@@ -2509,12 +2500,16 @@ void CallbackService::handleRefundCallback(
                                                                   const drogon::orm::
                                                                     DrogonDbException &e
                                                                 ) {
+                                                                    LOG_ERROR
+                                                                      << "[CallbackService] "
+                                                                         "Failed to update "
+                                                                         "refund payload: "
+                                                                      << e.base().what();
                                                                     transPtr->rollback();
                                                                     Json::Value error;
                                                                     error["code"] = "FAIL";
                                                                     error["message"] =
-                                                                      std::string("db error: ") +
-                                                                      e.base().what();
+                                                                      "internal error";
                                                                     (*cbPtr)(
                                                                       error,
                                                                       pay::makePayError(
@@ -2735,10 +2730,8 @@ void CallbackService::handleRefundCallback(
                                                                                   err["code"] =
                                                                                     "FAIL";
                                                                                   err["message"] =
-                                                                                    std::string(
-                                                                                      "db error: "
-                                                                                    ) +
-                                                                                    e.base().what();
+                                                                                    "internal "
+                                                                                    "error";
                                                                                   (*cbPtr)(
                                                                                     err,
                                                                                     pay::
@@ -2785,14 +2778,17 @@ void CallbackService::handleRefundCallback(
                                                                       const drogon::orm::
                                                                         DrogonDbException &e
                                                                     ) {
+                                                                        LOG_ERROR
+                                                                          << "[CallbackService] "
+                                                                             "Failed to insert "
+                                                                             "refund callback "
+                                                                             "record: "
+                                                                          << e.base().what();
                                                                         transPtr->rollback();
                                                                         Json::Value error;
                                                                         error["code"] = "FAIL";
                                                                         error["message"] =
-                                                                          std::string(
-                                                                            "db error: "
-                                                                          ) +
-                                                                          e.base().what();
+                                                                          "internal error";
                                                                         (*cbPtr)(
                                                                           error,
                                                                           pay::makePayError(
@@ -2848,11 +2844,12 @@ void CallbackService::handleRefundCallback(
                                                 });
                                             },
                                             [cbPtr](const drogon::orm::DrogonDbException &e) {
+                                                LOG_ERROR << "[CallbackService] Order lookup "
+                                                             "failed during refund callback: "
+                                                          << e.base().what();
                                                 Json::Value error;
                                                 error["code"] = "FAIL";
-                                                error["message"] =
-                                                  std::string("order not found: ") +
-                                                  e.base().what();
+                                                error["message"] = "order not found";
                                                 (*cbPtr)(
                                                   error,
                                                   std::error_code(1404, std::system_category())
@@ -2870,10 +2867,12 @@ void CallbackService::handleRefundCallback(
                                       }
                                   },
                                   [cbPtr](const drogon::orm::DrogonDbException &e) {
+                                      LOG_ERROR << "[CallbackService] Refund lookup failed "
+                                                   "during refund callback: "
+                                                << e.base().what();
                                       Json::Value error;
                                       error["code"] = "FAIL";
-                                      error["message"] =
-                                        std::string("refund not found: ") + e.base().what();
+                                      error["message"] = "refund not found";
                                       (*cbPtr)(
                                         error, std::error_code(1404, std::system_category())
                                       );
@@ -2899,7 +2898,7 @@ void CallbackService::handleRefundCallback(
                               << idempotencyKey << ", error: " << e.base().what();
                             Json::Value error;
                             error["code"] = "FAIL";
-                            error["message"] = std::string("db error: ") + e.base().what();
+                            error["message"] = "internal error";
                             (*cbPtr)(error, pay::makePayError(1400, "idempotency insert failed"));
                         },
                         idempotencyKey,
