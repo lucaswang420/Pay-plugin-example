@@ -8,12 +8,12 @@ on:
 
 env:
   BUILD_TYPE: Release
-  DROGON_VERSION: "v1.9.13"
 
 jobs:
   build-and-test:
     runs-on: windows-2022
-    timeout-minutes: 60
+    # Cold Conan cache builds drogon/openssl from source, which can take a while
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -24,65 +24,27 @@ jobs:
           conan profile detect --force
 
       # --- Conan dependency cache ---
-      # Disabled Conan cache to avoid cache-related conflicts
-      # - name: Cache Conan packages
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~/.conan/data
-      #     key: ${{ runner.os }}-conan-${{ hashFiles('**/conanfile.txt') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-conan-
+      # Drogon 1.9.13, OpenSSL 3.5.7 and friends come from Conan now; cache the
+      # package store so they are only built from source when the lockfile changes.
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: ${{ runner.os }}-conan2-${{ hashFiles('PayBackend/conanfile.py', 'PayBackend/conan.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-conan2-
 
-      - name: Configure CMake using Conan
+      - name: Install dependencies (Conan)
         working-directory: ${{github.workspace}}/PayBackend
-        run: |
-          # Remove old build directory to avoid cache conflicts
-          Remove-Item -Path build -Recurse -Force -ErrorAction SilentlyContinue
-          conan install . --output-folder=build --build=openssl --build=missing -s build_type=${{env.BUILD_TYPE}} -s compiler.cppstd=17
+        run: conan install . --output-folder=build/windows-msvc -s build_type=${{env.BUILD_TYPE}} -s compiler.cppstd=17 --build=missing
 
-      # --- Drogon build cache ---
-      # Disabled Drogon cache to avoid cache key conflicts and force fresh builds
-      # - name: Cache Drogon build
-      #   id: cache-drogon
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ${{github.workspace}}/drogon
-      #     key: drogon-${{ runner.os }}-${{ env.DROGON_VERSION }}-v6-full-components-${{ env.BUILD_TYPE }}
-
-      - name: Build Drogon
-        # if: steps.cache-drogon.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth 1 --branch ${{ env.DROGON_VERSION }} https://github.com/drogonframework/drogon
-          cd drogon
-          git submodule update --init --recursive
-          mkdir build && cd build
-          cmake .. `
-            -G "Visual Studio 17 2022" `
-            -A x64 `
-            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-            -DCMAKE_CXX_STANDARD=17 `
-            -DCMAKE_INSTALL_PREFIX="C:\Drogon" `
-            -DCMAKE_TOOLCHAIN_FILE="${{github.workspace}}/PayBackend/build/conan_toolchain.cmake" `
-            -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
-            -DBUILD_CTL=ON `
-            -DBUILD_ORM=ON `
-            -DBUILD_EXAMPLES=OFF `
-            -DBUILD_POSTGRESQL=ON `
-            -DBUILD_MYSQL=OFF `
-            -DBUILD_SQLITE=ON `
-            -DBUILD_REDIS=ON `
-            -DBUILD_BROTLI=ON `
-            -DBUILD_YAML_CONFIG=ON
-          cmake --build . --config ${{ env.BUILD_TYPE }} --target install --parallel $env:NUMBER_OF_PROCESSORS
-
-      - name: Configure Project CMake
+      - name: Configure (cmake --preset)
         working-directory: ${{github.workspace}}/PayBackend
-        run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_STANDARD=17 -DCMAKE_TOOLCHAIN_FILE="${{github.workspace}}/PayBackend/build/conan_toolchain.cmake" -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_PREFIX_PATH="C:\Drogon" -DDrogon_DIR="C:\Drogon\lib\cmake\Drogon" -DBUILD_TESTS=ON
+        run: cmake --preset windows-msvc
 
-      - name: Build
+      - name: Build (cmake --build --preset)
         working-directory: ${{github.workspace}}/PayBackend
-        run: cmake --build build --config ${{env.BUILD_TYPE}}
+        run: cmake --build --preset windows-msvc
 
       - name: Upload test logs on failure
         if: failure()
@@ -90,6 +52,6 @@ jobs:
         with:
           name: windows-test-logs
           path: |
-            ${{github.workspace}}/PayBackend/build/Testing/
+            ${{github.workspace}}/PayBackend/build/windows-msvc/Testing/
             ${{github.workspace}}/PayBackend/logs/
           retention-days: 7
