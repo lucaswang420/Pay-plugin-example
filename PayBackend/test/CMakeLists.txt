@@ -16,6 +16,7 @@ set(TEST_SRC
     HealthProbeTest.cc
     IdempotencyIntegrationTest.cc
     OnceCallbackTest.cc
+    QueryOrderListAndReconcileTest.cc  # P1: queryOrderList + reconcileSummary params
     test_main.cc
     PayAuthFilterTest.cc
     PayAuthMetricsTest.cc
