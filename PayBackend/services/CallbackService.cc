@@ -23,6 +23,8 @@ using PayLedgerModel = drogon_model::pay_test::PayLedger;
 namespace
 {
 
+// TODO(dedup): duplicated in PaymentService.cc and RefundService.cc.
+// Extract to PayUtils.h/cc in a future refactoring iteration.
 void insertLedgerEntry(
   const std::shared_ptr<drogon::orm::DbClient> &dbClient,
   int64_t userId,
@@ -108,6 +110,11 @@ CallbackService::CallbackService(
 )
     : wechatClient_(wechatClient), dbClient_(dbClient), redisClient_(redisClient)
 {
+    // Ensure required dependencies are provided at construction time
+    // (C2-3 fix: previously missing null checks). redisClient_ is
+    // optional per CallbackService.h documentation.
+    assert(wechatClient_ != nullptr && "CallbackService: wechatClient must not be null");
+    assert(dbClient_ != nullptr && "CallbackService: dbClient must not be null");
 }
 
 bool CallbackService::isTimestampFresh(const std::string &timestamp, std::string &errorMsg)

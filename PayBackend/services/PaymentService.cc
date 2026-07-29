@@ -47,7 +47,9 @@ std::string generatePaymentNoValue()
     return oss.str();
 }
 
-// Helper functions adapted from PayPlugin.cc
+// TODO(dedup): insertLedgerEntry is duplicated across PaymentService.cc,
+// RefundService.cc, and CallbackService.cc. Extract to PayUtils.h/cc in a
+// future refactoring iteration.
 void insertLedgerEntry(
   const std::shared_ptr<DbClient> &dbClient,
   int64_t userId,
@@ -528,34 +530,91 @@ void PaymentService::proceedCreatePayment(
 
         const std::string requestPayload = pay::utils::toJsonString(payload);
 
-        // Insert order into database
-        orderMapper.insert(
-          order,
-          [this, request, paymentNo, payload, requestPayload, sharedCb](const PayOrderModel &) {
-              LOG_INFO << "[PaymentService] Order created: order_no=" << request.orderNo
-                       << ", user_id=" << request.userId << ", amount=" << request.amount
-                       << ", creating payment_no=" << paymentNo;
-              // Create payment record
+        // Wrap PayOrder INSERT + PayPayment INSERT in a single transaction.
+        // Channel API call happens AFTER COMMIT (outside the transaction),
+        // matching the RefundService pattern. (A1-1 fix)
+        dbClient_->newTransactionAsync(
+          [this, request, paymentNo, payload, requestPayload, sharedCb, order](
+            const std::shared_ptr<Transaction> &transPtr
+          ) mutable {
+              if (!transPtr)
+              {
+                  if (*sharedCb)
+                  {
+                      Json::Value err;
+                      err["code"] = 1003;
+                      err["message"] = "Transaction unavailable";
+                      (*sharedCb)(err, pay::makePayError(1003, "Transaction unavailable"));
+                  }
+                  return;
+              }
+
+              auto failDb = [sharedCb, transPtr](const DrogonDbException &e) {
+                  transPtr->rollback();
+                  if (*sharedCb)
+                  {
+                      Json::Value err;
+                      err["code"] = 1003;
+                      err["message"] = "Database error: " + std::string(e.base().what());
+                      (*sharedCb)(err, pay::makePayError(1003, "Database error"));
+                  }
+              };
+
+              // 1. INSERT PayOrder inside the transaction.
               try
               {
-                  Mapper<PayPaymentModel> paymentMapper(dbClient_);
-                  PayPaymentModel payment;
-                  payment.setOrderNo(request.orderNo);
-                  payment.setPaymentNo(paymentNo);
-                  payment.setStatus("INIT");
-                  payment.setAmount(request.amount);
-                  payment.setRequestPayload(requestPayload);
-                  payment.setCreatedAt(trantor::Date::now());
-                  paymentMapper.insert(
-                    payment,
-                    [this, request, paymentNo, payload, sharedCb](const PayPaymentModel &) {
-                        LOG_INFO << "[PaymentService] Payment record created: payment_no="
-                                 << paymentNo << ", order_no=" << request.orderNo
-                                 << ", channel=" << request.channel;
-                        // Helper lambda to handle payment client response
-                        auto paymentCallback = [this, request, paymentNo, sharedCb](
-                                                 const Json::Value &result, const std::string &error
-                                               ) {
+                  Mapper<PayOrderModel> txnOrderMapper(transPtr);
+                  txnOrderMapper.insert(
+                    order,
+                    [this,
+                     request,
+                     paymentNo,
+                     payload,
+                     requestPayload,
+                     sharedCb,
+                     transPtr,
+                     failDb](const PayOrderModel &) {
+                        LOG_INFO << "[PaymentService] Order created (in txn): order_no="
+                                 << request.orderNo << ", payment_no=" << paymentNo;
+
+                        // 2. INSERT PayPayment inside the same transaction.
+                        try
+                        {
+                            Mapper<PayPaymentModel> txnPaymentMapper(transPtr);
+                            PayPaymentModel payment;
+                            payment.setOrderNo(request.orderNo);
+                            payment.setPaymentNo(paymentNo);
+                            payment.setStatus("INIT");
+                            payment.setAmount(request.amount);
+                            payment.setRequestPayload(requestPayload);
+                            payment.setCreatedAt(trantor::Date::now());
+                            txnPaymentMapper.insert(
+                              payment,
+                              [this, request, paymentNo, payload, sharedCb, transPtr](
+                                const PayPaymentModel &
+                              ) {
+                                  LOG_INFO << "[PaymentService] Payment record created (in txn): "
+                                              "payment_no="
+                                           << paymentNo << ", order_no=" << request.orderNo
+                                           << ", channel=" << request.channel;
+
+                                  // 3. COMMIT before any channel API call.
+                                  transPtr->execSqlAsync(
+                                    "COMMIT",
+                                    [this,
+                                     request,
+                                     paymentNo,
+                                     payload,
+                                     sharedCb](const Result &) {
+                                        LOG_INFO
+                                          << "[PaymentService] Transaction committed: payment_no="
+                                          << paymentNo;
+
+                                        // 4. Channel API call (OUTSIDE transaction).
+                                        auto paymentCallback = [this, request, paymentNo, sharedCb](
+                                                                 const Json::Value &result,
+                                                                 const std::string &error
+                                                               ) {
                             if (!error.empty())
                             {
                                 // Handle payment error
@@ -993,48 +1052,61 @@ void PaymentService::proceedCreatePayment(
                               << "[PaymentService] Calling WeChat Pay createTransactionNative API";
                             wechatClient_->createTransactionNative(payload, paymentCallback);
                         }
-                    },
-                    [sharedCb](const DrogonDbException &e) {
-                        LOG_ERROR << "Failed to insert payment record: " << e.base().what();
-                        if (*sharedCb)
-                        {
-                            Json::Value response;
-                            response["code"] = 1003;
-                            response["message"] = "Database error: " + std::string(e.base().what());
-                            (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                                    },
+                                    [sharedCb](const DrogonDbException &e) {
+                                        LOG_ERROR << "Failed to commit transaction: "
+                                                  << e.base().what();
+                                        if (*sharedCb)
+                                        {
+                                            Json::Value err;
+                                            err["code"] = 1003;
+                                            err["message"] =
+                                              "Failed to commit transaction: " +
+                                              std::string(e.base().what());
+                                            (*sharedCb)(
+                                              err,
+                                              pay::makePayError(
+                                                1003,
+                                                "Failed to commit transaction: " +
+                                                  std::string(e.base().what())
+                                              )
+                                            );
+                                        }
+                                    }
+                                  );
+                              },
+                              failDb
+                            );
                         }
-                    }
+                        catch (const std::exception &e)
+                        {
+                            transPtr->rollback();
+                            LOG_ERROR << "[PaymentService] Payment Mapper construction failed: "
+                                      << e.what();
+                            reportMapperFailure(sharedCb, e.what());
+                        }
+                        catch (...)
+                        {
+                            transPtr->rollback();
+                            LOG_ERROR << "[PaymentService] Payment Mapper construction failed: "
+                                         "unknown exception";
+                            reportMapperFailure(sharedCb, "unknown exception");
+                        }
+                    },
+                    failDb
                   );
               }
               catch (const std::exception &e)
               {
-                  LOG_ERROR << "[PaymentService] Mapper construction failed: " << e.what();
-                  if (*sharedCb)
-                  {
-                      (*sharedCb)(
-                        dbErrorResponse(e.what()), std::make_error_code(std::errc::io_error)
-                      );
-                  }
+                  transPtr->rollback();
+                  LOG_ERROR << "[PaymentService] Order Mapper construction failed: " << e.what();
+                  reportMapperFailure(sharedCb, e.what());
               }
               catch (...)
               {
-                  LOG_ERROR << "[PaymentService] Mapper construction failed: unknown exception";
-                  if (*sharedCb)
-                  {
-                      (*sharedCb)(
-                        dbErrorResponse("unknown exception"),
-                        std::make_error_code(std::errc::io_error)
-                      );
-                  }
-              }
-          },
-          [sharedCb](const DrogonDbException &e) {
-              if (*sharedCb)
-              {
-                  Json::Value response;
-                  response["code"] = 1003;
-                  response["message"] = "Database error: " + std::string(e.base().what());
-                  (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+                  transPtr->rollback();
+                  LOG_ERROR << "[PaymentService] Order Mapper construction failed: unknown exception";
+                  reportMapperFailure(sharedCb, "unknown exception");
               }
           }
         );
@@ -1063,8 +1135,11 @@ void PaymentService::proceedCreatePayment(
 
 void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback &&callback)
 {
-    // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
-    auto sharedCb = std::make_shared<PaymentCallback>(std::move(callback));
+    auto finalCb =
+      pay::utils::makeOnceCallback<void(const Json::Value &, const std::error_code &)>(
+        std::move(callback)
+      );
+    auto sharedCb = std::make_shared<decltype(finalCb)>(finalCb);
 
     // Extract parameters
     std::string orderNo = request.get("order_no", "").asString();
@@ -1077,128 +1152,234 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
         Json::Value response;
         response["code"] = 400;
         response["message"] = "Missing required parameters: order_no, amount";
-        (*sharedCb)(response, std::make_error_code(std::errc::invalid_argument));
+        sharedCb->call(response, std::make_error_code(std::errc::invalid_argument));
         return;
     }
 
-    // Build QR payment payload for Alipay
-    Json::Value payload;
-    payload["out_trade_no"] = orderNo;
-    payload["total_amount"] = amount;
-    payload["subject"] = subject;
+    // Idempotency: derive key from order_no + channel (same order can be re-requested).
+    // (A1-4 fix: add idempotency protection to QR payment)
+    std::string idempotencyKey =
+      request.get("idempotency_key", "QR_" + orderNo + "_" + channel).asString();
 
-    if (request.isMember("buyer_id"))
-    {
-        payload["buyer_id"] = request["buyer_id"].asString();
-    }
+    Json::Value reqHashObj;
+    reqHashObj["order_no"] = orderNo;
+    reqHashObj["amount"] = amount;
+    reqHashObj["channel"] = channel;
+    reqHashObj["subject"] = subject;
+    std::string requestHash = drogon::utils::getSha256(pay::utils::toJsonString(reqHashObj));
 
-    LOG_INFO << "[PaymentService] Creating QR payment: channel=" << channel
-             << ", order_no=" << orderNo << ", amount=" << amount;
+    auto idempotencyService = idempotencyService_;
 
-    // Call Alipay precreate API
-    alipayClient_->precreateTrade(
-      payload,
-      [this, orderNo, amount, channel, subject, request, sharedCb](
-        const Json::Value &result, const std::string &error
-      ) {
-          if (!error.empty())
+    idempotencyService->checkAndSetStatus(
+      idempotencyKey,
+      requestHash,
+      [&request]() {
+          Json::Value r;
+          r["order_no"] = request.get("order_no", "").asString();
+          r["amount"] = request.get("amount", "").asString();
+          r["channel"] = request.get("channel", "alipay").asString();
+          return r;
+      }(),
+      [this,
+       orderNo,
+       amount,
+       channel,
+       subject,
+       request,
+       sharedCb,
+       idempotencyService,
+       idempotencyKey,
+       requestHash](const IdempotencyService::CheckResult &checkResult) mutable {
+          if (checkResult.status == IdempotencyService::CheckStatus::Conflict)
           {
-              Json::Value response;
-              response["code"] = 500;
-              response["message"] = "QR payment creation failed: " + error;
-              (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+              Json::Value error;
+              error["code"] = 1004;
+              error["message"] = "Idempotency conflict: different parameters for same key";
+              sharedCb->call(error, pay::makePayError(1004, "idempotency key conflict"));
               return;
           }
 
-          // Check Alipay response code
-          std::string alipayCode = result.get("code", "").asString();
-          if (alipayCode != "10000")
+          if (checkResult.status == IdempotencyService::CheckStatus::InProgress)
           {
-              // Alipay business error
-              Json::Value response;
-              response["code"] = 500;
-              std::string subMsg = result.get("sub_msg", "").asString();
-              std::string msg = result.get("msg", "").asString();
-              std::string fullMessage = "Alipay error: " + msg;
-              if (!subMsg.empty())
-              {
-                  fullMessage += " - " + subMsg;
-              }
-              response["message"] = fullMessage;
-              response["alipay_code"] = alipayCode;
-              response["alipay_sub_code"] = result.get("sub_code", "").asString();
-              (*sharedCb)(response, std::make_error_code(std::errc::io_error));
+              Json::Value error;
+              error["code"] = 1004;
+              error["message"] = "Idempotency request is already in progress";
+              sharedCb->call(error, pay::makePayError(1004, "idempotency request in progress"));
               return;
           }
 
-          // Alipay precreate response contains qr_code
-          Json::Value data;
-          data["order_no"] = orderNo;
-
-          // Extract qr_code from Alipay response
-          if (result.isMember("qr_code"))
+          if (checkResult.status == IdempotencyService::CheckStatus::Error)
           {
-              data["qr_code"] = result["qr_code"].asString();
-          }
-          if (result.isMember("out_trade_no"))
-          {
-              data["out_trade_no"] = result["out_trade_no"].asString();
+              Json::Value error;
+              error["code"] = 1003;
+              error["message"] = "Idempotency check failed";
+              sharedCb->call(error, pay::makePayError(1003, "idempotency check failed"));
+              return;
           }
 
-          // Save order to database
-          LOG_INFO << "[PaymentService] Saving order to database: order_no=" << orderNo;
-          try
+          if (checkResult.status == IdempotencyService::CheckStatus::Replay)
           {
-              Mapper<PayOrderModel> orderMapper(dbClient_);
-              PayOrderModel newOrder;
-              newOrder.setOrderNo(orderNo);
-              newOrder.setAmount(amount);
-              newOrder.setCurrency("CNY");
-              newOrder.setStatus("PAYING");  // Initial status
-              newOrder.setChannel(channel);
-              newOrder.setTitle(subject);
-              newOrder.setUserId(request.get("user_id", "1").asInt64());
+              sharedCb->call(checkResult.cachedResult, std::error_code());
+              return;
+          }
 
-              orderMapper.insert(
-                newOrder,
-                [this, orderNo, amount, channel, subject, data, sharedCb](
-                  const PayOrderModel &order
-                ) {
-                    LOG_INFO << "[PaymentService] Order saved successfully: order_no=" << orderNo
-                             << ", db_id=" << order.getValueOfId();
+          // Proceed with QR payment creation
+          // Build QR payment payload for Alipay
+          Json::Value payload;
+          payload["out_trade_no"] = orderNo;
+          payload["total_amount"] = amount;
+          payload["subject"] = subject;
 
+          if (request.isMember("buyer_id"))
+          {
+              payload["buyer_id"] = request["buyer_id"].asString();
+          }
+
+          LOG_INFO << "[PaymentService] Creating QR payment: channel=" << channel
+                   << ", order_no=" << orderNo << ", amount=" << amount;
+
+          // Call Alipay precreate API
+          alipayClient_->precreateTrade(
+            payload,
+            [this,
+             orderNo,
+             amount,
+             channel,
+             subject,
+             request,
+             sharedCb,
+             idempotencyService,
+             idempotencyKey,
+             requestHash](const Json::Value &result, const std::string &error) {
+                if (!error.empty())
+                {
+                    idempotencyService->clearReservation(
+                      idempotencyKey, requestHash, [](bool) {}
+                    );
                     Json::Value response;
-                    response["code"] = 0;
-                    response["message"] = "QR code created successfully";
-                    response["data"] = data;
-                    (*sharedCb)(response, std::error_code());
-                },
-                [sharedCb](const DrogonDbException &e) {
-                    LOG_ERROR << "Failed to save order to database: " << e.base().what();
+                    response["code"] = 500;
+                    response["message"] = "QR payment creation failed: " + error;
+                    sharedCb->call(response, std::make_error_code(std::errc::io_error));
+                    return;
+                }
+
+                // Check Alipay response code
+                std::string alipayCode = result.get("code", "").asString();
+                if (alipayCode != "10000")
+                {
+                    idempotencyService->clearReservation(
+                      idempotencyKey, requestHash, [](bool) {}
+                    );
+                    // Alipay business error
+                    Json::Value response;
+                    response["code"] = 500;
+                    std::string subMsg = result.get("sub_msg", "").asString();
+                    std::string msg = result.get("msg", "").asString();
+                    std::string fullMessage = "Alipay error: " + msg;
+                    if (!subMsg.empty())
+                    {
+                        fullMessage += " - " + subMsg;
+                    }
+                    response["message"] = fullMessage;
+                    response["alipay_code"] = alipayCode;
+                    response["alipay_sub_code"] = result.get("sub_code", "").asString();
+                    sharedCb->call(response, std::make_error_code(std::errc::io_error));
+                    return;
+                }
+
+                // Alipay precreate response contains qr_code
+                Json::Value data;
+                data["order_no"] = orderNo;
+
+                // Extract qr_code from Alipay response
+                if (result.isMember("qr_code"))
+                {
+                    data["qr_code"] = result["qr_code"].asString();
+                }
+                if (result.isMember("out_trade_no"))
+                {
+                    data["out_trade_no"] = result["out_trade_no"].asString();
+                }
+
+                // Save order to database
+                LOG_INFO << "[PaymentService] Saving order to database: order_no=" << orderNo;
+                try
+                {
+                    Mapper<PayOrderModel> orderMapper(dbClient_);
+                    PayOrderModel newOrder;
+                    newOrder.setOrderNo(orderNo);
+                    newOrder.setAmount(amount);
+                    newOrder.setCurrency("CNY");
+                    newOrder.setStatus("PAYING");  // Initial status
+                    newOrder.setChannel(channel);
+                    newOrder.setTitle(subject);
+                    newOrder.setUserId(request.get("user_id", "1").asInt64());
+
+                    orderMapper.insert(
+                      newOrder,
+                      [this,
+                       orderNo,
+                       data,
+                       sharedCb,
+                       idempotencyService,
+                       idempotencyKey,
+                       requestHash](const PayOrderModel &order) {
+                          LOG_INFO << "[PaymentService] Order saved successfully: order_no="
+                                   << orderNo << ", db_id=" << order.getValueOfId();
+
+                          Json::Value response;
+                          response["code"] = 0;
+                          response["message"] = "QR code created successfully";
+                          response["data"] = data;
+
+                          // Store idempotency result for future replays
+                          idempotencyService->updateResult(
+                            idempotencyKey, requestHash, response, [](bool) {}
+                          );
+
+                          sharedCb->call(response, std::error_code());
+                      },
+                      [sharedCb, idempotencyService, idempotencyKey, requestHash](
+                        const DrogonDbException &e
+                      ) {
+                          idempotencyService->clearReservation(
+                            idempotencyKey, requestHash, [](bool) {}
+                          );
+                          LOG_ERROR << "Failed to save order to database: " << e.base().what();
+                          Json::Value errorResponse;
+                          errorResponse["code"] = 500;
+                          errorResponse["message"] =
+                            "Failed to save order: " + std::string(e.base().what());
+                          sharedCb->call(
+                            errorResponse, std::make_error_code(std::errc::io_error)
+                          );
+                      }
+                    );
+                }
+                catch (const std::exception &e)
+                {
+                    idempotencyService->clearReservation(
+                      idempotencyKey, requestHash, [](bool) {}
+                    );
+                    LOG_ERROR << "Failed to save order to database: " << e.what();
                     Json::Value errorResponse;
                     errorResponse["code"] = 500;
-                    errorResponse["message"] =
-                      "Failed to save order: " + std::string(e.base().what());
-                    (*sharedCb)(errorResponse, std::make_error_code(std::errc::io_error));
+                    errorResponse["message"] = "Failed to save order: " + std::string(e.what());
+                    sharedCb->call(errorResponse, std::make_error_code(std::errc::io_error));
                 }
-              );
-          }
-          catch (const std::exception &e)
-          {
-              LOG_ERROR << "Failed to save order to database: " << e.what();
-              Json::Value errorResponse;
-              errorResponse["code"] = 500;
-              errorResponse["message"] = "Failed to save order: " + std::string(e.what());
-              (*sharedCb)(errorResponse, std::make_error_code(std::errc::io_error));
-          }
-          catch (...)
-          {
-              LOG_ERROR << "Failed to save order to database: unknown exception";
-              Json::Value errorResponse;
-              errorResponse["code"] = 500;
-              errorResponse["message"] = "Failed to save order: unknown exception";
-              (*sharedCb)(errorResponse, std::make_error_code(std::errc::io_error));
-          }
+                catch (...)
+                {
+                    idempotencyService->clearReservation(
+                      idempotencyKey, requestHash, [](bool) {}
+                    );
+                    LOG_ERROR << "Failed to save order to database: unknown exception";
+                    Json::Value errorResponse;
+                    errorResponse["code"] = 500;
+                    errorResponse["message"] = "Failed to save order: unknown exception";
+                    sharedCb->call(errorResponse, std::make_error_code(std::errc::io_error));
+                }
+            }
+          );
       }
     );
 }
@@ -1264,9 +1445,11 @@ void PaymentService::queryOrder(const std::string &orderNo, PaymentCallback &&ca
                      sharedCb](const Json::Value &result, const std::string &error) {
                         if (!error.empty())
                         {
-                            // Return database data with error header
+                            // Return database data with error header.
+                            // code=1 signals "degraded data" — client should check
+                            // wechat_query_error. (A1-3 fix)
                             Json::Value innerResponse;
-                            innerResponse["code"] = 0;
+                            innerResponse["code"] = 1;
                             innerResponse["message"] = "Order found (with query error)";
                             innerResponse["data"] = data;
                             innerResponse["data"]["wechat_query_error"] = error;
@@ -1318,9 +1501,11 @@ void PaymentService::queryOrder(const std::string &orderNo, PaymentCallback &&ca
                         {
                             LOG_ERROR << "[PAYMENT_SERVICE] Alipay query error for " << orderNo
                                       << ": " << error;
-                            // Return database data with error header
+                            // Return database data with error header.
+                            // code=1 signals "degraded data" — client should check
+                            // alipay_query_error. (A1-3 fix)
                             Json::Value innerResponse;
-                            innerResponse["code"] = 0;
+                            innerResponse["code"] = 1;
                             innerResponse["message"] = "Order found (with query error)";
                             innerResponse["data"] = data;
                             innerResponse["data"]["alipay_query_error"] = error;
@@ -2535,14 +2720,23 @@ void PaymentService::queryOrderList(
     LOG_DEBUG << "[PAYMENT_SERVICE] queryOrderList called with status=" << status
               << ", userId=" << userId << ", limit=" << limit << ", offset=" << offset;
 
-    // Build base SQL query with parameter placeholders to prevent SQL injection
-    std::string sql =
+    // Build base SQL query with parameter placeholders to prevent SQL injection.
+    // Raw-SQL exemption #4: LEFT JOIN is not expressible via Drogon Mapper.
+    // All filter values are bound via SqlBinder ($1-$4), NOT string concatenation.
+    //
+    // Bound parameters (variable count):
+    //   $1: status filter     (only when !status.empty() && status != "all")
+    //   $2: user_id filter    (only when userId > 0)
+    //   $N: LIMIT value       (always present, capped at [1, 100])
+    //   $N: OFFSET value      (always present)
+    static const std::string kOrderListBaseSQL =
       "SELECT po.order_no, po.user_id, po.amount, po.currency, "
       "po.status, po.channel, po.title, po.created_at, po.updated_at, "
       "pp.payment_no, pp.channel_trade_no, pp.response_payload "
       "FROM pay_order po "
       "LEFT JOIN pay_payment pp ON po.order_no = pp.order_no "
       "WHERE 1=1";
+    std::string sql = kOrderListBaseSQL;
 
     // Build parameter list and count
     std::vector<std::string> params;

@@ -148,6 +148,58 @@
 | 金额验证 | 所有金额字段必须验证格式和范围 |
 | 状态机 | 支付和退款状态转换必须遵循状态机规则 |
 
+### [MUST] 订单状态机
+
+两种支付创建路径使用不同的初始状态，状态转换规则如下：
+
+#### /api/pay/create 路径
+
+```
+CREATED ──(channel API call)──> PAYING ──(callback SUCCESS)──> SUCCESS
+                                     │
+                                     └──(callback FAIL)──────> FAILED
+```
+
+| 状态 | 含义 | 转换触发 |
+|------|------|----------|
+| `CREATED` | 订单已创建，支付记录已写入，等待渠道调用 | `PayOrder` INSERT 时设置 |
+| `PAYING` | 渠道调用成功，等待用户支付 | 渠道 API return success 时更新 |
+| `SUCCESS` | 支付成功 | 回调 `TRANSACTION.SUCCESS` |
+| `FAILED` | 支付失败 | 渠道 API return error 或回调失败 |
+
+#### /api/qrpay/create 路径
+
+```
+PAYING ──(callback SUCCESS)──> SUCCESS
+   │
+   └──(callback FAIL)─────────> FAILED
+```
+
+| 状态 | 含义 | 转换触发 |
+|------|------|----------|
+| `PAYING` | 二维码已生成，等待用户扫码支付 | `PayOrder` INSERT 时设置（注意：与 /api/pay/create 不同，无 `CREATED` 状态） |
+| `SUCCESS` | 支付成功 | 回调通知 |
+| `FAILED` | 支付失败/超时 | 回调失败或订单过期 |
+
+> **设计说明**: `/api/qrpay/create` 在订单创建前已完成渠道调用（生成 QR 码），因此订单创建时即进入 `PAYING` 状态。`/api/pay/create` 先创建订单再调用渠道，因此使用 `CREATED` 作为中间状态。两种路径的状态差异在 `queryOrder`、`queryOrderList` 和 `reconcileSummary` 等查询/对账接口中均已正确处理。
+
+#### 退款状态机
+
+```
+REFUND_INIT ──(channel call)──> REFUND_PROCESSING ──(callback)──> REFUND_SUCCESS
+      │                              │                                │
+      └──(DB error)──────────────────┴──(callback FAIL)──────────────> REFUND_FAILED
+```
+
+#### Payment 记录状态
+
+| 状态 | 含义 |
+|------|------|
+| `INIT` | 支付记录已写入事务，待渠道调用 |
+| `PROCESSING` | 渠道调用成功，等待支付结果 |
+| `SUCCESS` | 支付成功（回调确认） |
+| `FAIL` | 渠道调用失败 |
+
 ### [MUST] 敏感数据保护
 
 | 数据类型 | 保护要求 |

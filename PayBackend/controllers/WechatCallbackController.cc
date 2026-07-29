@@ -27,11 +27,49 @@ void WechatCallbackController::notify(
     std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
     std::string errors;
     const char *str = body.c_str();
+    bool parseOk =
+      reader->parse(str, str + body.length(), &bodyJson, &errors);
+
+    // Validate JSON and event_type before routing (C2-1 fix).
+    if (!parseOk)
+    {
+        LOG_WARN << "[WECHAT_CALLBACK] Invalid JSON body: " << errors;
+        Json::Value response;
+        response["code"] = 40002;
+        response["message"] = "Invalid JSON body";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(response);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    if (!bodyJson.isMember("event_type"))
+    {
+        LOG_WARN << "[WECHAT_CALLBACK] Missing event_type in callback body";
+        Json::Value response;
+        response["code"] = 40003;
+        response["message"] = "Missing event_type";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(response);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    eventType = bodyJson["event_type"].asString();
+
+    // Reject unknown event types that are neither TRANSACTION nor REFUND.
     if (
-      reader->parse(str, str + body.length(), &bodyJson, &errors) && bodyJson.isMember("event_type")
+      eventType != "TRANSACTION.SUCCESS" && eventType.find("REFUND") == std::string::npos
     )
     {
-        eventType = bodyJson["event_type"].asString();
+        LOG_WARN << "[WECHAT_CALLBACK] Unknown event_type: " << eventType;
+        Json::Value response;
+        response["code"] = 40004;
+        response["message"] = "Unknown event_type: " + eventType;
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(response);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
     }
 
     // Route to payment or refund callback handler

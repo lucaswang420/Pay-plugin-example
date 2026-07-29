@@ -2,6 +2,7 @@
 #include <drogon/drogon_test.h>
 #include <drogon/drogon.h>
 #include "../utils/ConfigLoader.h"
+#include "../utils/SecurityHeaders.h"
 #include <fstream>
 #include <json/json.h>
 
@@ -24,6 +25,11 @@ int main(int argc, char **argv)
             app().loadConfigJson(std::move(processedConfig));
         }
     }
+
+    // Register CORS + security headers (same as production main.cc)
+    // P2-6.8/6.9: Without this, HttpResponseHeadersTest tests would fail
+    // because the test binary wouldn't apply security headers to responses.
+    pay::security::setupCorsAndSecurityHeaders();
 
     std::promise<void> p1;
     std::future<void> f1 = p1.get_future();

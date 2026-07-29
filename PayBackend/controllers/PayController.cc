@@ -3,6 +3,7 @@
 #include "../services/RefundService.h"
 #include <drogon/orm/DbClient.h>
 #include <json/json.h>
+#include <regex>
 #include <stdexcept>
 
 namespace
@@ -26,6 +27,16 @@ drogon::HttpStatusCode mapErrorToHttpStatus(int errorCode)
             return drogon::k500InternalServerError;
     }
 }
+
+// Validate amount string format: positive decimal with up to 2 fractional digits.
+// Accepts: "100", "0.5", "99.99". Rejects: "-100", "12.345", "abc", "1e5".
+// (A1-6/B1-2 fix: controller-level input validation)
+static bool validateAmount(const std::string &amount)
+{
+    static const std::regex pattern(R"(^\d+(\.\d{1,2})?$)");
+    return !amount.empty() && std::regex_match(amount, pattern);
+}
+
 }
 
 void PayController::createPayment(
@@ -65,10 +76,23 @@ void PayController::createPayment(
         return;
     }
 
+    // Validate amount format (A1-6/B1-2 fix)
+    const std::string amountStr = (*json)["amount"].asString();
+    if (!validateAmount(amountStr))
+    {
+        Json::Value error;
+        error["code"] = 40001;
+        error["message"] = "Invalid amount format. Expected positive number with up to 2 decimal places (e.g. 100.00)";
+        auto resp = HttpResponse::newHttpJsonResponse(error);
+        resp->setStatusCode(k400BadRequest);
+        callback(resp);
+        return;
+    }
+
     // Build request
     CreatePaymentRequest request;
     request.orderNo = (*json)["order_no"].asString();
-    request.amount = (*json)["amount"].asString();
+    request.amount = amountStr;
     request.currency = json->get("currency", "CNY").asString();
     request.description = json->get("description", "").asString();
     request.notifyUrl = json->get("notify_url", "").asString();
@@ -318,10 +342,23 @@ void PayController::refund(
         return;
     }
 
+    // Validate amount format (A1-6/B1-2 fix)
+    const std::string refundAmountStr = (*json)["amount"].asString();
+    if (!validateAmount(refundAmountStr))
+    {
+        Json::Value error;
+        error["code"] = 40001;
+        error["message"] = "Invalid amount format. Expected positive number with up to 2 decimal places (e.g. 100.00)";
+        auto resp = HttpResponse::newHttpJsonResponse(error);
+        resp->setStatusCode(k400BadRequest);
+        callback(resp);
+        return;
+    }
+
     // Build request
     CreateRefundRequest request;
     request.orderNo = (*json)["order_no"].asString();
-    request.amount = (*json)["amount"].asString();
+    request.amount = refundAmountStr;
     request.reason = json->get("reason", "").asString();
     request.notifyUrl = json->get("notify_url", "").asString();
     request.fundsAccount = json->get("funds_account", "").asString();

@@ -133,6 +133,9 @@ DROGON_TEST(PayAuthFilter_InvalidKey)
 DROGON_TEST(PayAuthFilter_ValidKey)
 {
     // test_key_123456 has order_query scope in api_key_scopes config
+    // NOTE: reset env after previous tests polluted it to "secret"
+    setEnvVar("PAY_API_KEY", "test_key_123456");
+    setEnvVar("PAY_API_KEYS", "test_key_123456,performance-test-key,admin-test-key");
     std::string configuredKey = "test_key_123456";
 
     PayAuthFilter filter;
