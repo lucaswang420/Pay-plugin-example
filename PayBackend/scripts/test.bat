@@ -2,14 +2,13 @@
 setlocal enabledelayedexpansion
 REM Test script for Pay Plugin Backend using CTest
 
+REM Capture the script directory before any shift: shift moves %0 as well,
+REM so %~dp0 becomes unreliable after the argument parsing loop below.
+set SCRIPT_DIR=%~dp0
+
 echo ========================================
 echo Pay Plugin Backend Test Runner (CTest)
 echo ========================================
-
-REM Change to build directory
-cd /d "%~dp0..\build"
-echo Build directory: %CD%
-echo.
 
 REM Parse command line arguments
 set LIST_TESTS=0
@@ -63,6 +62,20 @@ echo   -o          Output log file
 endlocal
 exit /b 1
 :end_parse
+
+REM Change to the preset build directory (created by build.bat)
+set PRESET=windows-msvc
+if /i "%BUILD_TYPE%"=="Debug" set PRESET=windows-msvc-debug
+
+if not exist "%SCRIPT_DIR%..\build\%PRESET%" (
+    echo Error: build\%PRESET% directory not found
+    echo Please build the project first using build.bat
+    endlocal
+    exit /b 1
+)
+cd /d "%SCRIPT_DIR%..\build\%PRESET%"
+echo Build directory: %CD%
+echo.
 
 REM Check if CTest configuration exists
 if not exist "CTestTestfile.cmake" (

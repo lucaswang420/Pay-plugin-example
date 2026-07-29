@@ -7,7 +7,8 @@
 
 # Configuration
 $BaseUrl = if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:5566" }
-$ApiKey = if ($env:API_KEY) { $env:API_KEY } else { "test-api-key" }
+# Default matches PAY_API_KEY in PayBackend/.env; override via $env:API_KEY
+$ApiKey = if ($env:API_KEY) { $env:API_KEY } else { "test_key_123456" }
 $TestResults = @()
 
 # =============================================================================
@@ -73,7 +74,8 @@ function Test-CreatePayment {
 
     $orderNo = Get-RandomId
     $body = @{
-        user_id = "10001"
+        order_no = $orderNo
+        user_id = 10001
         amount = "9.99"
         currency = "CNY"
         title = "E2E Test Order"
@@ -82,10 +84,11 @@ function Test-CreatePayment {
     try {
         $headers = @{
             "Idempotency-Key" = "${orderNo}_idempotency"
+            "X-Api-Key" = $ApiKey
             "Content-Type" = "application/json"
         }
 
-        $response = Invoke-RestMethod -Uri "$BaseUrl/pay/create" `
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/pay/create" `
             -Method Post `
             -Headers $headers `
             -Body $body `
@@ -124,7 +127,7 @@ function Test-QueryOrder {
             "X-Api-Key" = $ApiKey
         }
 
-        $response = Invoke-RestMethod -Uri "$BaseUrl/pay/query?order_no=$TestOrderNo" `
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/pay/query?order_no=$TestOrderNo" `
             -Method Get `
             -Headers $headers `
             -ErrorAction Stop
@@ -168,7 +171,7 @@ function Test-CreateRefund {
             "Content-Type" = "application/json"
         }
 
-        $response = Invoke-RestMethod -Uri "$BaseUrl/pay/refund" `
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/pay/refund" `
             -Method Post `
             -Headers $headers `
             -Body $body `
@@ -202,7 +205,7 @@ function Test-QueryRefund {
             "X-Api-Key" = $ApiKey
         }
 
-        $response = Invoke-RestMethod -Uri "$BaseUrl/pay/refund/query?refund_no=$TestRefundNo" `
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/pay/refund/query?refund_no=$TestRefundNo" `
             -Method Get `
             -Headers $headers `
             -ErrorAction Stop
@@ -232,7 +235,7 @@ function Test-AuthMetrics {
             "X-Api-Key" = $ApiKey
         }
 
-        $response = Invoke-RestMethod -Uri "$BaseUrl/pay/metrics/auth" `
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/pay/metrics/auth" `
             -Method Get `
             -Headers $headers `
             -ErrorAction Stop

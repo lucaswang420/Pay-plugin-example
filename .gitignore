@@ -94,11 +94,10 @@ openssl.cnf
 # PayBackend/docs/archive/
 
 # Claude Code Settings
-.claude/settings.json
 .claude/settings.local.json
 
 # vs Code Settings
-.vscode/settings.json
+.vscode/settings.local.json
 
 # Sensitive Data
 cookies.txt

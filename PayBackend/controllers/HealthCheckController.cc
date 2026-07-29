@@ -60,6 +60,7 @@ void HealthCheckController::readyz(
         std::vector<std::string> failed;
         int pending = 0;
     };
+
     auto state = std::make_shared<ReadyState>();
 
     state->pending = 2;  // DB + Redis
@@ -69,6 +70,7 @@ void HealthCheckController::readyz(
     // DB check
     if (dbClient)
     {
+        // Connectivity probe (raw-SQL exemption): touches no table.
         dbClient->execSqlAsync(
           "SELECT 1",
           [state](const drogon::orm::Result &) {

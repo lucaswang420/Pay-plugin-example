@@ -560,8 +560,8 @@ FodyWeavers.xsd
 
 build/
 
-# Conan generated files
-CMakePresets.json
+# Conan generated files (root CMakePresets.json is hand-written and tracked;
+# conan-generated preset files live under build/ which is already ignored)
 conan_toolchain.cmake
 conanbuild.bat
 conanbuildenv*.bat

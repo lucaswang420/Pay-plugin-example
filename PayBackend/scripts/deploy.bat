@@ -63,20 +63,9 @@ REM Build application
 :build_app
 call :log_info Building application for %DEPLOY_ENV% environment...
 
-cd /d "%PROJECT_ROOT%"
-
-if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
-cd /d "%BUILD_DIR%"
-
-call :log_info Configuring CMake...
-cmake .. -DCMAKE_BUILD_TYPE=Release
-if errorlevel 1 (
-    call :log_error CMake configuration failed
-    exit /b 1
-)
-
-call :log_info Compiling...
-cmake --build . --config Release -j
+REM Reuse the Conan + CMake preset flow from build.bat (bare cmake would
+REM miss the conan_toolchain.cmake that provides Drogon and friends)
+call "%SCRIPT_DIR%build.bat" -release
 if errorlevel 1 (
     call :log_error Build failed
     exit /b 1
@@ -201,7 +190,7 @@ if "%DEPLOY_ENV%"=="development" (
 call :log_info Deployment complete!
 
 call :log_info To start the server manually:
-call :log_info   cd %BUILD_DIR%\Release
+call :log_info   cd %BUILD_DIR%\windows-msvc\Release
 call :log_info   PayServer.exe
 
 goto :eof
