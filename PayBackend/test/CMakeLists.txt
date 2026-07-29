@@ -17,6 +17,7 @@ set(TEST_SRC
     HttpResponseHeadersTest.cc    # P2: CORS preflight + security headers
     IdempotencyIntegrationTest.cc
     OnceCallbackTest.cc
+    PayErrorCategoryTest.cc       # P3-7.2: PayErrorCategory singleton + concurrent
     QueryOrderListAndReconcileTest.cc  # P1: queryOrderList + reconcileSummary params
     test_main.cc
     PayAuthFilterTest.cc

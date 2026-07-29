@@ -60,6 +60,18 @@ DROGON_TEST(PayMetricsController_AuthMetricsProm)
     CHECK(body.find("pay_auth_scope_denied_total") != std::string::npos);
     CHECK(body.find("pay_auth_not_configured_total") != std::string::npos);
     CHECK(body.find(std::to_string(snapshot["missing_key"].asUInt64())) != std::string::npos);
+    // P3-7.4: verify Prometheus exposition format compliance
+    // Every metric must have HELP and TYPE lines
+    CHECK(body.find("# HELP pay_auth_missing_key_total") != std::string::npos);
+    CHECK(body.find("# TYPE pay_auth_missing_key_total counter") != std::string::npos);
+    CHECK(body.find("# HELP pay_auth_invalid_key_total") != std::string::npos);
+    CHECK(body.find("# TYPE pay_auth_invalid_key_total counter") != std::string::npos);
+    CHECK(body.find("# HELP pay_auth_scope_denied_total") != std::string::npos);
+    CHECK(body.find("# TYPE pay_auth_scope_denied_total counter") != std::string::npos);
+    CHECK(body.find("# HELP pay_auth_not_configured_total") != std::string::npos);
+    CHECK(body.find("# TYPE pay_auth_not_configured_total counter") != std::string::npos);
+    // Metric lines should follow format: metric_name{labels} value
+    CHECK(body.find("pay_auth_missing_key_total ") != std::string::npos);
 }
 
 DROGON_TEST(MetricsController_Options)
