@@ -14,6 +14,7 @@ set(TEST_SRC
     CreatePaymentIntegrationTest.cc  # [PASS] Updated to new API
     ControllerMetricsTest.cc
     HealthProbeTest.cc
+    HttpResponseHeadersTest.cc    # P2: CORS preflight + security headers
     IdempotencyIntegrationTest.cc
     OnceCallbackTest.cc
     QueryOrderListAndReconcileTest.cc  # P1: queryOrderList + reconcileSummary params
