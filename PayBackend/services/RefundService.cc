@@ -42,7 +42,8 @@ void reportMapperFailure(
     }
 }
 
-// Helper functions adapted from PayPlugin.cc
+// TODO(dedup): duplicated in PaymentService.cc and CallbackService.cc.
+// Extract to PayUtils.h/cc in a future refactoring iteration.
 void insertLedgerEntry(
   const std::shared_ptr<DbClient> &dbClient,
   int64_t userId,
@@ -266,7 +267,12 @@ void RefundService::createRefund(
                             sharedCb](const Json::Value &response, const std::error_code &error) {
         LOG_INFO << "[RefundService] wrappedCallback: key=" << idempotencyKey
                  << ", error=" << error.value() << ", has_data=" << response.isMember("data");
-        if (!idempotencyKey.empty() && !error && response.isMember("data"))
+        // Store idempotency snapshot whenever response contains data, regardless
+        // of error_code — previously error_code() was always zero (even on errors),
+        // so the old `!error` guard happened to pass. Now that error codes are
+        // properly set (1501/1502), the `!error` guard would incorrectly skip
+        // caching error responses that should be replay-safe. (B1-1 follow-up)
+        if (!idempotencyKey.empty() && response.isMember("data"))
         {
             LOG_INFO << "[RefundService] Saving idempotency snapshot for key=" << idempotencyKey;
             // Save successful response to idempotency cache
@@ -338,10 +344,16 @@ void RefundService::createRefund(
           // Proceed with refund creation. Wrap the callback so that if the
           // operation fails after the key was reserved, the in-flight
           // reservation is released (preventing key poisoning on retry).
+          // NOTE: Only clear reservation for "hard" errors (no data).
+          // "Soft" errors (e.g., WeChat code=1501/1502) still produce a
+          // usable response that should be cached as an idempotency snapshot.
+          // (B1-1 follow-up: error.code() now properly reflects the real
+          // error, so the old `error` check would incorrectly clear the
+          // reservation even for cacheable error responses.)
           auto proceedCb = [this, idempotencyKey, requestHash, wrappedSharedCb](
                              const Json::Value &response, const std::error_code &error
                            ) {
-              if (!idempotencyKey.empty() && error)
+              if (!idempotencyKey.empty() && error && !response.isMember("data"))
               {
                   idempotencyService_->clearReservation(
                     idempotencyKey, requestHash, [wrappedSharedCb, response, error](bool) {
@@ -703,7 +715,15 @@ void RefundService::proceedWithAmountCheck(
     // Wrap callback in shared_ptr to prevent it from being destroyed during async operations
     auto sharedCb = std::make_shared<RefundCallback>(std::move(callback));
 
-    // Check for already successful refund with same details
+    // Check for already successful refund with same details.
+    // NOTE: This check runs OUTSIDE the eventual transaction. There is a
+    // theoretical window between this read and the FOR-UPDATE transaction
+    // in proceedWithInsert where another concurrent request could insert
+    // a duplicate refund. The SUM check inside the transaction provides
+    // atomic safety — if a duplicate slips past this pre-check, the
+    // transaction will detect it via (refundedFen + refundFen > totalFen)
+    // and rollback. (Tracked as a future optimization: moving this check
+    // inside the transaction would save one network round-trip.)
     try
     {
         Mapper<PayRefundModel> refundMapper(dbClient_);
@@ -1339,15 +1359,15 @@ void RefundService::invokeRefundChannel(
             if (*sharedCb)
             {
                 Json::Value response;
-                response["code"] = 0;
-                response["message"] = "ok";
+                response["code"] = 1501;
+                response["message"] = "WeChat refund client not configured";
                 response["data"]["refund_no"] = refundNo;
                 response["data"]["order_no"] = orderNo;
                 response["data"]["payment_no"] = paymentNo;
                 response["data"]["amount"] = amount;
                 response["data"]["status"] = "REFUND_FAIL";
                 response["data"]["error"] = errMsg;
-                (*sharedCb)(response, std::error_code());
+                (*sharedCb)(response, std::error_code(1501, std::system_category()));
             }
             return;
         }
@@ -1385,8 +1405,8 @@ void RefundService::invokeRefundChannel(
                   if (*sharedCb)
                   {
                       Json::Value response;
-                      response["code"] = 0;
-                      response["message"] = "Refund created with error status";
+                      response["code"] = 1502;
+                      response["message"] = errorMessage;
                       response["data"]["refund_no"] = refundNo;
                       response["data"]["order_no"] = orderNo;
                       response["data"]["payment_no"] = paymentNo;
@@ -1394,7 +1414,7 @@ void RefundService::invokeRefundChannel(
                       response["data"]["status"] = "REFUND_FAIL";
                       response["data"]["error"] = errorMessage;
                       response["data"]["wechat_response"] = errJson;
-                      (*sharedCb)(response, std::error_code());
+                      (*sharedCb)(response, std::error_code(1502, std::system_category()));
                   }
                   return;
               }

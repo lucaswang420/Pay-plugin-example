@@ -1,5 +1,6 @@
 #include "AlipayCallbackController.h"
 #include "../services/PaymentService.h"
+#include <algorithm>
 #include <drogon/orm/DbClient.h>
 #include <json/json.h>
 #include <unordered_map>
@@ -30,7 +31,10 @@ void AlipayCallbackController::notify(
             std::string key = pair.substr(0, pos);
             std::string value = pair.substr(pos + 1);
 
-            // URL decode using Drogon's urlDecode function
+            // URL decode: first replace '+' with ' ' (x-www-form-urlencoded
+            // convention), then decode percent-encoded sequences.
+            // (C1-2 fix: '+' was previously not converted to space).
+            std::replace(value.begin(), value.end(), '+', ' ');
             std::string decoded = drogon::utils::urlDecode(value);
             params[key] = decoded;
         }

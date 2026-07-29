@@ -25,16 +25,21 @@ bool constantTimeEquals(const std::string &a, const std::string &b)
     return CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
 }
 
+// Strict constant-time key lookup: scans ALL keys without early return so an
+// attacker cannot infer the number of valid API keys via timing. The early
+// return on the first match leaked key-count information (practical exploit
+// value is negligible, but the fix is trivial — S-1).
 bool containsKeyConstantTime(const std::vector<std::string> &keys, const std::string &key)
 {
+    bool found = false;
     for (const auto &allowed : keys)
     {
         if (constantTimeEquals(allowed, key))
         {
-            return true;
+            found = true;
         }
     }
-    return false;
+    return found;
 }
 
 std::string trim(const std::string &value)
@@ -181,7 +186,11 @@ void PayAuthFilter::doFilter(
         auto resp = drogon::HttpResponse::newHttpResponse();
         resp->setStatusCode(drogon::k401Unauthorized);
         resp->setBody("invalid api key");
-        LOG_WARN << "PayAuthFilter: invalid api key";
+        LOG_WARN << "PayAuthFilter: invalid api key, request_key=" << key
+                 << ", allowed_count=" << allowedKeys.size()
+                 << ", env=" << (std::getenv("PAY_API_KEY") ? std::getenv("PAY_API_KEY") : "(null)");
+        for (size_t i = 0; i < allowedKeys.size() && i < 10; ++i)
+            LOG_WARN << "  allowedKeys[" << i << "]=" << allowedKeys[i];
         PayAuthMetrics::incInvalidKey();
         fcb(resp);
         return;

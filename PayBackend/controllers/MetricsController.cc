@@ -4,33 +4,8 @@
 
 namespace
 {
-std::string buildAuthMetricsProm()
-{
-    const auto snapshot = PayAuthMetrics::snapshot();
-
-    std::string body;
-    body += "# HELP pay_auth_missing_key_total Missing API key count\n";
-    body += "# TYPE pay_auth_missing_key_total counter\n";
-    body +=
-      "pay_auth_missing_key_total " + std::to_string(snapshot["missing_key"].asUInt64()) + "\n";
-
-    body += "# HELP pay_auth_invalid_key_total Invalid API key count\n";
-    body += "# TYPE pay_auth_invalid_key_total counter\n";
-    body +=
-      "pay_auth_invalid_key_total " + std::to_string(snapshot["invalid_key"].asUInt64()) + "\n";
-
-    body += "# HELP pay_auth_scope_denied_total Scope denied count\n";
-    body += "# TYPE pay_auth_scope_denied_total counter\n";
-    body +=
-      "pay_auth_scope_denied_total " + std::to_string(snapshot["scope_denied"].asUInt64()) + "\n";
-
-    body += "# HELP pay_auth_not_configured_total Not configured count\n";
-    body += "# TYPE pay_auth_not_configured_total counter\n";
-    body += "pay_auth_not_configured_total " +
-            std::to_string(snapshot["not_configured"].asUInt64()) + "\n";
-
-    return body;
-}
+// D2-1: Prometheus serialization delegated to PayAuthMetrics::toPrometheus()
+// to eliminate duplication with PayMetricsController.
 }  // namespace
 
 void MetricsController::metrics(
@@ -75,7 +50,7 @@ void MetricsController::metrics(
 
     client->sendRequest(
       request, [callbackPtr](drogon::ReqResult result, const drogon::HttpResponsePtr &resp) {
-          std::string body = buildAuthMetricsProm();
+          std::string body = PayAuthMetrics::toPrometheus();
           if (result == drogon::ReqResult::Ok && resp)
           {
               body = std::string(resp->body()) + "\n" + body;

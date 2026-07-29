@@ -30,28 +30,8 @@ void PayMetricsController::authMetricsProm(
         return;
     }
 
-    const auto snapshot = PayAuthMetrics::snapshot();
-
-    std::string body;
-    body += "# HELP pay_auth_missing_key_total Missing API key count\n";
-    body += "# TYPE pay_auth_missing_key_total counter\n";
-    body +=
-      "pay_auth_missing_key_total " + std::to_string(snapshot["missing_key"].asUInt64()) + "\n";
-
-    body += "# HELP pay_auth_invalid_key_total Invalid API key count\n";
-    body += "# TYPE pay_auth_invalid_key_total counter\n";
-    body +=
-      "pay_auth_invalid_key_total " + std::to_string(snapshot["invalid_key"].asUInt64()) + "\n";
-
-    body += "# HELP pay_auth_scope_denied_total Scope denied count\n";
-    body += "# TYPE pay_auth_scope_denied_total counter\n";
-    body +=
-      "pay_auth_scope_denied_total " + std::to_string(snapshot["scope_denied"].asUInt64()) + "\n";
-
-    body += "# HELP pay_auth_not_configured_total Not configured count\n";
-    body += "# TYPE pay_auth_not_configured_total counter\n";
-    body += "pay_auth_not_configured_total " +
-            std::to_string(snapshot["not_configured"].asUInt64()) + "\n";
+    // D2-1: use shared Prometheus serializer instead of duplicating format logic
+    std::string body = PayAuthMetrics::toPrometheus();
 
     auto resp = HttpResponse::newHttpResponse();
     resp->setStatusCode(k200OK);

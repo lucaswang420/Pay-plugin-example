@@ -849,7 +849,11 @@ DROGON_TEST(PayPlugin_Refund_WechatPayloadExtras)
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
 
-    CHECK(!error);
+    // A1-5/B1-1: WeChat refund client error now returns error_code(1502)
+    // instead of error_code(), so CHECK(error) not CHECK(!error).
+    CHECK(error);
+    CHECK(error.value() == 1502);
+    CHECK(result["code"].asInt() == 1502);
     CHECK(result.isMember("data"));
     CHECK(result["data"]["payment_no"].asString() == paymentNo);
     CHECK(result["data"]["amount"].asString() == amount);
@@ -987,8 +991,10 @@ DROGON_TEST(PayPlugin_Refund_WechatErrorPersistsPayload)
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
 
-    // Should succeed with REFUND_FAIL status due to WeChat error
-    CHECK(!error);
+    // A1-5/B1-1: WeChat error now returns error_code(1502)
+    CHECK(error);
+    CHECK(error.value() == 1502);
+    CHECK(result["code"].asInt() == 1502);
     CHECK(result.isMember("data"));
     CHECK(result["data"]["order_no"].asString() == orderNo);
     CHECK(result["data"]["payment_no"].asString() == paymentNo);
@@ -1149,8 +1155,10 @@ DROGON_TEST(PayPlugin_Refund_NoWechatClient_ConsistentWriteback)
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
 
-    // Should succeed with REFUND_FAIL status due to missing WeChat client
-    CHECK(!error);
+    // A1-5/B1-1: missing WeChat client now returns error_code(1501)
+    CHECK(error);
+    CHECK(error.value() == 1501);
+    CHECK(result["code"].asInt() == 1501);
     CHECK(result.isMember("data"));
     CHECK(result["data"]["order_no"].asString() == orderNo);
     CHECK(result["data"]["payment_no"].asString() == paymentNo);
@@ -1320,7 +1328,10 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnNoWechatClientError)
     const auto result1 = resultFuture1.get();
     const auto error1 = errorFuture1.get();
 
-    CHECK(!error1);
+    // B1-1: missing WeChat client now returns error_code(1501), snapshot still stored
+    CHECK(error1);
+    CHECK(error1.value() == 1501);
+    CHECK(result1["code"].asInt() == 1501);
     CHECK(result1.isMember("data"));
     CHECK(result1["data"]["status"].asString() == "REFUND_FAIL");
     CHECK(result1["data"]["error"].asString() == "wechat client not ready");
@@ -1515,7 +1526,11 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnWechatError)
     const auto result1 = resultFuture1.get();
     const auto error1 = errorFuture1.get();
 
-    CHECK(!error1);
+    // B1-1: WeChat error now returns error_code(1502), snapshot is still stored
+    // (RefundService.cc:270 `!error` guard removed in B1-1 follow-up)
+    CHECK(error1);
+    CHECK(error1.value() == 1502);
+    CHECK(result1["code"].asInt() == 1502);
     CHECK(result1.isMember("data"));
     CHECK(result1["data"]["status"].asString() == "REFUND_FAIL");
     CHECK(
@@ -1698,7 +1713,10 @@ DROGON_TEST(PayPlugin_Refund_DefaultPaymentNo)
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
 
-    CHECK(!error);
+    // A1-5/B1-1: WeChat error now returns error_code(1502)
+    CHECK(error);
+    CHECK(error.value() == 1502);
+    CHECK(result["code"].asInt() == 1502);
     CHECK(result.isMember("data"));
     CHECK(result["data"]["status"].asString() == "REFUND_FAIL");
     CHECK(result["data"]["error"].asString().find("wechat pay config") != std::string::npos);

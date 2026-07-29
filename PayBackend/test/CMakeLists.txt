@@ -9,6 +9,7 @@ find_package(Drogon CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 set(TEST_SRC
+    CallbackControllerTest.cc     # P0: controller-level callback validation (C1-2, C2-1)
     ConfigLoaderTest.cc
     CreatePaymentIntegrationTest.cc  # [PASS] Updated to new API
     ControllerMetricsTest.cc
@@ -41,6 +42,7 @@ add_executable(
     ../controllers/HealthCheckController.cc
     ../controllers/MetricsController.cc
     ../controllers/PayMetricsController.cc
+    ../controllers/WechatCallbackController.cc
     ../plugins/PayPlugin.cc
     ../plugins/WechatPayClient.cc
     ../plugins/AlipaySandboxClient.cc
