@@ -133,13 +133,13 @@ openssl pkcs8 -topk8 -inform PEM -in app_private_key.pem -outform PEM -nocrypt -
 创建证书目录并保存密钥：
 
 ```bash
-mkdir -p PayBackend/certs/alipay
+mkdir -p examples/pay-server/certs/alipay
 
 # 应用私钥（用于签名）
-cp app_private_key_pkcs8.pem PayBackend/certs/alipay/app_private_key.pem
+cp app_private_key_pkcs8.pem examples/pay-server/certs/alipay/app_private_key.pem
 
 # 应用公钥（稍后上传到沙箱环境）
-cp app_public_key.pem PayBackend/certs/alipay/app_public_key.pem
+cp app_public_key.pem examples/pay-server/certs/alipay/app_public_key.pem
 ```
 
 ---
@@ -148,7 +148,7 @@ cp app_public_key.pem PayBackend/certs/alipay/app_public_key.pem
 
 ### 5.1 复制应用公钥
 
-打开 `PayBackend/certs/alipay/app_public_key.pem`，复制全部内容（包括 -----BEGIN PUBLIC KEY----- 和 -----END PUBLIC KEY-----）
+打开 `examples/pay-server/certs/alipay/app_public_key.pem`，复制全部内容（包括 -----BEGIN PUBLIC KEY----- 和 -----END PUBLIC KEY-----）
 
 ### 5.2 上传到沙箱
 
@@ -163,7 +163,7 @@ cp app_public_key.pem PayBackend/certs/alipay/app_public_key.pem
 将支付宝公钥保存为文件：
 
 ```bash
-cat > PayBackend/certs/alipay/alipay_public_key.pem << 'EOF'
+cat > examples/pay-server/certs/alipay/alipay_public_key.pem << 'EOF'
 -----BEGIN PUBLIC KEY-----
 你复制的支付宝公钥内容
 -----END PUBLIC KEY-----

@@ -1,0 +1,24 @@
+# Local hooks mirroring the CI gates (same tools, same scope).
+# Install: pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.6
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
+        # Generated ORM models are exempt (same as CI / .clang-format-ignore).
+        exclude: ^libs/drogon-pay/src/models/
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: architecture-guard
+        name: drogon-pay architecture guard
+        entry: python scripts/check_architecture.py
+        language: system
+        pass_filenames: false
+        files: ^libs/drogon-pay/

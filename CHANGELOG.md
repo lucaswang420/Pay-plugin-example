@@ -1,0 +1,79 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.0] - 2026-07-31
+
+First release of `drogon-pay` as a reusable Drogon plugin library. The former
+`PayBackend/` monolith was refactored into a Conan-distributable STATIC library
+(`DrogonPay::DrogonPay`) plus an example host.
+
+### Added
+
+- **Channel SPI**: `drogon_pay::PaymentChannel` abstract interface
+  (create/QR-create/query/refund/refund-query/verifyCallback/onStart/onStop)
+  with a normalized `CallbackEvent`; contract requires thread safety and
+  HttpClient reuse.
+- **ChannelRegistry**: registration during `initAndStart`, frozen afterwards
+  (lock-free runtime lookup). Hosts extend via
+  `ChannelRegistry::registerFactory(name, factory)` before `app().run()`.
+- **Configurable route prefix** (`base_path`, default `/api/pay`); all routes
+  registered programmatically (safe in static-library hosts, no
+  WHOLE_ARCHIVE needed).
+- `drogon_pay::ensureLinked()` safety net for hosts whose linker drops the
+  PayPlugin DrObject auto-registration symbol.
+- **Packaging**: full Conan recipe (`drogon-pay/1.0.0`,
+  `package_type=static-library`), CMake install/export
+  (`find_package(DrogonPay)`), and `test_package/` consumer verification
+  (plugin loads, routes reachable, clean shutdown).
+- Host integration guide: `docs/development/plugin_integration.md`.
+- CI: Windows ctest gate, gitleaks secret scanning, `conan create` smoke job.
+
+### Changed
+
+- **BREAKING — plugin config schema**: top-level `wechat_pay` /
+  `alipay_sandbox` blocks were replaced by the `channels` map
+  (`channels.wechat` / `channels.alipay`, each with `enabled`). Legacy keys
+  are detected and the plugin refuses to start with a migration error. See
+  the mapping table in `docs/development/plugin_integration.md`.
+- **BREAKING — Redis is now opt-in**: the `redis_client` key must be set
+  explicitly to enable the Redis idempotency cache; omitting it selects the
+  database-only path. (Previously the plugin always queried the `default`
+  Redis client, which corrupted drogon's RedisClientManager on hosts without
+  a Redis config and crashed at shutdown.)
+- Unknown/disabled channels now return `CHANNEL_NOT_AVAILABLE` instead of
+  silently falling back to wechat.
+- Channel HTTP clients are reused per IO loop
+  (`drogon::IOThreadStorage<HttpClientPtr>` + keep-alive) instead of being
+  created per request; wechat platform-certificate state moved to an atomic
+  `shared_ptr` snapshot.
+- All services are constructed inside `initAndStart` and immutable afterwards
+  (removed the `callbackService()` lazy-init data race). Reconcile and
+  certificate-refresh timers moved to a dedicated worker
+  `trantor::EventLoopThread`.
+- `PayAuthFilter` replaced by the `checkAuth(req)` function applied inside
+  handlers (no drogon filter registration).
+- Test hook `setTestClients(...)` superseded by
+  `setTestChannels(map<string, PaymentChannelPtr>, dbClient)` (legacy adapter
+  kept for compatibility).
+- Repository layout: library in `libs/drogon-pay/`, example host in
+  `examples/pay-server/`, admin console in `examples/pay-admin/`, tests in
+  `tests/`, SQL migrations in root `sql/`.
+
+### Removed
+
+- `ADD_METHOD_TO` static route registration and the hardcoded `/api/pay/*`
+  paths.
+- The `/FI` / `-include` force-include hack for `orm_compat.h` (root cause
+  fixed in the generated model headers).
+- Dead gtest dependency (tests use Drogon's own `DROGON_TEST` framework).
+- Duplicated inline CORS implementation in `main.cc` (single
+  `SecurityHeaders.h` implementation, host-side).
+
+[Unreleased]: https://github.com/lucaswang420/pay-plugin-example/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/lucaswang420/pay-plugin-example/releases/tag/v1.0.0

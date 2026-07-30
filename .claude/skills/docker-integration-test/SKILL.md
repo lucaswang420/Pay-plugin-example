@@ -101,7 +101,7 @@ docker exec postgres psql -U postgres -d pay_test -c "\d pay_refund"
 
 ```bash
 # 在容器中运行 C++ 测试
-docker exec payserver /bin/bash -c "cd build && test_payplugin.exe --output-on-failure -V"
+docker exec payserver /bin/bash -c "cd build && PayBackendTests.exe --output-on-failure -V"
 ```
 
 ### 步骤 5: 支付 API 集成测试

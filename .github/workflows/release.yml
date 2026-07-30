@@ -1,0 +1,71 @@
+name: Release
+
+# Tag-driven release pipeline (Phase 6): pushing a `v*` tag re-validates the
+# Conan recipe + test_package from the consumer's point of view, then publishes
+# a GitHub Release whose body is the matching CHANGELOG.md section.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Conan
+        run: |
+          pip install conan
+          conan profile detect --force
+
+      # Same cache key scheme as ci-windows.yml / conan-create.yml so all
+      # three workflows share the dependency store.
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: ${{ runner.os }}-conan2-${{ hashFiles('conanfile.py', 'conan.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-conan2-
+
+      - name: conan create (recipe + test_package)
+        run: conan create . --build=missing -s build_type=Release -s compiler.cppstd=17
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Extract the CHANGELOG section for this tag (e.g. tag v1.0.0 ->
+      # "## [1.0.0]" block) to use as the release body. Falls back to a
+      # pointer at CHANGELOG.md when the section is missing.
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { grab = 1; print; next }
+            grab && /^## \[/ { exit }
+            grab { print }
+          ' CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "No CHANGELOG section found for $VERSION; using fallback." >&2
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release_notes.md

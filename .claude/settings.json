@@ -10,7 +10,7 @@
     ],
     "deny": [
       "Bash(git push *)",
-      "Read(PayBackend/.env*)"
+      "Read(examples/pay-server/.env*)"
     ]
   },
   "hooks": {
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd PayBackend && build/windows-msvc/test/Release/PayBackendTests.exe"
+            "command": "build/windows-msvc/tests/Release/PayBackendTests.exe"
           }
         ]
       },

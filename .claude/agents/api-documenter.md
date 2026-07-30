@@ -15,7 +15,7 @@ Claude 自动调用：当检测到控制器代码变更时
 
 ### 1. 检测变更
 - 监控以下文件的变化：
-  - `PayBackend/src/controllers/*.cc`（支付控制器、退款控制器、回调控制器）
+  - `libs/drogon-pay/src/handlers/*.cc`（支付控制器、退款控制器、回调控制器）
 
 ### 2. 分析路由
 - 解析 Drogon 路由映射
@@ -26,7 +26,7 @@ Claude 自动调用：当检测到控制器代码变更时
 - 确定响应格式
 
 ### 3. 同步 OpenAPI 规范
-- 更新 `PayBackend/openapi.yaml`
+- 更新 `examples/pay-server/openapi.yaml`
 - 添加新端点
 - 修改现有端点
 - 删除废弃端点

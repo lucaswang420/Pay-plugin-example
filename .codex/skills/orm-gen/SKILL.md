@@ -27,7 +27,7 @@ which drogon_ctl || echo "❌ drogon_ctl not found"
 drogon_ctl version || echo "❌ drogon_ctl not working"
 
 # 4. 检查 models 目录是否存在
-ls PayBackend/model.json || echo "❌ model.json not found"
+ls libs/drogon-pay/src/models/model.json || echo "❌ model.json not found"
 ```
 
 ## 完整工作流程
@@ -55,7 +55,7 @@ psql -h localhost -U postgres -d pay_test -c "\dt"
 
 ```bash
 # 查看当前 ORM 生成配置
-cat PayBackend/model.json
+cat libs/drogon-pay/src/models/model.json
 ```
 
 **标准配置**:
@@ -85,7 +85,7 @@ cat PayBackend/model.json
 
 ```powershell
 # Windows PowerShell
-cd PayBackend
+cd libs/drogon-pay/src
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupDir = "models_backup_$timestamp"
 New-Item -ItemType Directory -Path $backupDir | Out-Null
@@ -102,7 +102,7 @@ Write-Host "✅ Models backed up to $backupDir"
 
 ```bash
 # Linux/macOS  
-cd PayBackend
+cd libs/drogon-pay/src
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_dir="models_backup_$timestamp"
 mkdir -p $backup_dir
@@ -118,7 +118,7 @@ echo "✅ Models backed up to $backup_dir"
 ```powershell
 # Windows PowerShell
 # 检查 PayServer 目录结构
-cd d:\work\development\Repos\cpp\projects\pay-plugin\PayBackend
+cd d:\work\development\Repos\cpp\projects\pay-plugin\pay-server
 
 # 创建 models 目录（如果不存在）
 if (!(Test-Path "models")) {
@@ -132,7 +132,7 @@ cd models
 
 ```bash
 # Linux/macOS
-cd PayBackend
+cd libs/drogon-pay/src
 
 # 创建 models 目录（如果不存在）
 mkdir -p models
@@ -177,7 +177,7 @@ scripts/backend/generate_models.bat -y
 
 ```bash
 # 确保在正确的目录
-cd PayBackend/models
+cd libs/drogon-pay/src/models
 
 # 执行 drogon_ctl 生成命令
 drogon_ctl create model ../
@@ -314,7 +314,7 @@ fi
 ```bash
 # 运行测试确保 ORM 模型工作正常
 cd build
-test_payplugin.exe --output-on-failure -C Release
+PayBackendTests.exe --output-on-failure -C Release
 ```
 
 ## 数据库凭据
@@ -405,13 +405,13 @@ psql -h localhost -U postgres -d pay_test -c "\dt"
 **解决方案**:
 ```bash
 # 检查 model.json 配置
-cat PayBackend/model.json
+cat libs/drogon-pay/src/models/model.json
 
 # 确保 tables 数组包含所有需要的表
 # 手动添加缺失的表名
 
 # 重新执行生成
-cd PayBackend
+cd libs/drogon-pay/src
 drogon_ctl create model .
 ```
 
@@ -455,7 +455,7 @@ psql -h localhost -U postgres -d pay_test -c "\d pay_payment"
 ### 1. 表结构变更流程
 ```bash
 # 1. 修改 migration SQL 脚本
-vim PayBackend/sql/002_add_indexes.sql
+vim sql/002_add_indexes.sql
 
 # 2. 重置数据库
 /db-reset
@@ -467,7 +467,7 @@ vim PayBackend/sql/002_add_indexes.sql
 /build-and-test
 
 # 5. 运行测试验证
-cd build && test_payplugin.exe --output-on-failure
+cd build && PayBackendTests.exe --output-on-failure
 ```
 
 ### 2. 备份策略
@@ -476,7 +476,7 @@ cd build && test_payplugin.exe --output-on-failure
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_dir="models_backup_$timestamp"
 mkdir -p $backup_dir
-cp PayBackend/models/*.h PayBackend/models/*.cc $backup_dir/
+cp libs/drogon-pay/src/models/*.h libs/drogon-pay/src/models/*.cc $backup_dir/
 
 # 保留最近 5 次备份
 ls -td models_backup_* | tail -n +6 | xargs rm -rf
@@ -495,21 +495,21 @@ ls -td models_backup_* | tail -n +6 | xargs rm -rf
   run: /build-and-test
 
 - name: Run Tests
-  run: test_payplugin.exe --output-on-failure
+  run: PayBackendTests.exe --output-on-failure
 ```
 
 ### 4. 版本控制
 ```bash
 # .gitignore 配置
 # 自动生成的模型文件可以提交到版本控制
-PayBackend/models/*.h
-PayBackend/models/*.cc
+libs/drogon-pay/src/models/*.h
+libs/drogon-pay/src/models/*.cc
 
 # 但备份文件应该忽略
 models_backup_*/
 
 # model.json 应该提交
-PayBackend/model.json
+libs/drogon-pay/src/models/model.json
 ```
 
 ## 代码审查要点

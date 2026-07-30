@@ -118,7 +118,7 @@ echo -e "\n${BLUE}🔧 步骤4: 后端单元测试${NC}"
 echo "-------------------------------------------"
 
 echo "在 Docker 容器中运行 C++ 测试..."
-docker exec payserver /bin/bash -c "cd build && test_payplugin.exe --output-on-failure -V" > "${RESULTS_DIR}/backend_tests.txt" 2>&1 || true
+docker exec payserver /bin/bash -c "cd build && PayBackendTests.exe --output-on-failure -V" > "${RESULTS_DIR}/backend_tests.txt" 2>&1 || true
 
 # 步骤5: 支付 API E2E 测试
 echo -e "\n${BLUE}💳 步骤5: 支付 API E2E 测试${NC}"

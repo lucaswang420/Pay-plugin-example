@@ -10,13 +10,13 @@
 ### 1. 启动 PayServer
 
 ```bash
-cd PayBackend
-./build/Release/PayServer
+cd examples/pay-server
+./build/linux-release/examples/pay-server/PayServer
 ```
 
 或者在 Windows 上：
 ```powershell
-cd PayBackend
+cd examples/pay-server
 .\build\Release\PayServer.exe
 ```
 
@@ -24,14 +24,14 @@ cd PayBackend
 
 **Linux/Mac (Bash):**
 ```bash
-cd PayBackend/test
+cd tests
 chmod +x e2e_test.sh
 ./e2e_test.sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
-cd PayBackend\test
+cd examples/pay-server\test
 .\e2e_test.ps1
 ```
 
@@ -184,8 +184,8 @@ curl "http://localhost:5566/pay/refund/query?refund_no=refund_xxx" \
 
 **解决方案：**
 ```bash
-cd PayBackend
-./build/Release/PayServer
+cd examples/pay-server
+./build/linux-release/examples/pay-server/PayServer
 ```
 
 ### 问题：Connection refused
@@ -301,12 +301,12 @@ jobs:
       - uses: actions/checkout@v2
       - name: Start PayServer
         run: |
-          cd PayBackend
-          ./build/Release/PayServer &
+          cd examples/pay-server
+          ./build/linux-release/examples/pay-server/PayServer &
           sleep 5
       - name: Run E2E Tests
         run: |
-          cd PayBackend/test
+          cd tests
           ./e2e_test.sh
 ```
 

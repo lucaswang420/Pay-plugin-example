@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+# DrogonPay requires the same Drogon (and OpenSSL) the library was built
+# against; static-library + C++ ABI makes this a hard constraint (see README
+# compatibility matrix).
+include(CMakeFindDependencyMacro)
+find_dependency(Drogon CONFIG)
+find_dependency(OpenSSL)
+
+include("${CMAKE_CURRENT_LIST_DIR}/DrogonPayTargets.cmake")
+
+check_required_components(DrogonPay)

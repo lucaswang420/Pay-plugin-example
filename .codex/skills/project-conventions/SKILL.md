@@ -14,7 +14,7 @@ Apply these rules to ALL C++ code generated or modified in this project. Loaded 
 |------|-------------|
 | Layer separation | Controllers (HTTP) -> Plugin/Service (business) -> Storage (data) -> Model (ORM) |
 | Drogon-first | Use Drogon built-ins over third-party libraries |
-| Plugin pattern | Core logic in `PayBackend`, server wiring in `PayServer` |
+| Plugin pattern | Core logic in `pay-server`, server wiring in `PayServer` |
 | ORM immutable | NEVER edit files in `models/` -- use `drogon_ctl` to regenerate |
 
 ## Async Programming

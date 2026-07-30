@@ -25,7 +25,7 @@
 ### 1. 复制模板文件
 
 ```bash
-cd PayBackend
+cd examples/pay-server
 cp .env.example .env
 ```
 
@@ -44,7 +44,7 @@ nano .env
 ### 3. 启动服务
 
 ```bash
-./build/Release/PayServer.exe
+build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 程序会自动：

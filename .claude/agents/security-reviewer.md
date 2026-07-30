@@ -76,14 +76,14 @@ Claude 自动调用：当支付核心代码变更时（controllers、services、
 
 | 优先级 | 路径 | 原因 |
 |--------|------|------|
-| Critical | `PayBackend/src/controllers/*.cc` | 支付 API 入口 |
-| Critical | `PayBackend/src/services/PaymentService.cc` | 支付核心逻辑 |
-| Critical | `PayBackend/src/services/CallbackService.cc` | 回调签名验证 |
-| Critical | `PayBackend/src/services/RefundService.cc` | 退款安全 |
-| High | `PayBackend/src/plugins/AlipaySandboxClient.cc` | 支付宝签名 |
-| High | `PayBackend/src/plugins/WechatPayClient.cc` | 微信签名 |
-| High | `PayBackend/src/services/IdempotencyService.cc` | 幂等性实现 |
-| Medium | `PayBackend/config.json` | 配置安全 |
+| Critical | `libs/drogon-pay/src/handlers/*.cc` | 支付 API 入口 |
+| Critical | `examples/pay-server/src/services/PaymentService.cc` | 支付核心逻辑 |
+| Critical | `examples/pay-server/src/services/CallbackService.cc` | 回调签名验证 |
+| Critical | `examples/pay-server/src/services/RefundService.cc` | 退款安全 |
+| High | `examples/pay-server/src/plugins/AlipaySandboxClient.cc` | 支付宝签名 |
+| High | `examples/pay-server/src/plugins/WechatPayClient.cc` | 微信签名 |
+| High | `examples/pay-server/src/services/IdempotencyService.cc` | 幂等性实现 |
+| Medium | `examples/pay-server/config.json` | 配置安全 |
 
 ## 输出格式
 

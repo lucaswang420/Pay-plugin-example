@@ -6,12 +6,12 @@ A health check endpoint has been implemented at `/health` to monitor service sta
 ## Implementation Details
 
 ### Files Created
-1. **PayBackend/controllers/HealthCheckController.h**
+1. **libs/drogon-pay/src/handlers/HealthCheckController.h**
    - Header file for the health check controller
    - Defines the HealthCheckController class
    - Registers the `/health` route for GET and OPTIONS methods
 
-2. **PayBackend/controllers/HealthCheckController.cc**
+2. **libs/drogon-pay/src/handlers/HealthCheckController.cc**
    - Implementation of the health check logic
    - Checks database and Redis connectivity
    - Returns JSON response with service status
@@ -81,14 +81,14 @@ A health check endpoint has been implemented at `/health` to monitor service sta
 The health check controller is automatically included in the build via the CMakeLists.txt configuration:
 
 ```bash
-cd PayBackend
+cd examples/pay-server
 ./scripts/build.bat
 ```
 
 Build output will show:
 ```
 HealthCheckController.cc
-PayServer.vcxproj -> D:\...\PayBackend\build\Release\PayServer.exe
+PayServer.vcxproj -> D:\...\build\windows-msvc\Release\PayServer.exe
 ```
 
 ### Testing the Endpoint
@@ -100,7 +100,7 @@ PayServer.vcxproj -> D:\...\PayBackend\build\Release\PayServer.exe
 
 **Start the server:**
 ```bash
-cd PayBackend/build/Release
+cd build/windows-msvc/Release
 ./PayServer.exe
 ```
 
@@ -165,4 +165,4 @@ The health check controller follows the same pattern as existing controllers:
 
 ✅ Build completed successfully
 ✅ No compilation warnings
-✅ Executable created at: PayBackend/build/Release/PayServer.exe
+✅ Executable created at: build/windows-msvc/Release/PayServer.exe

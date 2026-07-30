@@ -49,6 +49,10 @@ docs/
 2. Set up your environment: [development/setup.md](development/setup.md)
 3. Read coding standards: [development/coding-standards.md](development/coding-standards.md)
 
+### For Host Application Developers (consuming the drogon-pay library)
+- Plugin Integration Guide: [development/plugin_integration.md](development/plugin_integration.md)
+- Example host: [examples/pay-server/README.md](../examples/pay-server/README.md)
+
 ### For API Users
 - API Reference: [api/reference.md](api/reference.md)
 - API Examples: [api/examples.md](api/examples.md)
@@ -75,6 +79,7 @@ docs/
 - [architecture_overview.md](architecture/architecture_overview.md) - System architecture design
 
 #### Development
+- [plugin_integration.md](development/plugin_integration.md) - **Host integration guide for the drogon-pay plugin library** (5-step setup, custom channel SPI, old→new config key mapping)
 - [environment_setup.md](development/environment_setup.md) - Development environment setup
 - [configuration_guide.md](development/configuration_guide.md) - Application configuration guide
 - [migration_guide.md](development/migration_guide.md) - API migration guide

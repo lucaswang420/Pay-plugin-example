@@ -52,7 +52,7 @@ sudo systemctl enable payplugin
 
 **启动服务（手动）：**
 ```powershell
-cd D:\PayBackend
+cd D:\pay-server
 .\build\Release\PayServer.exe
 ```
 
@@ -66,8 +66,8 @@ cd D:\PayBackend
 choco install nssm
 
 # 安装服务
-nssm install PayServer "D:\PayBackend\build\Release\PayServer.exe"
-nssm set PayServer AppDirectory "D:\PayBackend"
+nssm install PayServer "D:\build\windows-msvc\Release\PayServer.exe"
+nssm set PayServer AppDirectory "D:\pay-server"
 nssm set PayServer DisplayName "Pay Plugin Server"
 nssm set PayServer Description "Payment processing service"
 nssm start PayServer

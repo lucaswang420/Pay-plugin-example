@@ -356,7 +356,7 @@ sudo apt-get install cppcheck  # Linux
 brew install cppcheck  # macOS
 
 # 运行静态分析
-cppcheck --enable=all --inconclusive --std=c++17 PayBackend/
+cppcheck --enable=all --inconclusive --std=c++17 examples/pay-server/
 ```
 
 ### 3. 配置安全检查

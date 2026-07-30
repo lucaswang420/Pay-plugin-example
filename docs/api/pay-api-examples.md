@@ -1,9 +1,18 @@
 # Pay API Examples
 
+> **Route prefix is configurable.** All pay routes are registered under the
+> `base_path` key of the PayPlugin config block (default `/api/pay`); the
+> examples below use the default. If your host sets a different `base_path`,
+> substitute it accordingly. Exception: the QR create endpoint stays at the
+> historical `/api/qrpay/create` path when `base_path` is the default (it
+> becomes `{base_path}/qrpay/create` otherwise). See
+> [plugin_integration.md](../development/plugin_integration.md) for the full
+> route table.
+
 ## Create Payment
 
 ```
-curl -X POST http://localhost:5566/pay/create \
+curl -X POST http://localhost:5566/api/pay/create \
   -H "Idempotency-Key: YOUR_IDEMPOTENCY_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -32,14 +41,14 @@ Note: `Idempotency-Key` is optional but recommended for retry safety.
 ## Query Order
 
 ```
-curl "http://localhost:5566/pay/query?order_no=c2d7c8ad-6a4b-4f3f-9a31-32db0a3fcd82" \
+curl "http://localhost:5566/api/pay/query?order_no=c2d7c8ad-6a4b-4f3f-9a31-32db0a3fcd82" \
   -H "X-Api-Key: YOUR_API_KEY"
 ```
 
 ## Refund
 
 ```
-curl -X POST http://localhost:5566/pay/refund \
+curl -X POST http://localhost:5566/api/pay/refund \
   -H "Idempotency-Key: YOUR_IDEMPOTENCY_KEY" \
   -H "X-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
@@ -53,21 +62,21 @@ curl -X POST http://localhost:5566/pay/refund \
 ## Refund Query
 
 ```
-curl "http://localhost:5566/pay/refund/query?refund_no=YOUR_REFUND_NO" \
+curl "http://localhost:5566/api/pay/refund/query?refund_no=YOUR_REFUND_NO" \
   -H "X-Api-Key: YOUR_API_KEY"
 ```
 
 ## Auth Metrics
 
 ```
-curl "http://localhost:5566/pay/metrics/auth" \
+curl "http://localhost:5566/api/pay/metrics/auth" \
   -H "X-Api-Key: YOUR_API_KEY"
 ```
 
 ## Auth Metrics (Prometheus)
 
 ```
-curl "http://localhost:5566/pay/metrics/auth.prom" \
+curl "http://localhost:5566/api/pay/metrics/auth.prom" \
   -H "X-Api-Key: YOUR_API_KEY"
 ```
 

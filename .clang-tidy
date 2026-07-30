@@ -7,5 +7,5 @@ Checks: >
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays
 WarningsAsErrors: ''
-HeaderFilterRegex: 'PayBackend/.*'
+HeaderFilterRegex: '(libs/drogon-pay|examples/pay-server|tests)/.*'
 FormatStyle: none

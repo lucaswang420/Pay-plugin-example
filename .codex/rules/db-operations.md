@@ -1,7 +1,7 @@
 ---
 description: DB access must be the async + Mapper + Criteria combo; raw SQL only in 3 exemptions
 globs:
-  - "PayBackend/**"
+  - "examples/pay-server/**"
 ---
 
 Every database operation in this codebase MUST be the **async callback + Mapper
@@ -34,4 +34,4 @@ Anything else as raw SQL is a violation. A PreToolUse hook also guards
 credential placeholders in these files, so failures show up before runtime.
 
 The `project-conventions` skill holds the full statement; this file is the
-path-scoped reminder that loads when you edit `PayBackend/**`.
+path-scoped reminder that loads when you edit `examples/pay-server/**`.

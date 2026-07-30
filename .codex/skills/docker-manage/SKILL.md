@@ -11,9 +11,9 @@ description: Docker Compose 管理 — 通过 docker compose 管理 Pay Plugin �
 
 - Docker Engine 已安装并运行
 - `docker compose` CLI（Windows/macOS 内置，Linux 需单独安装插件）
-- 可选配置文件：`PayBackend/.env`（若不提供，需设置环境变量 `PAY_DB_PASSWORD`、`PAY_API_KEY`）
+- 可选配置文件：`examples/pay-server/.env`（若不提供，需设置环境变量 `PAY_DB_PASSWORD`、`PAY_API_KEY`）
 
-## 当前栈（`PayBackend/docker-compose.yml`）
+## 当前栈（`examples/pay-server/docker-compose.yml`）
 
 核心服务：
 
@@ -35,7 +35,7 @@ description: Docker Compose 管理 — 通过 docker compose 管理 Pay Plugin �
 ### 启动/停止核心服务
 
 ```powershell
-cd PayBackend
+cd examples/pay-server
 
 # 设置必需的环境变量（或写入 .env 文件）
 $env:PAY_DB_PASSWORD = "postgres"
@@ -136,7 +136,7 @@ $env:PAY_DB_PASSWORD = "postgres"
 $env:PAY_API_KEY = "your-strong-key-here"
 
 # 方式 2：.env 文件（推荐用于本地开发）
-# 在 PayBackend/ 下创建 .env 文件（已在 .gitignore 中）
+# 在 examples/pay-server/ 下创建 .env 文件（已在 .gitignore 中）
 ```
 
 ## 常见问题

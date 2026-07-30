@@ -1,7 +1,20 @@
 # Build directories
-PayBackend/build/
-PayBackend/cmake-build-*/
-PayBackend/out/
+build/
+cmake-build-*/
+out/
+# Stale pre-migration local build trees
+PayBackend/
+
+# CMake / Conan generated files (root CMakePresets.json is hand-written and
+# tracked; conan-generated preset files live under build/ which is ignored)
+CMakeUserPresets.json
+conan_toolchain.cmake
+conanbuild.bat
+conanbuildenv*.bat
+conanrun.bat
+conanrunenv*.bat
+deactivate_conanbuild.bat
+deactivate_conanrun.bat
 
 # IDE files
 .vscode/
@@ -24,10 +37,10 @@ PayBackend/out/
 *.after_*
 
 # Test artifacts
-PayBackend/test/*.backup
-PayBackend/test/*.backup2
-PayBackend/test/*.before_*
-PayBackend/test/test_*.sh
+tests/*.backup
+tests/*.backup2
+tests/*.before_*
+tests/test_*.sh
 
 # Python
 __pycache__/
@@ -95,6 +108,9 @@ openssl.cnf
 
 # Claude Code Settings
 .claude/settings.local.json
+
+# Local AI tool caches
+.codebuddy/
 
 # vs Code Settings
 .vscode/settings.local.json

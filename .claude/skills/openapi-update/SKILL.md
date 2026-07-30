@@ -9,17 +9,17 @@ description: 当支付 API 端点发生变化时更新 OpenAPI 规范
 
 ## 使用方法
 
-- Claude 自动调用：当检测到 `PayBackend/src/controllers/` 中的路由变更时
+- Claude 自动调用：当检测到 `libs/drogon-pay/src/handlers/` 中的路由变更时
 - 用户调用：`/openapi-update`
 
 ## 工作流程
 
 1. **分析当前控制器**
-   - 读取 `PayBackend/src/controllers/*.cc`
+   - 读取 `libs/drogon-pay/src/handlers/*.cc`
    - 识别所有路由端点和参数
 
 2. **比较现有 OpenAPI 规范**
-   - 读取 `PayBackend/openapi.yaml`
+   - 读取 `openapi.yaml`
    - 检查是否有新的端点
    - 检查是否有参数变更
    - 检查是否有响应格式变更
@@ -40,7 +40,7 @@ description: 当支付 API 端点发生变化时更新 OpenAPI 规范
 ```powershell
 # 检查 YAML 语法
 try {
-    $yaml = Get-Content "PayBackend/openapi.yaml" -Raw
+    $yaml = Get-Content "openapi.yaml" -Raw
     Write-Host "YAML syntax valid"
 } catch {
     Write-Host "YAML syntax error: $_"
@@ -103,7 +103,7 @@ foreach ($field in $requiredFields) {
 
 ```bash
 # 更新规范后提交到 Git
-git add PayBackend/openapi.yaml
+git add openapi.yaml
 git commit -m "docs: update OpenAPI specification for endpoint changes"
 
 # 如果有重大变更，更新 API 版本号

@@ -69,7 +69,6 @@ jobs:
           sudo make install
 
       - name: Configure Project CMake
-        working-directory: ${{github.workspace}}/PayBackend
         run: |
           export PostgreSQL_ROOT="$(brew --prefix libpq)"
           cmake -S . -B build -G "Unix Makefiles" \
@@ -83,7 +82,6 @@ jobs:
             -DCMAKE_FIND_FRAMEWORK=LAST
 
       - name: Build
-        working-directory: ${{github.workspace}}/PayBackend
         run: cmake --build build --config ${{env.BUILD_TYPE}}
 
       - name: Upload test logs on failure
@@ -92,6 +90,6 @@ jobs:
         with:
           name: macos-test-logs
           path: |
-            ${{github.workspace}}/PayBackend/build/Testing/
-            ${{github.workspace}}/PayBackend/logs/
+            ${{github.workspace}}/build/Testing/
+            ${{github.workspace}}/logs/
           retention-days: 7

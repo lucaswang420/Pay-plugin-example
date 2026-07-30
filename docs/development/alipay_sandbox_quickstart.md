@@ -66,8 +66,8 @@ Buyer:
 **Option B: Use OpenSSL (Linux)**
 
 ```bash
-mkdir -p PayBackend/certs/alipay
-cd PayBackend/certs/alipay
+mkdir -p examples/pay-server/certs/alipay
+cd examples/pay-server/certs/alipay
 
 # Generate private key
 openssl genrsa -out app_private_key.pem 2048
@@ -92,7 +92,7 @@ mv app_private_key_pkcs8.pem app_private_key.pem
 
 ### 6. Save Alipay Public Key
 
-Create file: `PayBackend/certs/alipay/alipay_public_key.pem`
+Create file: `examples/pay-server/certs/alipay/alipay_public_key.pem`
 
 Paste the Alipay public key content.
 
@@ -100,7 +100,7 @@ Paste the Alipay public key content.
 
 ### Update config.json
 
-Add to `PayBackend/config.json`:
+Add to `examples/pay-server/config.json`:
 
 ```json
 {
@@ -133,7 +133,7 @@ Add to `PayBackend/config.json`:
 Check that these files exist:
 
 ```bash
-ls -la PayBackend/certs/alipay/
+ls -la examples/pay-server/certs/alipay/
 # Expected:
 # app_private_key.pem
 # app_public_key.pem
@@ -151,8 +151,8 @@ export PAY_API_KEYS=test-dev-key
 ### 2. Start Server
 
 ```bash
-cd PayBackend
-./build/Release/PayServer.exe
+cd examples/pay-server
+build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 ### 3. Create Payment

@@ -291,8 +291,8 @@ Examples:
     parser.add_argument(
         '--path', '-p',
         type=str,
-        default='../PayBackend',
-        help='Path to project root (default: ../PayBackend)'
+        default='..',
+        help='Path to project root (default: .., the repository root)'
     )
 
     args = parser.parse_args()

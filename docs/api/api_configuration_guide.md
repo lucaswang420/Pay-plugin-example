@@ -95,7 +95,7 @@ openssl x509 -in apiclient_cert.pem -noout -serial
 
 #### 步骤6：放置证书文件
 ```bash
-PayBackend/
+examples/pay-server/
 ├── certs/
 │   ├── apiclient_cert.pem      # 商户证书
 │   ├── apiclient_key.pem       # 商户私钥（保密！）
@@ -320,7 +320,7 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
 #### 步骤1：修改 config.json
 
 ```bash
-cd PayBackend
+cd examples/pay-server
 cp config.json config.json.backup
 ```
 
@@ -363,8 +363,8 @@ openssl req -new -x509 -key certs/apiclient_key.pem -out certs/apiclient_cert.pe
 taskkill /F /IM PayServer.exe
 
 # 启动新进程
-cd PayBackend
-build/Release/PayServer.exe
+cd examples/pay-server
+build/windows-msvc/examples/pay-server/Release/PayServer.exe
 ```
 
 #### 步骤5：验证配置
@@ -583,8 +583,8 @@ curl -H "X-Api-Key: perf-test-key" \
 
 ---
 
-**文档位置：** `PayBackend/docs/api_configuration_guide.md`  
-**配置文件：** `PayBackend/config.json`  
-**证书目录：** `PayBackend/certs/`
+**文档位置：** `docs/api_configuration_guide.md`  
+**配置文件：** `examples/pay-server/config.json`  
+**证书目录：** `examples/pay-server/certs/`
 
 **下一步：** 配置完成后，重新运行性能测试脚本！

@@ -1,21 +1,21 @@
 ---
 name: build-and-test
-description: Build the PayBackend C++ project and run unit/integration tests.
+description: Build the pay-server example host C++ project and run unit/integration tests.
 ---
 
 # Build & Test
 
-Build the PayBackend C++ project and run unit/integration tests.
+Build the pay-server example host C++ project and run unit/integration tests.
 
 ## Build
 
-The one true build script is `PayBackend/scripts/build.bat`. It handles Conan dependency
+The one true build script is `examples/pay-server/scripts/build.bat`. It handles Conan dependency
 installation, CMake configuration, compilation, and copies `config.json` + `certs/`
 to the build output directory. Supports `-debug` / `-release` flags (Release is default).
 
 ```powershell
-# Standard Release build (output: build/Release/PayServer.exe)
-cd PayBackend
+# Standard Release build (output: build/windows-msvc/examples/pay-server/Release/PayServer.exe)
+cd examples/pay-server
 scripts\build.bat
 
 # Debug build (output: build/Debug/PayServer.exe)
@@ -27,7 +27,7 @@ scripts\build.bat -debug
 Only use when you need a custom CMake configuration that differs from `build.bat`:
 
 ```powershell
-cd PayBackend\build
+cd build\windows-msvc
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
 cmake --build . --config Release
 ```
@@ -37,34 +37,34 @@ Environment uses **C++17** (`set(CMAKE_CXX_STANDARD 17)`) per `CMakeLists.txt`.
 ## Run Server
 
 ```powershell
-cd PayBackend
-build\Release\PayServer.exe -c build\Release\config.json
+cd examples/pay-server
+build\windows-msvc\examples\pay-server\Release\PayServer.exe -c build\Release\config.json
 ```
 
-The build script copies `config.json` and `certs/` to `build/Release/` automatically.
+The build script copies `config.json` and `certs/` to `build/windows-msvc/examples/pay-server/Release/` automatically.
 
 ## Test
 
 ### Unit & Integration Tests
 
-The test executable (`test_payplugin.exe`) is built alongside the main project:
+The test executable (`PayBackendTests.exe`) is built alongside the main project:
 
 ```powershell
-cd PayBackend
+cd examples/pay-server
 
 # Run all tests
-build\Release\test_payplugin.exe
+build\windows-msvc\tests\Release\PayBackendTests.exe
 
 # Filter by test suite
-build\Release\test_payplugin.exe --gtest_filter="*Payment*"
-build\Release\test_payplugin.exe --gtest_filter="*Refund*"
-build\Release\test_payplugin.exe --gtest_filter="*Idempotency*"
+build\windows-msvc\tests\Release\PayBackendTests.exe
+build\windows-msvc\tests\Release\PayBackendTests.exe
+build\windows-msvc\tests\Release\PayBackendTests.exe
 
 # List all available tests
-build\Release\test_payplugin.exe --gtest_list_tests
+build\windows-msvc\tests\Release\PayBackendTests.exe
 
 # Verbose output
-build\Release\test_payplugin.exe --output-on-failure -V
+build\windows-msvc\tests\Release\PayBackendTests.exe --output-on-failure -V
 ```
 
 ### Docker Integration Tests
@@ -73,14 +73,14 @@ Use the `/docker-integration-test` skill for end-to-end tests in a containerized
 environment (PostgreSQL + Redis + PayServer).
 
 ```powershell
-cd PayBackend
+cd examples/pay-server
 docker-compose up -d
 python .claude/skills/docker-integration-test/scripts/pay_e2e_test.py
 ```
 
 ## Pre-Commit Verification
 
-The `settings.json` pre-commit hook runs `test_payplugin.exe` before allowing
+The `settings.json` pre-commit hook runs `PayBackendTests.exe` before allowing
 a `git commit`. If tests fail, the commit is blocked.
 
 ## Error Recovery
@@ -96,7 +96,7 @@ a `git commit`. If tests fail, the commit is blocked.
 | Symptom | Fix |
 |---------|-----|
 | Database connection errors | Verify PostgreSQL/Redis are running (`docker ps`) |
-| `test_payplugin.exe` not found | Rebuild first: `scripts\build.bat` |
+| `PayBackendTests.exe` not found | Rebuild first: `scripts\build.bat` |
 | Port conflict (5566) | Kill existing process: `taskkill /F /IM PayServer.exe` |
 
 ## Project Context
@@ -104,6 +104,6 @@ a `git commit`. If tests fail, the commit is blocked.
 - **Framework**: Drogon C++17
 - **C++ Standard**: C++17
 - **Build System**: CMake + Conan
-- **Testing**: Google Test (via Drogon test framework)
-- **Test Executable**: `test_payplugin.exe`
+- **Testing**: Drogon DROGON_TEST framework
+- **Test Executable**: `PayBackendTests.exe`
 - **Architecture**: Controller → Service → Plugin → Model (SOA)

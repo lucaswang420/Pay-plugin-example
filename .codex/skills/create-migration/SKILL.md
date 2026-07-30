@@ -14,13 +14,13 @@ When adding, modifying, or dropping database tables/columns/indexes. Triggered b
 
 ## Migration Naming
 
-Pattern: `PayBackend/sql/{NNN}__descriptive_name.sql` (e.g., `PayBackend/sql/005_add_new_table.sql`)
+Pattern: `sql/{NNN}__descriptive_name.sql` (e.g., `sql/005_add_new_table.sql`)
 
 Current latest: `V018__webauthn.sql` -- next migration starts at **V019**.
 
 Check existing migrations before creating:
 ```bash
-ls PayBackend/sql/
+ls sql/
 ```
 
 ## File Template

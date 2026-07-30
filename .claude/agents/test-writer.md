@@ -14,9 +14,9 @@ Automatically after code changes that lack sufficient test coverage, or on manua
 ## Test Framework & Patterns
 
 ### Framework
-- Google Test via Drogon: `#include <gtest/gtest.h>`
-- Test macro: `TEST_F(TestFixture, TestName)` / `TEST(TestSuite, TestName)`
-- Main entry: `test_payplugin.exe` built from `PayBackend/test/`
+- Drogon test framework: `#include <drogon/drogon_test.h>`
+- Test macro: `DROGON_TEST(TestName)`
+- Main entry: `PayBackendTests.exe` built from `tests/`
 
 ### Service-Oriented Architecture
 Tests use Service API, not Plugin API:
@@ -81,20 +81,20 @@ Examples:
 
 | Type | Location | Purpose |
 |------|----------|---------|
-| Unit | `PayBackend/test/` | Service logic tests |
-| Integration | `PayBackend/test/` | End-to-end flow tests |
-| Security | `PayBackend/test/` | Auth/validation tests |
-| Performance | `PayBackend/test/` | Load/stress tests |
+| Unit | `tests/` | Service logic tests |
+| Integration | `tests/` | End-to-end flow tests |
+| Security | `tests/` | Auth/validation tests |
+| Performance | `tests/` | Load/stress tests |
 
 ## Quick Reference
 
 ```bash
 # Run all tests
-cd PayBackend && build/Release/test_payplugin.exe
+build/windows-msvc/tests/Release/PayBackendTests.exe
 
 # Run specific test
-cd PayBackend && build/Release/test_payplugin.exe --gtest_filter="*Payment*"
+build/windows-msvc/tests/Release/PayBackendTests.exe
 
 # List all tests
-cd PayBackend && build/Release/test_payplugin.exe --gtest_list_tests
+build/windows-msvc/tests/Release/PayBackendTests.exe
 ```

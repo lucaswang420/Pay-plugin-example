@@ -1,0 +1,11 @@
+# Default owners for everything in the repo.
+* @lucaswang420
+
+# Payment core library: require owner review on public API and channel code.
+/libs/drogon-pay/include/drogon_pay/ @lucaswang420
+/libs/drogon-pay/src/channels/ @lucaswang420
+
+# Security-sensitive surfaces.
+/SECURITY.md @lucaswang420
+/.github/workflows/ @lucaswang420
+/scripts/check_architecture.py @lucaswang420

@@ -123,11 +123,11 @@ Claude 自动调用：当代码变更需要审查时
 
 ## 特别关注的文件类型
 
-- `PayBackend/src/controllers/*.cc` - 支付 API 核心逻辑
-- `PayBackend/src/services/*.cc` - 业务逻辑服务
-- `PayBackend/src/plugins/*.cc` - 第三方支付客户端
-- `PayBackend/src/models/*.cc` - 数据模型（禁止手动编辑，仅 orm-gen 生成）
-- `PayBackend/test/*.cc` - 测试文件
+- `libs/drogon-pay/src/handlers/*.cc` - 支付 API 核心逻辑
+- `examples/pay-server/src/services/*.cc` - 业务逻辑服务
+- `examples/pay-server/src/plugins/*.cc` - 第三方支付客户端
+- `examples/pay-server/src/models/*.cc` - 数据模型（禁止手动编辑，仅 orm-gen 生成）
+- `tests/*.cc` - 测试文件
 
 ## 上下文
 
@@ -135,5 +135,5 @@ Claude 自动调用：当代码变更需要审查时
 - PostgreSQL + Redis 存储
 - 支持支付宝沙箱、微信支付双通道
 - Service-Oriented Architecture
-- 测试可执行文件：`test_payplugin.exe`
-- 构建：`cd PayBackend && scripts\build.bat`
+- 测试可执行文件：`PayBackendTests.exe`
+- 构建：`examples\pay-server\scripts\build.bat`

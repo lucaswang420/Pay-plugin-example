@@ -103,13 +103,13 @@ sudo apt install libcurl4-openssl-dev libssl-dev zlib1g-dev
 
 ```bash
 git clone <repository-url>
-cd Pay-plugin-example/PayBackend
+cd Pay-plugin-example/pay-server
 ```
 
 ### 2. 安装依赖（Conan）
 
 ```bash
-cd PayBackend
+cd examples/pay-server
 
 # Windows
 conan install . --build=missing
@@ -142,12 +142,12 @@ make -j$(nproc)
 
 ```bash
 # 检查可执行文件
-ls build/Release/PayServer.exe  # Windows
+ls build/windows-msvc/examples/pay-server/Release/PayServer.exe  # Windows
 ls build/PayServer           # Linux
 
 # 运行测试（可选）
 ctest --test-dir build/test  # Linux
-build/Release/test_payplugin.exe  # Windows
+build/windows-msvc/tests/Release/PayBackendTests.exe  # Windows
 ```
 
 ---
@@ -249,7 +249,7 @@ sudo mkdir -p /opt/payplugin
 sudo chown $USER:$USER /opt/payplugin
 
 # 复制文件
-cp -r PayBackend/* /opt/payplugin/
+cp -r examples/pay-server/* /opt/payplugin/
 cd /opt/payplugin
 ```
 
@@ -268,7 +268,7 @@ After=network.target postgresql.service redis.service
 Type=simple
 User=payuser
 WorkingDirectory=/opt/payplugin
-ExecStart=/opt/payplugin/build/Release/PayServer
+ExecStart=/opt/payplugin/build/linux-release/examples/pay-server/PayServer
 Restart=always
 RestartSec=10
 
@@ -287,7 +287,7 @@ sudo systemctl start payplugin
 **手动启动（测试）：**
 ```bash
 cd /opt/payplugin
-./build/Release/PayServer.exe
+build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 **服务启动：**

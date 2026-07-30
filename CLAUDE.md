@@ -26,8 +26,8 @@
 
 | 命令 | 说明 |
 |------|------|
-| `cd PayBackend && scripts\build.bat` | Release 模式（默认） |
-| `cd PayBackend && scripts\build.bat -debug` | Debug 模式 |
+| `examples\pay-server\scripts\build.bat` | Release 模式（默认，脚本自动切到仓库根） |
+| `examples\pay-server\scripts\build.bat -debug` | Debug 模式 |
 
 **注意**: 使用 build.bat 确保 Conan 依赖正确配置，避免直接使用 CMake 或 Visual Studio 构建。
 
@@ -37,7 +37,7 @@
 
 | 配置项 | 文件/变量 |
 |--------|-----------|
-| 主配置 | `PayBackend/config.json` |
+| 主配置 | `examples/pay-server/config.json` |
 | 敏感信息 | `PAY_DB_PASSWORD`, `PAY_REDIS_PASSWORD`, `PAY_API_KEY`, `ALIPAY_PRIVATE_KEY`, `WECHAT_PAY_KEY` |
 
 ---
@@ -46,11 +46,11 @@
 
 | 测试类型 | 命令 |
 |----------|------|
-| 单元测试 | `cd PayBackend && build/Release/test_payplugin.exe` |
-| 集成测试 | `cd PayBackend && build/Release/test_payplugin.exe --gtest_filter=*Integration*` |
-| 完整测试 | `scripts/test.bat` |
+| 全量测试（ctest） | `ctest --test-dir build\windows-msvc -C Release --output-on-failure` |
+| 直接运行测试可执行 | `build\windows-msvc\tests\Release\PayBackendTests.exe` |
+| 完整测试脚本 | `examples\pay-server\scripts\test.bat` |
 
-测试文件: `PayBackend/build/Release/test_payplugin.exe` | 运行位置: `PayBackend/` 目录
+测试框架为 Drogon 自带 `DROGON_TEST`（非 gtest）；测试目标: `PayBackendTests.exe` | 运行位置: 仓库根目录
 
 ---
 
@@ -140,9 +140,9 @@
 |------|------|------|
 | 技术规范 | [TECH_SPECS.md](TECH_SPECS.md) | 架构、数据访问、安全规范 |
 | 项目概述 | [README.md](README.md) | 项目概述和快速开始 |
-| 部署文档 | [PayBackend/docs/](PayBackend/docs/) | 部署和运维指南 |
-| API 文档 | [PayBackend/docs/api.md](PayBackend/docs/api.md) | API 接口文档 |
-| 构建指南 | [PayBackend/scripts/README.build.md](PayBackend/scripts/README.build.md) | 详细构建说明 |
+| 部署文档 | [docs/deployment/](docs/deployment/) | 部署和运维指南 |
+| API 文档 | [docs/api/pay-api-examples.md](docs/api/pay-api-examples.md) | API 接口文档 |
+| 集成指南 | [docs/development/plugin_integration.md](docs/development/plugin_integration.md) | 宿主接入与自定义渠道开发 |
 
 ---
 

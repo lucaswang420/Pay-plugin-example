@@ -107,11 +107,11 @@ Claude 自动调用：当代码变更可能影响性能时
 
 | 优先级 | 路径 | 原因 |
 |--------|------|------|
-| Critical | `PayBackend/src/storage/*.cc` | 数据访问层，查询性能关键 |
-| Critical | `PayBackend/src/services/*.cc` | 业务逻辑，可能包含循环查询 |
-| High | `PayBackend/src/controllers/*.cc` | 请求处理入口 + 支付核心逻辑 |
-| High | `PayBackend/src/plugins/*.cc` | 第三方支付客户端性能 |
-| Medium | `PayBackend/src/common/*.cc` | 公共工具函数 |
+| Critical | `examples/pay-server/src/storage/*.cc` | 数据访问层，查询性能关键 |
+| Critical | `examples/pay-server/src/services/*.cc` | 业务逻辑，可能包含循环查询 |
+| High | `libs/drogon-pay/src/handlers/*.cc` | 请求处理入口 + 支付核心逻辑 |
+| High | `examples/pay-server/src/plugins/*.cc` | 第三方支付客户端性能 |
+| Medium | `examples/pay-server/src/common/*.cc` | 公共工具函数 |
 
 ## 性能工具集成
 

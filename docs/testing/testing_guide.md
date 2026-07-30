@@ -21,20 +21,20 @@ test/
 ### Unit Tests
 
 ```bash
-cd PayBackend/build/Release
-./PayBackendTest --gtest_filter=*Service*
+cd build/windows-msvc/Release
+./pay-serverTest --gtest_filter=*Service*
 ```
 
 ### Integration Tests
 
 ```bash
-./PayBackendTest
+./pay-serverTest
 ```
 
 ### Specific Test
 
 ```bash
-./PayBackendTest --gtest_filter=*PaymentService.CreatePayment_Success
+./pay-serverTest --gtest_filter=*PaymentService.CreatePayment_Success
 ```
 
 ## Writing Service Tests

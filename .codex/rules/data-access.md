@@ -1,8 +1,8 @@
 ---
 description: Storage/data-access path-scoped pointer to db-operations rule
 globs:
-  - "PayBackend/**/storage/**"
-  - "PayBackend/**/*.cc"
+  - "examples/pay-server/**/storage/**"
+  - "examples/pay-server/**/*.cc"
 ---
 
 DB access rules (async + Mapper + Criteria combo, the three raw-SQL exemptions)

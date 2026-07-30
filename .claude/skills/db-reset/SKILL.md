@@ -6,7 +6,7 @@ description: Reset the pay_test development database by dropping and recreating 
 # Database Reset
 
 Reset the `pay_test` development database by dropping and recreating all tables from
-the SQL scripts in `PayBackend/sql/`.
+the SQL scripts in `sql/`.
 
 ## Usage
 
@@ -17,7 +17,7 @@ the SQL scripts in `PayBackend/sql/`.
 
 ### Docker PostgreSQL (default)
 ```powershell
-cd PayBackend
+cd examples/pay-server
 
 # Drop existing tables, recreate from SQL scripts
 docker exec -i pay_postgres psql -U postgres -d pay_test < sql/000_drop_pay_tables.sql
@@ -32,7 +32,7 @@ docker exec -i pay_postgres psql -U postgres -d pay_test -c "\dt"
 
 ### Local PostgreSQL
 ```powershell
-cd PayBackend
+cd examples/pay-server
 $env:PGPASSWORD="postgres"
 
 # Drop existing tables, recreate from SQL scripts
@@ -46,7 +46,7 @@ psql -h localhost -U postgres -d pay_test -c "\dt"
 
 ## SQL Migration Files
 
-All SQL scripts live in `PayBackend/sql/` as a flat directory (no `migrations/` or `seed/` subdirectories):
+All SQL scripts live in `sql/` as a flat directory (no `migrations/` or `seed/` subdirectories):
 
 | File | Purpose |
 |------|---------|
@@ -68,7 +68,7 @@ All SQL scripts live in `PayBackend/sql/` as a flat directory (no `migrations/` 
 | User | postgres | postgres |
 | Password | postgres | postgres |
 
-Defaults come from `PayBackend/docker-compose.yml`. For local setups, adjust credentials via environment variables.
+Defaults come from `examples/pay-server/docker-compose.yml`. For local setups, adjust credentials via environment variables.
 
 ## ORM Model Regeneration
 
@@ -76,8 +76,8 @@ After resetting the database structure, regenerate ORM models to ensure they mat
 schema:
 
 ```powershell
-cd PayBackend
-drogon_ctl create model model.json
+cd libs/drogon-pay/src
+drogon_ctl create model models
 ```
 
 For details, see the `/orm-gen` skill.
@@ -100,8 +100,8 @@ docker exec -i pay_postgres psql -U postgres -d pay_test -c "\dt"
 
 Run a smoke test to confirm everything works:
 ```powershell
-cd PayBackend
-build\Release\test_payplugin.exe --gtest_filter="*Payment*:*Refund*"
+# From the repository root (DROGON_TEST binary, runs the full suite)
+build\windows-msvc\tests\Release\PayBackendTests.exe
 ```
 
 ## Troubleshooting

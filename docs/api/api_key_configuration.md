@@ -29,14 +29,14 @@ Set the `PAY_API_KEYS` environment variable with comma-separated values:
 
 ```bash
 export PAY_API_KEYS=key1,key2,key3
-./build/Release/PayServer.exe
+build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 Or use a single key with `PAY_API_KEY`:
 
 ```bash
 export PAY_API_KEY=your-single-api-key
-./build/Release/PayServer.exe
+build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 ### Method 2: .env File (Development Only)
@@ -54,7 +54,7 @@ PAY_API_KEYS=test-dev-key,performance-test-key,admin-test-key
 3. Source the file before running:
 ```bash
 source .env
-./build/Release/PayServer.exe
+build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 **WARNING:** Never commit `.env` to version control! It's already in `.gitignore`.

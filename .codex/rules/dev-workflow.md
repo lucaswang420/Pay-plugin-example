@@ -1,7 +1,7 @@
 ---
 description: Dev workflow entry points — prefer scripts\build.sh / scripts\build.bat; skills as explainers
 globs:
-  - "PayBackend/**"
+  - "examples/pay-server/**"
   - "PayFrontend/**"
 ---
 
@@ -16,9 +16,9 @@ the steps spelled out.
 |------|-----|
 | Rebuild database | `/db-reset` skill (drops + recreates the PG DB via `psql`) |
 | Regenerate ORM models | Use `/orm-gen` skill — calls `drogon_ctl create model` against `model.json` |
-| Build | `cd PayBackend && scripts\build.bat` (`-debug` for Debug) |
-| Run server | `cd PayBackend && build/Release/PayServer.exe -c build/Release/config.json` |
-| Unit / integration tests | `cd PayBackend && build/Release/test_payplugin.exe`. By label: `test_payplugin.exe --gtest_filter=*Integration*`. |
+| Build | `examples\pay-server\scripts\build.bat` (`-debug` for Debug) |
+| Run server | `examples/pay-server/scripts/run_server.bat` |
+| Unit / integration tests | `build/windows-msvc/tests/Release/PayBackendTests.exe`. By label: `PayBackendTests.exe
 | Full cycle | Build → test → verify |
 
 ## Frontend (run inside the respective dir, e.g. `cd PayFrontend`)
@@ -33,7 +33,7 @@ the steps spelled out.
 
 ## Full stack (Docker)
 
-`cd PayBackend && docker-compose up -d` (backend API :5566, PostgreSQL :5432, Redis :6379) /
+`cd examples/pay-server && docker-compose up -d` (backend API :5566, PostgreSQL :5432, Redis :6379) /
 `docker-compose down`. Service names: `payserver`, `postgres`, `redis`. Use the `/docker-integration-test` skill for guided integration checks.
 
 Standard build/run/test flags also live in `README.md` "Quick Start".

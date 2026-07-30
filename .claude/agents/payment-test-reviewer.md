@@ -193,14 +193,13 @@ auto response = refundService->queryRefund(refundNo);
 
 ```bash
 # 检查是否还有旧的 plugin 调用
-grep -n "plugin->" PayBackend/test/[测试文件名].cc
+grep -n "plugin->" tests/[测试文件名].cc
 
 # 运行特定测试
-cd PayBackend
-./build/Release/test_payplugin.exe --gtest_filter="*[测试名称]*"
+./build/windows-msvc/tests/Release/PayBackendTests.exe
 
 # 检查测试覆盖率
-./build/Release/test_payplugin.exe --gtest_list_tests
+build/windows-msvc/tests/Release/PayBackendTests.exe
 ```
 
 ## 常见问题
@@ -232,8 +231,8 @@ cd PayBackend
 ## 相关文件
 
 - 代码审查: `.claude/skills/code-review/SKILL.md`
-- 测试文件: `PayBackend/test/*.cc`
-- Service 定义: `PayBackend/services/*.h`
-- 迁移示例: `PayBackend/test/CreatePaymentIntegrationTest.cc`
-- 构建: `cd PayBackend && scripts\build.bat`
-- 测试运行: `cd PayBackend && build/Release/test_payplugin.exe`
+- 测试文件: `tests/*.cc`
+- Service 定义: `libs/drogon-pay/src/services/*.h`
+- 迁移示例: `tests/CreatePaymentIntegrationTest.cc`
+- 构建: `examples\pay-server\scripts\build.bat`
+- 测试运行: `build/windows-msvc/tests/Release/PayBackendTests.exe`

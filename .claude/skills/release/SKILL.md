@@ -16,8 +16,8 @@ disable-model-invocation: true
 
 ### 1. 版本号确认
 检查当前版本号：
-- `PayBackend/CMakeLists.txt` 中的项目版本
-- `PayBackend/CMakeLists.txt` 中的插件版本
+- `conanfile.py` 中的包版本
+- `libs/drogon-pay/CMakeLists.txt` 中的库版本
 - 确保版本号格式一致（语义化版本：MAJOR.MINOR.PATCH）
 
 ### 2. 版本号更新
@@ -114,8 +114,10 @@ git checkout -b hotfix/[issue-description]
 ## 文件位置
 
 需要更新版本号的文件：
-- `PayBackend/CMakeLists.txt`
-- `PayBackend/CMakeLists.txt`
+- `conanfile.py`
+- `libs/drogon-pay/CMakeLists.txt`
+- `conanfile.py`
+- `libs/drogon-pay/CMakeLists.txt`
 - `PayFrontend/package.json`（如果有前端变更）
 - `README.md`（版本引用）
 - `CHANGELOG.md`（变更日志）
