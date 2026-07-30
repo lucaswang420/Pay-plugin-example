@@ -23,7 +23,7 @@ class DrogonPayConan(ConanFile):
     name = "drogon-pay"
     version = "1.0.0"
     license = "MIT"
-    url = "https://github.com/lucaswang420/pay-plugin-example"
+    url = "https://github.com/lucaswang420/drogon-pay"
     description = "A reusable payment plugin for the Drogon framework"
     topics = ("drogon", "payment", "wechat-pay", "alipay", "plugin")
     package_type = "static-library"
