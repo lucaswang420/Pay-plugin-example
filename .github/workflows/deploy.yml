@@ -11,9 +11,42 @@ env:
   ECR_REPOSITORY: payserver
 
 jobs:
+  # Secrets are not visible in job-level `if:` conditions, so this job probes
+  # them once and exposes the results as outputs. Jobs whose credentials are
+  # missing are skipped (grey) instead of failing (red).
+  preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      has-dockerhub: ${{ steps.check.outputs.has-dockerhub }}
+      has-aws: ${{ steps.check.outputs.has-aws }}
+    steps:
+      - name: Check configured secrets
+        id: check
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
+            echo "has-dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-dockerhub=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::DOCKER_USERNAME/DOCKER_PASSWORD not configured - skipping image build & push"
+          fi
+          if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "has-aws=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-aws=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS credentials not configured - skipping staging/production deploy"
+          fi
+
   build-and-push:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    needs: preflight
+    if: needs.preflight.outputs.has-dockerhub == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -55,8 +88,10 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    needs: build-and-push
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    needs: [preflight, build-and-push]
+    if: >-
+      needs.preflight.outputs.has-aws == 'true' &&
+      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     environment:
       name: staging
       url: https://staging-api.example.com
@@ -96,8 +131,10 @@ jobs:
   deploy-production:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
-    needs: build-and-push
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [preflight, build-and-push]
+    if: >-
+      needs.preflight.outputs.has-aws == 'true' &&
+      startsWith(github.ref, 'refs/tags/v')
     environment:
       name: production
       url: https://api.example.com
@@ -183,7 +220,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     needs: [deploy-staging, deploy-production]
-    if: always()
+    if: >-
+      always() &&
+      (needs.deploy-staging.result != 'skipped' || needs.deploy-production.result != 'skipped')
 
     steps:
       - name: Send notification
