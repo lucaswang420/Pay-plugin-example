@@ -1,0 +1,12 @@
+# Gitleaks configuration.
+# Extends the default ruleset with an allowlist for the test-only placeholder
+# credentials that CI workflows and the test suite set as environment
+# variables (they are not real secrets).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test-only placeholder credentials used by CI and tests"
+regexes = [
+  '''test_key_123456''',
+]
