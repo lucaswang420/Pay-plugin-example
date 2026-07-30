@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     libssl-dev \
+    perl \
     wget \
     git \
     unzip \
@@ -27,13 +28,19 @@ RUN pip3 install conan
 # Set working directory
 WORKDIR /build
 
+# Resolve dependencies first so the (expensive) Conan layer is cached until
+# conanfile.py / conan.lock actually change.
+COPY conanfile.py conan.lock ./
+RUN conan profile detect --force && \
+    conan install . --output-folder=build/linux-release --lockfile=conan.lock \
+        -s build_type=Release -s compiler.cppstd=17 --build=missing
+
 # Copy source code (repository root context)
 COPY . .
 
 # Build application (library + example host only; tests are not shipped)
-RUN mkdir -p build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DDROGON_PAY_BUILD_TESTS=OFF && \
-    make -j$(nproc)
+RUN cmake --preset linux-release -DDROGON_PAY_BUILD_TESTS=OFF && \
+    cmake --build --preset linux-release -j$(nproc)
 
 # Stage 2: Runtime stage
 FROM ubuntu:22.04
@@ -56,7 +63,7 @@ WORKDIR /app
 
 # Copy built binaries from builder stage. Only the server binary belongs in the
 # production image; the test binary must not ship to prod.
-COPY --from=builder /build/build/examples/pay-server/PayServer /app/PayServer
+COPY --from=builder /build/build/linux-release/examples/pay-server/PayServer /app/PayServer
 
 # Copy configuration. Sensitive values in config.json use __env_var:NAME__
 # placeholders resolved at runtime from the environment, so shipping the file is
