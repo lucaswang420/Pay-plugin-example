@@ -1,7 +1,8 @@
 @echo off
 setlocal
 
-cd /d "%~dp0.."
+REM SQL migrations live at the repository root (script is in examples/pay-server/scripts/)
+cd /d "%~dp0..\..\.."
 echo Setting up pay_test database...
 
 set PGPASSWORD=123456

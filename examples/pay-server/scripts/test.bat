@@ -63,27 +63,27 @@ endlocal
 exit /b 1
 :end_parse
 
-REM Change to the preset build directory (created by build.bat)
+REM Change to the preset build directory at the repository root (created by build.bat)
 set PRESET=windows-msvc
 if /i "%BUILD_TYPE%"=="Debug" set PRESET=windows-msvc-debug
 
-if not exist "%SCRIPT_DIR%..\build\%PRESET%" (
+if not exist "%SCRIPT_DIR%..\..\..\build\%PRESET%" (
     echo Error: build\%PRESET% directory not found
     echo Please build the project first using build.bat
     endlocal
     exit /b 1
 )
-cd /d "%SCRIPT_DIR%..\build\%PRESET%"
+cd /d "%SCRIPT_DIR%..\..\..\build\%PRESET%"
 echo Build directory: %CD%
 echo.
 
 REM Check if CTest configuration exists
 if not exist "CTestTestfile.cmake" (
-    if not exist "test\CTestTestfile.cmake" (
+    if not exist "tests\CTestTestfile.cmake" (
         echo Error: CTest configuration not found
         echo Expected locations:
         echo   - %CD%\CTestTestfile.cmake
-        echo   - %CD%\test\CTestTestfile.cmake
+        echo   - %CD%\tests\CTestTestfile.cmake
         echo.
         echo Please build the project first using build.bat
         endlocal
@@ -94,7 +94,7 @@ if not exist "CTestTestfile.cmake" (
 REM Determine test directory
 set TEST_DIR=.
 if not exist "CTestTestfile.cmake" (
-    set TEST_DIR=test
+    set TEST_DIR=tests
 )
 
 echo Test directory: %CD%\!TEST_DIR!
