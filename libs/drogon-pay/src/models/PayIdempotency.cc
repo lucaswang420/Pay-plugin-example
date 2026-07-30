@@ -6,7 +6,6 @@
  */
 
 #include "PayIdempotency.h"
-#include "orm_compat.h"  // codecvt_utf8_utf16 compat for the length checks below
 #include <drogon/utils/Utilities.h>
 #include <string>
 
