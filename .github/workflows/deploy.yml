@@ -2,9 +2,9 @@ name: Deploy
 
 on:
   push:
-    branches: [ master, main ]
     tags:
       - 'v*'
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
