@@ -13,7 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./sql:/docker-entrypoint-initdb.d
+      # SQL migrations live at the repository root after the plugin refactor.
+      - ../../sql:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -42,8 +43,10 @@ services:
   # Pay Server Application
   payserver:
     build:
-      context: .
-      dockerfile: Dockerfile
+      # The Dockerfile needs libs/drogon-pay and examples/pay-server, so the
+      # build context must be the repository root (see Dockerfile header).
+      context: ../..
+      dockerfile: examples/pay-server/Dockerfile
     container_name: pay_server
     ports:
       - "5566:5566"

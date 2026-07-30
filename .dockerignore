@@ -1,0 +1,31 @@
+# Build context is the repository root (see examples/pay-server/Dockerfile).
+# Keep the context minimal and make sure secrets never enter image layers.
+
+# VCS / editor / AI-tool caches
+.git
+.github
+.vscode
+.claude
+.codex
+.codebuddy
+.kiro
+.qoder
+
+# Local build artifacts (the image builds from scratch inside the container)
+build/
+**/build/
+CMakeUserPresets.json
+
+# Secrets and local environment files — certs/config are volume-mounted at
+# runtime by docker-compose, they must NOT be baked into the image.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/certs/
+
+# Non-build content
+docs/
+PayFrontend/
+scripts/
+*.md
