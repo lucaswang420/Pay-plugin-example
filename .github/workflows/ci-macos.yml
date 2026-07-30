@@ -5,13 +5,75 @@ on:
     branches: ["master"]
   pull_request:
     branches: ["master"]
+  workflow_dispatch:
+    inputs:
+      legacy-source-build:
+        description: "Run the legacy build-Drogon-from-source path (rollback safety net, kept for one release cycle)"
+        type: boolean
+        default: false
 
 env:
   BUILD_TYPE: Release
+  # Only used by the legacy source-build job below.
   DROGON_VERSION: "v1.9.13"
 
 jobs:
+  # Primary path: Conan-managed dependencies + CMake presets, mirroring the
+  # Windows/Linux CI and local developer workflow. Build-only (no databases),
+  # same coverage as the legacy job.
   build-and-test:
+    name: macos-build-and-test
+    runs-on: macos-14
+    # Cold Conan cache builds drogon/openssl from source, which can take a while
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Conan
+        run: |
+          brew update
+          brew install conan
+          conan profile detect --force
+
+      # --- Conan dependency cache ---
+      # Same policy as ci-windows.yml: cache the package store so drogon and
+      # friends are only rebuilt from source when the lockfile changes.
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: ${{ runner.os }}-conan2-${{ hashFiles('conanfile.py', 'conan.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-conan2-
+
+      - name: Install dependencies (Conan)
+        run: conan install . --output-folder=build/macos-arm64 -s build_type=${{env.BUILD_TYPE}} -s compiler.cppstd=17 -s arch=armv8 --build=missing
+
+      - name: Configure (cmake --preset)
+        run: cmake --preset macos-arm64
+
+      - name: Build (cmake --build --preset)
+        run: cmake --build --preset macos-arm64 -j $(sysctl -n hw.ncpu)
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-logs
+          path: |
+            ${{github.workspace}}/build/macos-arm64/Testing/
+            ${{github.workspace}}/logs/
+          retention-days: 7
+
+  # --- Legacy rollback path (kept for one release cycle) ---
+  # Pre-Conan pipeline that builds Drogon from source with brew-provided
+  # dependencies. Trigger manually via workflow_dispatch with
+  # legacy-source-build=true if the Conan path regresses. Remove after the
+  # Conan path has been stable for a full release cycle.
+  build-and-test-legacy:
+    name: macos-build-and-test-legacy
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy-source-build
     runs-on: macos-14
     timeout-minutes: 60
 
@@ -29,15 +91,6 @@ jobs:
           brew install ossp-uuid
           brew install zlib
           brew install openssl@3 libpq hiredis
-
-      # --- Drogon build cache ---
-      # Temporarily disable cache to force rebuild after key change
-      # - name: Cache Drogon build
-      #   id: cache-drogon
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ${{github.workspace}}/drogon
-      #     key: drogon-${{ runner.os }}-${{ env.DROGON_VERSION }}-v6-cpp17-pure-${{ env.BUILD_TYPE }}
 
       - name: Build Drogon
         run: |
@@ -88,7 +141,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-test-logs
+          name: macos-legacy-test-logs
           path: |
             ${{github.workspace}}/build/Testing/
             ${{github.workspace}}/logs/

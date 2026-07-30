@@ -5,9 +5,16 @@ on:
     branches: ["master"]
   pull_request:
     branches: ["master"]
+  workflow_dispatch:
+    inputs:
+      legacy-source-build:
+        description: "Run the legacy build-Drogon-from-source path (rollback safety net, kept for one release cycle)"
+        type: boolean
+        default: false
 
 env:
   BUILD_TYPE: Release
+  # Only used by the legacy source-build job below.
   DROGON_VERSION: "v1.9.13"
 
 jobs:
@@ -85,7 +92,121 @@ jobs:
           fi
           echo "No old Plugin API usage found."
 
+  # Primary path: Conan-managed dependencies + CMake presets, mirroring the
+  # Windows CI and local developer workflow. Drogon/OpenSSL/jsoncpp come from
+  # the lockfile-pinned Conan graph instead of an ad-hoc source build.
   build-and-test:
+    name: linux-build-and-test
+    runs-on: ubuntu-22.04
+    # Cold Conan cache builds drogon/openssl from source, which can take a while
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: 123456
+          POSTGRES_DB: pay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Conan
+        run: |
+          pip install conan
+          conan profile detect --force
+
+      # --- Conan dependency cache ---
+      # Same policy as ci-windows.yml: cache the package store so drogon and
+      # friends are only rebuilt from source when the lockfile changes.
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: ${{ runner.os }}-conan2-${{ hashFiles('conanfile.py', 'conan.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-conan2-
+
+      - name: Install dependencies (Conan)
+        run: conan install . --output-folder=build/linux-release -s build_type=${{env.BUILD_TYPE}} -s compiler.cppstd=17 --build=missing
+
+      - name: Configure (cmake --preset)
+        run: cmake --preset linux-release
+
+      - name: Build (cmake --build --preset)
+        run: cmake --build --preset linux-release -j $(nproc)
+
+      - name: Install test dependencies
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client redis-tools
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for Postgres..."
+          for i in $(seq 1 15); do
+            PGPASSWORD=123456 pg_isready -h localhost -U test && break
+            echo "  Postgres not ready yet (attempt $i/15)..."
+            sleep 2
+          done
+          echo "Waiting for Redis..."
+          for i in $(seq 1 15); do
+            redis-cli -h localhost ping && break
+            echo "  Redis not ready yet (attempt $i/15)..."
+            sleep 2
+          done
+
+      - name: Initialize Database
+        env:
+          PGPASSWORD: 123456
+        run: |
+          psql -h localhost -U test -d pay_test -f sql/001_init_pay_tables.sql
+          psql -h localhost -U test -d pay_test -f sql/002_add_indexes.sql
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build/linux-release
+        env:
+          PAY_REDIS_PASSWORD: ""
+          PAY_DB_HOST: "127.0.0.1"
+          PAY_REDIS_HOST: "127.0.0.1"
+          PAY_DB_PASSWORD: "123456"
+          PAY_API_KEY: "test_key_123456"
+        run: ctest -V -C ${{env.BUILD_TYPE}} --output-on-failure --timeout 120
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-logs
+          path: |
+            ${{github.workspace}}/build/linux-release/Testing/
+            ${{github.workspace}}/logs/
+          retention-days: 7
+
+  # --- Legacy rollback path (kept for one release cycle) ---
+  # Pre-Conan pipeline that builds Drogon from source with apt-provided
+  # dependencies. Trigger manually via workflow_dispatch with
+  # legacy-source-build=true if the Conan path regresses. Remove after the
+  # Conan path has been stable for a full release cycle.
+  build-and-test-legacy:
+    name: linux-build-and-test-legacy
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy-source-build
     runs-on: ubuntu-22.04
     timeout-minutes: 30
 
@@ -198,7 +319,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: linux-test-logs
+          name: linux-legacy-test-logs
           path: |
             ${{github.workspace}}/build/Testing/
             ${{github.workspace}}/logs/
