@@ -81,8 +81,7 @@ A health check endpoint has been implemented at `/health` to monitor service sta
 The health check controller is automatically included in the build via the CMakeLists.txt configuration:
 
 ```bash
-cd examples/pay-server
-./scripts/build.bat
+examples\pay-server\scripts\build.bat
 ```
 
 Build output will show:

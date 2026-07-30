@@ -2,43 +2,53 @@
 
 **A reusable payment plugin for the [Drogon](https://github.com/drogonframework/drogon) framework.**
 
-[![Windows CI](https://github.com/lucaswang420/pay-plugin-example/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/lucaswang420/pay-plugin-example/actions/workflows/ci-windows.yml)
-[![Linux CI](https://github.com/lucaswang420/pay-plugin-example/actions/workflows/ci-linux.yml/badge.svg)](https://github.com/lucaswang420/pay-plugin-example/actions/workflows/ci-linux.yml)
-[![Conan Package](https://github.com/lucaswang420/pay-plugin-example/actions/workflows/conan-create.yml/badge.svg)](https://github.com/lucaswang420/pay-plugin-example/actions/workflows/conan-create.yml)
+**English** | [简体中文](README.zh-CN.md)
+
+[![Windows CI](https://github.com/lucaswang420/drogon-pay/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/lucaswang420/drogon-pay/actions/workflows/ci-windows.yml)
+[![Linux CI](https://github.com/lucaswang420/drogon-pay/actions/workflows/ci-linux.yml/badge.svg)](https://github.com/lucaswang420/drogon-pay/actions/workflows/ci-linux.yml)
+[![macOS CI](https://github.com/lucaswang420/drogon-pay/actions/workflows/ci-macos.yml/badge.svg)](https://github.com/lucaswang420/drogon-pay/actions/workflows/ci-macos.yml)
+[![Conan Package](https://github.com/lucaswang420/drogon-pay/actions/workflows/conan-create.yml/badge.svg)](https://github.com/lucaswang420/drogon-pay/actions/workflows/conan-create.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`drogon-pay` 把完整的支付能力（创建/扫码/查询/退款/回调验签/对账/幂等）封装为
-一个标准 `drogon::Plugin`。任意 Drogon 宿主应用通过 **Conan 依赖 +
-`find_package(DrogonPay)` + config.json 插件块** 三步接入，无需拷贝业务代码；
-新支付渠道通过实现 `PaymentChannel` SPI 即插即用。
+`drogon-pay` packages a complete payment stack (create / QR code / query / refund /
+callback signature verification / reconciliation / idempotency) as a standard
+`drogon::Plugin`. Any Drogon host application integrates in three steps —
+**Conan dependency + `find_package(DrogonPay)` + a config.json plugin block** —
+without copying any business code. New payment channels plug in by implementing
+the `PaymentChannel` SPI.
 
 ```text
-宿主 app ──find_package(DrogonPay)──▶ DrogonPay::DrogonPay (STATIC)
-config.json plugins: [PayPlugin] ──▶ 渠道装配 → 服务构造 → 路由程序化注册
+host app ──find_package(DrogonPay)──▶ DrogonPay::DrogonPay (STATIC)
+config.json plugins: [PayPlugin] ──▶ channel assembly → service wiring → programmatic routes
                                         │
-                          ChannelRegistry（启动期冻结，运行期无锁）
+                          ChannelRegistry (frozen at startup, lock-free at runtime)
                                         │
                     ┌───────────────────┼──────────────────┐
-              WechatChannel       AlipayChannel      宿主自定义渠道
-              （内置，SPI 实现）  （内置，SPI 实现）  （registerFactory 注册）
+              WechatChannel       AlipayChannel      custom host channels
+              (built-in SPI impl) (built-in SPI impl) (via registerFactory)
 ```
 
-## 特性
+## Features
 
-- **插件即库**：`drogon-pay/1.0.0` Conan 包（`static-library`），CMake 目标
-  `DrogonPay::DrogonPay`，公共 API 仅 4 个头文件
-- **渠道 SPI**：`drogon_pay::PaymentChannel` 抽象接口 + `ChannelRegistry`
-  启动期注册/冻结；未知渠道显式 `CHANNEL_NOT_AVAILABLE`，无隐式兜底
-- **内置微信/支付宝渠道**：HttpClient 每 IO loop 复用（`IOThreadStorage` +
-  keep-alive）、微信平台证书原子快照热刷新
-- **路由全部程序化注册**：无 `ADD_METHOD_TO` 静态注册，静态库链接不丢符号，
-  路由前缀 `base_path` 可配置（默认 `/api/pay`）
-- **生产化基座**：API Key + scope 鉴权、幂等键（Redis 可选 / 数据库兜底）、
-  回调状态机 + 台账、定时对账（独立 worker 线程）、Prometheus 指标
-- **消费者验证**：`conan create` 走 `test_package/` 最小宿主端到端验证
-  （find_package → 插件加载 → 路由可达 → 干净退出）
+- **Plugin as a library**: `drogon-pay/1.0.0` Conan package (`static-library`),
+  CMake target `DrogonPay::DrogonPay`, public API is just 4 headers
+- **Channel SPI**: `drogon_pay::PaymentChannel` abstract interface +
+  `ChannelRegistry` with startup-time registration/freeze; unknown channels fail
+  explicitly with `CHANNEL_NOT_AVAILABLE` — no implicit fallback
+- **Built-in WeChat Pay / Alipay channels**: per-IO-loop HttpClient reuse
+  (`IOThreadStorage` + keep-alive), atomic-snapshot hot refresh of WeChat
+  platform certificates
+- **Fully programmatic routing**: no `ADD_METHOD_TO` static registration, so no
+  symbols are lost when linking the static library; route prefix `base_path`
+  is configurable (default `/api/pay`)
+- **Production-grade foundation**: API key + scope auth, idempotency keys
+  (Redis optional / database fallback), callback state machine + ledger,
+  scheduled reconciliation (dedicated worker thread), Prometheus metrics
+- **Consumer-side verification**: `conan create` runs an end-to-end check from
+  the consumer's perspective via `test_package/`
+  (find_package → plugin loads → routes reachable → clean shutdown)
 
-## 快速开始（宿主三步接入）
+## Quick Start (three-step host integration)
 
 ```python
 # conanfile.py
@@ -59,65 +69,70 @@ target_link_libraries(my_server PRIVATE DrogonPay::DrogonPay)
 } }] }
 ```
 
-再执行 [sql/](sql/) 建表脚本并启动即可。完整五步接入、配置键说明、路由表、
-自定义渠道开发指南与 v1.0 破坏性变更映射表见
-**[docs/development/plugin_integration.md](docs/development/plugin_integration.md)**。
+Then run the [sql/](sql/) migration scripts and start your server. For the full
+five-step integration, configuration keys, route table, custom channel
+development guide, and the v1.0 breaking-change mapping, see
+**[docs/development/plugin_integration.md](docs/development/plugin_integration.md)**.
 
-## 版本兼容
+## Version Compatibility
 
 | drogon-pay | Drogon | C++ |
 |---|---|---|
-| 1.0.x | 1.9.13（钉死；库与宿主必须同版本） | C++17 |
+| 1.0.x | 1.9.13 (pinned; library and host must match) | C++17 |
 
-静态库 + C++ ABI 决定了 Drogon 版本是硬约束；Drogon 升级随本库 minor 版本发布。
+Static library + C++ ABI make the Drogon version a hard constraint; Drogon
+upgrades ship as minor releases of this library.
 
-## 仓库布局
+## Repository Layout
 
 ```
-├── libs/drogon-pay/        # ★ 可复用插件库（唯一发布物）
-│   ├── include/drogon_pay/ #   公共 API：PayPlugin / PaymentChannel / ChannelRegistry / PayErrorCategory
-│   └── src/                #   内部实现：handlers / services / channels / models（不安装）
-├── examples/pay-server/    # 示例宿主（.env/CORS/healthz 等宿主关注点）
-├── examples/pay-admin/     # 示例宿主配套的 Vue 3 管理控制台（演示层）
-├── tests/                  # DROGON_TEST 单元/集成测试（ctest）
-├── test_package/           # Conan 消费者视角端到端验证
-├── sql/                    # PostgreSQL 迁移脚本 000-004
-├── cmake/                  # find_package 导出模板
-└── docs/                   # 集成指南 / API / 部署 / 运维文档
+├── libs/drogon-pay/        # ★ the reusable plugin library (the only published artifact)
+│   ├── include/drogon_pay/ #   public API: PayPlugin / PaymentChannel / ChannelRegistry / PayErrorCategory
+│   └── src/                #   internals: handlers / services / channels / models (not installed)
+├── examples/pay-server/    # example host (host concerns: .env / CORS / healthz ...)
+├── examples/pay-admin/     # Vue 3 admin console for the example host (demo layer)
+├── tests/                  # DROGON_TEST unit/integration tests (ctest)
+├── test_package/           # Conan consumer-side end-to-end verification
+├── sql/                    # PostgreSQL migration scripts 000-004
+├── cmake/                  # find_package export templates
+└── docs/                   # integration / API / deployment / operations docs
 ```
 
-架构守卫（依赖方向单向）：库不依赖 `examples/` 任何代码；公共头不泄漏
-`src/` 内部实现；服务层只依赖 SPI，不 include 具体渠道头。
+Architecture guards (one-way dependency direction): the library depends on
+nothing under `examples/`; public headers never leak `src/` internals; the
+service layer depends only on the SPI and never includes concrete channel
+headers.
 
-## 从源码构建
+## Building from Source
 
-前置：CMake 3.15+、Conan 2、MSVC 2022 / GCC / Clang（C++17）。
+Prerequisites: CMake 3.15+, Conan 2, MSVC 2022 / GCC / Clang (C++17).
 
 ```bash
 conan install . --output-folder=build/windows-msvc -s build_type=Release -s compiler.cppstd=17 --build=missing
-cmake --preset windows-msvc
+cmake --preset windows-msvc         # linux-release / macos-arm64 on other platforms
 cmake --build --preset windows-msvc
-ctest --test-dir build/windows-msvc -C Release        # 需要 PostgreSQL + Redis，见 tests/
-conan create . --build=missing -s build_type=Release -s compiler.cppstd=17   # 打包 + test_package 验证
+ctest --test-dir build/windows-msvc -C Release        # requires PostgreSQL + Redis, see tests/
+conan create . --build=missing -s build_type=Release -s compiler.cppstd=17   # package + test_package verification
 ```
 
-CMake 开关：`DROGON_PAY_BUILD_EXAMPLES`（默认 ON）、`DROGON_PAY_BUILD_TESTS`
-（默认 ON，CI 经 `PAY_BUILD_TESTS` 兼容开关控制）。
+CMake options: `DROGON_PAY_BUILD_EXAMPLES` (default ON), `DROGON_PAY_BUILD_TESTS`
+(default ON, controlled in CI via the `BUILD_TESTS` compatibility switch).
 
-## 文档
+## Documentation
 
-- **[宿主集成指南](docs/development/plugin_integration.md)** — 五步接入 + 自定义渠道 SPI + 旧→新配置映射
-- [API 示例](docs/api/pay-api-examples.md) · [API Key 配置](docs/api/api_key_configuration.md)
-- [示例宿主说明](examples/pay-server/README.md) · [管理控制台说明](examples/pay-admin/README.md)
-- [架构总览](docs/architecture/architecture_overview.md) · [部署指南](docs/deployment/deployment_guide.md)
-- [测试指南](docs/testing/testing_guide.md) · [运维手册](docs/operations/operations_manual.md)
-- 完整索引：[docs/README.md](docs/README.md)
+- **[Host Integration Guide](docs/development/plugin_integration.md)** — five-step setup + custom channel SPI + old→new config mapping
+- [API Examples](docs/api/pay-api-examples.md) · [API Key Configuration](docs/api/api_key_configuration.md)
+- [Example Host](examples/pay-server/README.md) · [Admin Console](examples/pay-admin/README.md)
+- [Architecture Overview](docs/architecture/architecture_overview.md) · [Deployment Guide](docs/deployment/deployment_guide.md)
+- [Testing Guide](docs/testing/testing_guide.md) · [Operations Manual](docs/operations/operations_manual.md)
+- Full index: [docs/README.md](docs/README.md)
 
-## 贡献
+## Contributing
 
-1. Fork → 特性分支 → 提交 PR（要求三平台 CI 绿）
-2. 新渠道贡献请先阅读集成指南的 SPI 契约（线程安全 + HttpClient 复用）
-3. 遵循 `.clang-format`；新代码零告警准入
+1. Fork → feature branch → open a PR (all three platform CI checks must pass)
+2. Before contributing a new channel, read the SPI contract in the integration
+   guide (thread safety + HttpClient reuse)
+3. Follow `.clang-format`; new code must be warning-free
 
 ## License
 

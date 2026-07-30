@@ -75,5 +75,5 @@ First release of `drogon-pay` as a reusable Drogon plugin library. The former
 - Duplicated inline CORS implementation in `main.cc` (single
   `SecurityHeaders.h` implementation, host-side).
 
-[Unreleased]: https://github.com/lucaswang420/pay-plugin-example/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/lucaswang420/pay-plugin-example/releases/tag/v1.0.0
+[Unreleased]: https://github.com/lucaswang420/drogon-pay/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/lucaswang420/drogon-pay/releases/tag/v1.0.0

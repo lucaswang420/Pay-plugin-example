@@ -1,145 +1,124 @@
-# Pay Plugin Documentation
+# drogon-pay Documentation
 
-This directory contains all documentation for the Pay Plugin project.
+Documentation index for the `drogon-pay` plugin library and its example host.
 
 ## 📂 Directory Structure
 
 ```
 docs/
-├── architecture/           # Architecture design documents
-│   ├── overview.md         # Overall architecture overview
-│   ├── service-layer.md    # Service layer design details
-│   └── data-flow.md        # Data flow and call chains
-│
-├── development/            # Development-related documents
-│   ├── setup.md            # Development environment setup
-│   ├── coding-standards.md # Coding standards and conventions
-│   └── debugging.md        # Debugging guide
-│
-├── api/                    # API documentation
-│   ├── reference.md        # API interface reference
-│   └── examples.md         # API usage examples
-│
-├── testing/                # Testing documentation
-│   ├── strategy.md         # Testing strategy
-│   ├── unit-test.md        # Unit testing guide
-│   └── integration-test.md # Integration testing guide
-│
-├── deployment/             # Deployment documentation
-│   ├── docker.md           # Docker deployment
-│   ├── production.md       # Production environment setup
-│   └── monitoring.md       # Monitoring configuration
-│
-├── operations/             # Operations documentation
-│   ├── troubleshooting.md  # Troubleshooting guide
-│   ├── maintenance.md      # Maintenance procedures
-│   └── backup.md           # Backup strategies
-│
-└── history/                # Historical documents
-    ├── refactoring/        # Refactoring project documents
-    │   ├── 2026-04-09-design.md         # Refactoring design document
-    │   └── 2026-04-09-implementation.md # Refactoring implementation plan
-    └── decisions/          # Architecture Decision Records (ADRs)
+├── architecture/    # Architecture design documents
+├── development/     # Integration & development guides
+├── api/             # API usage and configuration
+├── testing/         # Testing guides
+├── deployment/      # Deployment & monitoring setup
+├── operations/      # Operations manuals & checklists
+└── history/         # Historical records (plans, reports, superseded docs)
 ```
 
 ## 📖 Quick Links
 
-### For New Developers
-1. Start with [architecture/overview.md](architecture/overview.md)
-2. Set up your environment: [development/setup.md](development/setup.md)
-3. Read coding standards: [development/coding-standards.md](development/coding-standards.md)
-
 ### For Host Application Developers (consuming the drogon-pay library)
-- Plugin Integration Guide: [development/plugin_integration.md](development/plugin_integration.md)
-- Example host: [examples/pay-server/README.md](../examples/pay-server/README.md)
 
-### For API Users
-- API Reference: [api/reference.md](api/reference.md)
-- API Examples: [api/examples.md](api/examples.md)
+1. **[Plugin Integration Guide](development/plugin_integration.md)** — 5-step
+   setup, configuration keys, route table, custom channel SPI, old→new config
+   mapping
+2. [Architecture Overview](architecture/architecture_overview.md)
+3. Example host: [examples/pay-server/README.md](../examples/pay-server/README.md)
+   · Admin console: [examples/pay-admin/README.md](../examples/pay-admin/README.md)
 
-### For Testing
-- Testing Strategy: [testing/strategy.md](testing/strategy.md)
-- Unit Testing: [testing/unit-test.md](testing/unit-test.md)
-- Integration Testing: [testing/integration-test.md](testing/integration-test.md)
+### For Contributors
 
-### For Deployment
-- Docker Deployment: [deployment/docker.md](deployment/docker.md)
-- Production Setup: [deployment/production.md](deployment/production.md)
-- Monitoring: [deployment/monitoring.md](deployment/monitoring.md)
+1. [Environment Setup](development/environment_setup.md)
+2. [Configuration Guide](development/configuration_guide.md)
+3. [Logging Standards](development/logging_standards.md)
+4. [Testing Guide](testing/testing_guide.md)
 
-### For Operations
-- Troubleshooting: [operations/troubleshooting.md](operations/troubleshooting.md)
-- Maintenance: [operations/maintenance.md](operations/maintenance.md)
+## 📝 Document Index
 
-## 📝 Document Status
+### Architecture
 
-### Current Documents (✅ Available)
+- [architecture_overview.md](architecture/architecture_overview.md) — plugin
+  library architecture: layers, channel SPI, data flow
 
-#### Architecture
-- [architecture_overview.md](architecture/architecture_overview.md) - System architecture design
+### Development
 
-#### Development
-- [plugin_integration.md](development/plugin_integration.md) - **Host integration guide for the drogon-pay plugin library** (5-step setup, custom channel SPI, old→new config key mapping)
-- [environment_setup.md](development/environment_setup.md) - Development environment setup
-- [configuration_guide.md](development/configuration_guide.md) - Application configuration guide
-- [migration_guide.md](development/migration_guide.md) - API migration guide
-- [alipay_sandbox_setup.md](development/alipay_sandbox_setup.md) - Alipay sandbox setup
-- [alipay_sandbox_quickstart.md](development/alipay_sandbox_quickstart.md) - Alipay quick start
+- [plugin_integration.md](development/plugin_integration.md) — **host
+  integration guide** (5-step setup, custom channel SPI, config mapping)
+- [environment_setup.md](development/environment_setup.md) — development
+  environment setup
+- [configuration_guide.md](development/configuration_guide.md) — application
+  configuration guide
+- [logging_standards.md](development/logging_standards.md) — logging
+  conventions and levels
+- [alipay_sandbox_setup.md](development/alipay_sandbox_setup.md) — Alipay
+  sandbox setup
+- [alipay_sandbox_quickstart.md](development/alipay_sandbox_quickstart.md) —
+  Alipay sandbox quick start
 
-#### API
-- [pay-api-examples.md](api/pay-api-examples.md) - Payment API usage examples
-- [api_configuration_guide.md](api/api_configuration_guide.md) - API configuration guide
-- [api_key_configuration.md](api/api_key_configuration.md) - API key configuration
+### API
 
-#### Testing
-- [testing_guide.md](testing/testing_guide.md) - Testing framework usage
-- [e2e_testing_guide.md](testing/e2e_testing_guide.md) - End-to-end testing guide
+- [pay-api-examples.md](api/pay-api-examples.md) — payment API usage examples
+- [api_configuration_guide.md](api/api_configuration_guide.md) — API
+  configuration guide
+- [api_key_configuration.md](api/api_key_configuration.md) — API key
+  configuration
 
-#### Deployment
-- [deployment_guide.md](deployment/deployment_guide.md) - Deployment instructions
-- [monitoring_setup.md](deployment/monitoring_setup.md) - Monitoring configuration
+### Testing
 
-#### Operations
-- [operations_manual.md](operations/operations_manual.md) - Operations manual
-- [troubleshooting.md](operations/troubleshooting.md) - Troubleshooting guide
-- [security_checklist.md](operations/security_checklist.md) - Security checklist
-- [security_audit_report_2026_04_13.md](operations/security_audit_report_2026_04_13.md) - Security audit report
-- [health_check_implementation.md](operations/health_check_implementation.md) - Health check implementation
+- [testing_guide.md](testing/testing_guide.md) — test framework usage (ctest /
+  DROGON_TEST)
+- [e2e_testing_guide.md](testing/e2e_testing_guide.md) — end-to-end testing
+  guide
 
-### Historical Documents
+### Deployment
 
-#### Refactoring History
-- [2026-04-09-design.md](history/refactoring/2026-04-09-design.md) - Refactoring design document
-- [2026-04-09-implementation.md](history/refactoring/2026-04-09-implementation.md) - Refactoring implementation plan
-- [2026-04-13-option-b-implementation.md](history/refactoring/2026-04-13-option-b-implementation.md) - Option B implementation plan
+- [deployment_guide.md](deployment/deployment_guide.md) — build & deployment
+  instructions
+- [monitoring_setup.md](deployment/monitoring_setup.md) — Prometheus / Grafana
+  monitoring setup
 
-#### Project Reports
-- [2026-07-07-production-readiness-gap-analysis.md](history/reports/2026-07-07-production-readiness-gap-analysis.md) - Production-readiness gap analysis (source-audited; P0/P1/P2 issues)
-- [project_completion_summary.md](history/reports/project_completion_summary.md) - Project completion summary
-- [release_notes_v1.0.md](history/reports/release_notes_v1.0.md) - Release notes v1.0
-- [production_readiness_roadmap.md](history/reports/production_readiness_roadmap.md) - Production readiness roadmap
-- [performance_test_final_report.md](history/reports/performance_test_final_report.md) - Performance test report
-- [performance_optimization_complete.md](history/reports/performance_optimization_complete.md) - Performance optimization report
-- [current_status_2026_04_13.md](history/reports/current_status_2026_04_13.md) - Project status (2026-04-13)
-- [configuration_status.md](history/reports/configuration_status.md) - Configuration status
-- [test_update_progress.md](history/reports/test_update_progress.md) - Test update progress
+### Operations
 
-#### Archive
-- [archive/legacy_docs/](history/archive/legacy_docs/) - Legacy documentation
-- [archive/*.backup](history/archive/) - Test file backups
+- [operations_manual.md](operations/operations_manual.md) — operations manual
+- [troubleshooting.md](operations/troubleshooting.md) — troubleshooting guide
+- [security_checklist.md](operations/security_checklist.md) — security
+  checklist
+- [health_check_implementation.md](operations/health_check_implementation.md)
+  — health check implementation
+
+## 🗄️ Historical Documents
+
+Everything under [history/](history/) is a historical record kept for
+reference. Paths and commands inside these documents reflect the repository
+layout **at the time of writing** (e.g. the pre-refactoring
+`PayBackend/`/`PayFrontend/` monolith) and are not updated.
+
+- [history/refactoring/](history/refactoring/) — 2026-04 service-layer
+  refactoring design & implementation records
+- [history/superpowers/](history/superpowers/) — plans / specs / reports from
+  earlier development iterations
+- [history/review/](history/review/) — deep code review report and its
+  remediation plan
+- [history/reports/](history/reports/) — dated status, performance, security
+  audit, and release reports
+- [history/migration_guide.md](history/migration_guide.md) — superseded
+  service-layer migration guide (replaced by
+  [plugin_integration.md](development/plugin_integration.md))
+- [history/archive/](history/archive/) — legacy documentation and backups
 
 ## 🤝 Contributing
 
 When adding new documentation:
+
 1. Place it in the appropriate category directory
 2. Use clear, descriptive filenames
-3. Update this README if adding a new category
+3. Update this README's index
 4. Follow the existing naming conventions
-5. Move outdated documents to `history/reports/` with date prefixes
 
 ## 📜 Document Lifecycle
 
-- **Active Documents** - Kept in category directories (architecture/, development/, etc.)
-- **Status Reports** - Move to `history/reports/` when superseded
-- **Project Records** - Keep in `history/refactoring/` for reference
-- **Legacy/Archive** - Move to `history/archive/` for historical context
+- **Active documents** — kept in category directories (architecture/,
+  development/, ...) and updated as the code evolves
+- **Status/dated reports** — go to `history/reports/` with date prefixes
+- **Superseded guides & project records** — move to `history/` (never edited
+  afterwards)
