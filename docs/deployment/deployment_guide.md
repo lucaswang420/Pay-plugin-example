@@ -102,51 +102,52 @@ sudo apt install libcurl4-openssl-dev libssl-dev zlib1g-dev
 ### 1. 克隆项目
 
 ```bash
-git clone <repository-url>
-cd Pay-plugin-example/pay-server
+git clone https://github.com/lucaswang420/drogon-pay.git
+cd drogon-pay
 ```
 
-### 2. 安装依赖（Conan）
+### 2. 安装依赖（Conan，在仓库根目录执行）
 
 ```bash
-cd examples/pay-server
-
 # Windows
-conan install . --build=missing
+conan install . --output-folder=build/windows-msvc -s build_type=Release -s compiler.cppstd=17 --build=missing
 
 # Linux
-conan install . --build=missing -s
+conan install . --output-folder=build/linux-release -s build_type=Release -s compiler.cppstd=17 --build=missing
 ```
 
 ### 3. 编译项目
 
 **Windows:**
 ```bash
-# 必须使用Release模式！
-scripts\build.bat
+# 快捷方式（内部封装 conan install + preset 构建）
+examples\pay-server\scripts\build.bat
+
+# 或直接使用 preset
+cmake --preset windows-msvc
+cmake --build --preset windows-msvc
 ```
 
 **Linux:**
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+cmake --preset linux-release
+cmake --build --preset linux-release -j$(nproc)
 ```
 
 **重要：** 
 - ⚠️ 必须使用 **Release** 模式编译！
 - ⚠️ Debug模式会导致链接错误（Drogon是Release编译的）
-- ⚠️ 使用 `scripts/build.bat` 而不是直接使用CMake
+- ⚠️ 优先使用 CMake preset 或 `examples\pay-server\scripts\build.bat`，不要手写裸 CMake 命令
 
 ### 4. 验证编译
 
 ```bash
 # 检查可执行文件
 ls build/windows-msvc/examples/pay-server/Release/PayServer.exe  # Windows
-ls build/PayServer           # Linux
+ls build/linux-release/examples/pay-server/PayServer             # Linux
 
 # 运行测试（可选）
-ctest --test-dir build/test  # Linux
+ctest --test-dir build/linux-release                  # Linux
 build/windows-msvc/tests/Release/PayBackendTests.exe  # Windows
 ```
 

@@ -10,7 +10,7 @@
 
 **技术栈**: Drogon C++17 | PostgreSQL 13+ | Redis 6.0+ | Vue 3 + Element Plus | CMake 3.15+ | Conan
 
-**项目结构**: `controllers/` → `services/` → `plugins/` → `models/` (ORM禁止修改)
+**项目结构**: `libs/drogon-pay/`（发布库：`src/handlers/` → `src/services/` → `src/channels/` → `src/models/`，ORM禁止修改）| `examples/pay-server/`（示例宿主）| `examples/pay-admin/`（Vue 管理台）
 
 **关键成就**: 测试覆盖率 80%+ (107+ 用例) | P50 < 15ms, P95 < 39ms | 生产就绪 | 完整 CI/CD
 
@@ -58,11 +58,11 @@
 
 | 服务 | 文件 | 职责 |
 |------|------|------|
-| PaymentService | `services/PaymentService.{h,cc}` | 支付创建和查询 |
-| RefundService | `services/RefundService.{h,cc}` | 退款处理和查询 |
-| CallbackService | `services/CallbackService.{h,cc}` | 支付回调处理 |
-| IdempotencyService | `services/IdempotencyService.{h,cc}` | 幂等性管理 |
-| ReconciliationService | `services/ReconciliationService.{h,cc}` | 对账和报表 |
+| PaymentService | `libs/drogon-pay/src/services/PaymentService.{h,cc}` | 支付创建和查询 |
+| RefundService | `libs/drogon-pay/src/services/RefundService.{h,cc}` | 退款处理和查询 |
+| CallbackService | `libs/drogon-pay/src/services/CallbackService.{h,cc}` | 支付回调处理 |
+| IdempotencyService | `libs/drogon-pay/src/services/IdempotencyService.{h,cc}` | 幂等性管理 |
+| ReconciliationService | `libs/drogon-pay/src/services/ReconciliationService.{h,cc}` | 对账和报表 |
 
 **Service API**: `service->method(request, apiKey, callback)` | **禁止**: 旧 Plugin API
 
@@ -74,31 +74,33 @@
 
 | 流程 | 端点 | 步骤 |
 |------|------|------|
-| 创建支付 | `POST /api/v1/payments` | 验证 API Key → 检查幂等性 → 创建记录 → 调用第三方 |
-| 支付回调 | `POST /api/v1/callbacks/{provider}` | 验证签名 → 更新状态 → 触发业务逻辑 |
-| 创建退款 | `POST /api/v1/refunds` | 验证 API Key → 检查支付状态 → 创建退款 → 调用第三方 |
-| 查询支付 | `GET /api/v1/payments/{id}` | 验证 API Key → 查询记录 → 返回详情 |
+| 创建支付 | `POST {base}/create` | 验证 API Key → 检查幂等性 → 创建记录 → 调用第三方 |
+| 支付回调 | `POST {base}/notify/{wechat\|alipay}` | 验证签名 → 更新状态 → 触发业务逻辑 |
+| 创建退款 | `POST {base}/refund` | 验证 API Key → 检查支付状态 → 创建退款 → 调用第三方 |
+| 查询订单 | `GET {base}/query` | 验证 API Key → 查询记录 → 返回详情 |
+
+`{base}` 为插件配置 `base_path`（默认 `/api/pay`），完整路由表见 [docs/development/plugin_integration.md](docs/development/plugin_integration.md)。
 
 ### 数据模型
 
 | 表名 | 模型文件 | 用途 |
 |------|----------|------|
-| pay_payment | `models/PayPayment.{h,cc}` | 支付记录 |
-| pay_refund | `models/PayRefund.{h,cc}` | 退款记录 |
-| pay_callback | `models/PayCallback.{h,cc}` | 回调记录 |
-| pay_idempotency | `models/PayIdempotency.{h,cc}` | 幂等性键 |
-| pay_ledger | `models/PayLedger.{h,cc}` | 账本记录 |
+| pay_payment | `libs/drogon-pay/src/models/PayPayment.{h,cc}` | 支付记录 |
+| pay_refund | `libs/drogon-pay/src/models/PayRefund.{h,cc}` | 退款记录 |
+| pay_callback | `libs/drogon-pay/src/models/PayCallback.{h,cc}` | 回调记录 |
+| pay_idempotency | `libs/drogon-pay/src/models/PayIdempotency.{h,cc}` | 幂等性键 |
+| pay_ledger | `libs/drogon-pay/src/models/PayLedger.{h,cc}` | 账本记录 |
 
-### 第三方集成
+### 支付渠道（PaymentChannel SPI 实现）
 
-| 提供商 | 文件 |
+| 渠道 | 文件 |
 |--------|------|
-| 支付宝沙箱 | `plugins/AlipaySandboxClient.{h,cc}` |
-| 微信支付 | `plugins/WechatPayClient.{h,cc}` |
+| 支付宝沙箱 | `libs/drogon-pay/src/channels/AlipayChannel.{h,cc}` |
+| 微信支付 | `libs/drogon-pay/src/channels/WechatChannel.{h,cc}` |
 
 ### 前端
 
-位置: `PayFrontend/` | 启动: `cd PayFrontend && npm run dev` | 技术栈: Vue 3 + Element Plus + Pinia
+位置: `examples/pay-admin/` | 启动: `cd examples/pay-admin && npm run dev` | 技术栈: Vue 3 + Element Plus + Pinia
 
 ---
 
@@ -123,8 +125,8 @@
 
 | 平台 | 构建 | 测试 | 启动 |
 |------|------|------|------|
-| Windows | `scripts\build.bat` | `scripts\test.bat` | `.\build\Release\PayServer.exe -c config.json` |
-| Linux/macOS | `scripts/build.sh` | `cd build && ctest` | `./PayServer -c config.json` |
+| Windows | `examples\pay-server\scripts\build.bat` | `examples\pay-server\scripts\test.bat` | `.\build\windows-msvc\examples\pay-server\Release\PayServer.exe -c examples\pay-server\config.json` |
+| Linux/macOS | `cmake --preset linux-release && cmake --build --preset linux-release` | `ctest --test-dir build/linux-release` | `./build/linux-release/examples/pay-server/PayServer -c examples/pay-server/config.json` |
 
 | 监控端点 | 说明 |
 |----------|------|
