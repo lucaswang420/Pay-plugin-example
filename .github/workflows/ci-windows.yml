@@ -11,6 +11,7 @@ env:
 
 jobs:
   build-and-test:
+    name: windows-build-and-test
     runs-on: windows-2022
     # Cold Conan cache builds drogon/openssl from source, which can take a while
     timeout-minutes: 120
