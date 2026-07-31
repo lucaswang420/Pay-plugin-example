@@ -237,7 +237,11 @@
             "api_keys": [],
             "api_key_scopes": {},
             "api_key_default_scopes": [
-                "read"
+                "read",
+                "order_query",
+                "refund",
+                "refund_query",
+                "reconcile"
             ],
             "metrics_base_url": "http://127.0.0.1:5566/metrics/base"
         }
