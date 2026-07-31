@@ -122,6 +122,9 @@ const form = reactive({
 // 从订单详情跳转时预填的订单金额（作为退款上限）
 const orderAmount = ref(0)
 
+// 金额统一收敛到分精度，避免 el-input-number / Number(query) 带入浮点尾差（如 0.30000001）
+const toCents = (value) => Math.round(Number(value) * 100) / 100
+
 const rules = {
   order_no: [{ required: true, message: '请输入订单号', trigger: 'blur' }],
   amount: [{ required: true, message: '请输入退款金额' }]
@@ -163,7 +166,7 @@ watch(
   () => form.mode,
   (mode) => {
     if (mode === 'full' && orderAmount.value) {
-      form.amount = orderAmount.value
+      form.amount = toCents(orderAmount.value)
     }
   }
 )
@@ -175,7 +178,7 @@ async function submit() {
   try {
     const data = await payApi.refund({
       order_no: form.order_no,
-      amount: form.amount.toFixed(2),
+      amount: toCents(form.amount).toFixed(2),
       reason: form.reason
     })
     refund.value = { order_no: form.order_no, ...data }
@@ -228,9 +231,9 @@ onMounted(() => {
   const { order_no: orderNo, amount } = route.query
   if (orderNo) form.order_no = String(orderNo)
   if (amount && !Number.isNaN(Number(amount))) {
-    orderAmount.value = Number(amount)
+    orderAmount.value = toCents(amount)
     form.mode = 'full'
-    form.amount = Number(amount)
+    form.amount = toCents(amount)
   }
 })
 </script>
