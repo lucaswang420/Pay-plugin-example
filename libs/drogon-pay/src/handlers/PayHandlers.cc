@@ -23,6 +23,10 @@ drogon::HttpStatusCode mapErrorToHttpStatus(int errorCode)
             return drogon::k400BadRequest;
         case 1409:  // Idempotency conflict
             return drogon::k409Conflict;
+        case 1501:  // Channel client not ready (our dependency/config fault)
+            return drogon::k503ServiceUnavailable;
+        case 1502:  // Upstream channel returned a business failure (not our fault)
+            return drogon::k502BadGateway;
         case 1002:  // Payment gateway error
         case 1003:  // Database error
         default:
