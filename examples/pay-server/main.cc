@@ -1,4 +1,5 @@
 #include <drogon/drogon.h>
+#include <drogon_pay/PayPlugin.h>
 #include "utils/ConfigLoader.h"
 #include "utils/StartupValidator.h"
 #include "utils/SecurityHeaders.h"
@@ -10,6 +11,10 @@ using namespace drogon;
 
 int main()
 {
+    // Static-library linking safety net: keeps the PayPlugin DrObject
+    // auto-registration object file (see docs/development/plugin_integration.md)
+    drogon_pay::ensureLinked();
+
     // 1. Load .env file into process environment
     ConfigLoader::loadEnvFile(".env");
 
