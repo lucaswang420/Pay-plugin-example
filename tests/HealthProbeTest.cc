@@ -1,14 +1,15 @@
 #include <drogon/drogon_test.h>
 #include <drogon/drogon.h>
+#include "TestConfigHelper.h"
 
 using namespace drogon;
 
-// These are integration tests that require a running server on localhost:5566.
-// Run server first, then execute tests.
+// These are integration tests that hit the in-process test server started by
+// test_main.cc (port from pay::test_util::testPort(), default 5567).
 
 DROGON_TEST(HealthProbe_LivenessEndpoint)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Get);
     req->setPath("/healthz");
@@ -29,7 +30,7 @@ DROGON_TEST(HealthProbe_LivenessEndpoint)
 
 DROGON_TEST(HealthProbe_ReadinessEndpoint)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Get);
     req->setPath("/readyz");
@@ -61,7 +62,7 @@ DROGON_TEST(HealthProbe_ReadinessEndpoint)
 
 DROGON_TEST(HealthProbe_CompatEndpoint_DeprecationHeader)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Get);
     req->setPath("/health");

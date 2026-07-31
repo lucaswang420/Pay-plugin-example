@@ -11,6 +11,7 @@
 // ============================================================================
 
 #include <json/json.h>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -19,6 +20,28 @@
 
 namespace pay::test_util
 {
+
+// Test listener port, isolated from the dev server's 5566. config.json is a
+// straight copy of examples/pay-server, so without an override the test binary
+// and a locally running PayServer would both bind 5566 (drogon reuse_port) and
+// hijack each other's requests. Override with PAY_TEST_PORT if 5567 is taken.
+inline int testPort()
+{
+    if (const char *env = std::getenv("PAY_TEST_PORT"))
+    {
+        const int port = std::atoi(env);
+        if (port > 0 && port < 65536)
+        {
+            return port;
+        }
+    }
+    return 5567;
+}
+
+inline std::string testBaseUrl()
+{
+    return "http://127.0.0.1:" + std::to_string(testPort());
+}
 
 inline bool loadConfig(Json::Value &root)
 {
