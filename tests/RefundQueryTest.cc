@@ -1593,6 +1593,167 @@ DROGON_TEST(PayPlugin_Refund_IdempotencySnapshot_OnWechatError)
     client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
 }
 
+// #1A regression: the idempotency snapshot must be durably persisted BEFORE the
+// caller callback fires. Previously updateResult was dispatched asynchronously
+// and the response was returned immediately, leaving a window where a retry saw
+// an in-progress (NULL snapshot) reservation. This test drives a single failing
+// refund and, the instant the callback returns, asserts the snapshot is already
+// written to the DB (no second call, no sleep).
+DROGON_TEST(PayPlugin_Refund_SnapshotPersistedBeforeCallback)
+{
+    Json::Value root;
+    CHECK(loadConfig(root));
+    CHECK(root.isMember("db_clients"));
+    CHECK(root["db_clients"].isArray());
+    CHECK(!root["db_clients"].empty());
+
+    const auto &db = root["db_clients"][0];
+    const std::string connInfo = buildPgConnInfo(db);
+    CHECK(!connInfo.empty());
+
+    auto client = drogon::orm::DbClient::newPgClient(connInfo, 1);
+    CHECK(client != nullptr);
+
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_order ("
+      "id BIGSERIAL PRIMARY KEY,"
+      "order_no VARCHAR(64) UNIQUE NOT NULL,"
+      "user_id BIGINT NOT NULL,"
+      "amount VARCHAR(32) NOT NULL,"
+      "currency VARCHAR(8) NOT NULL DEFAULT 'CNY',"
+      "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+      "channel VARCHAR(32) NOT NULL DEFAULT 'alipay',"
+      "title VARCHAR(512),"
+      "expire_at TIMESTAMP,"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_payment ("
+      "id BIGSERIAL PRIMARY KEY,"
+      "payment_no VARCHAR(64) UNIQUE NOT NULL,"
+      "order_no VARCHAR(64) NOT NULL,"
+      "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+      "amount VARCHAR(32) NOT NULL,"
+      "request_payload TEXT,"
+      "response_payload TEXT,"
+      "channel_trade_no VARCHAR(64),"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_refund ("
+      "id BIGSERIAL PRIMARY KEY,"
+      "refund_no VARCHAR(64) UNIQUE NOT NULL,"
+      "order_no VARCHAR(64) NOT NULL,"
+      "payment_no VARCHAR(64) NOT NULL,"
+      "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+      "amount VARCHAR(32) NOT NULL,"
+      "channel_refund_no VARCHAR(64),"
+      "request_payload TEXT,"
+      "response_payload TEXT,"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+    client->execSqlSync(
+      "CREATE TABLE IF NOT EXISTS pay_idempotency ("
+      "idempotency_key VARCHAR(128) PRIMARY KEY,"
+      "request_hash VARCHAR(64) NOT NULL,"
+      "response_snapshot TEXT,"
+      "expire_at TIMESTAMP,"
+      "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+      "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    );
+
+    const std::string orderNo = "ord_" + drogon::utils::getUuid();
+    const std::string paymentNo = "pay_" + drogon::utils::getUuid();
+    const std::string amount = "3.21";
+    const std::string idempotencyKey = "idem_" + drogon::utils::getUuid();
+
+    using PayOrder = drogon_model::pay_test::PayOrder;
+    drogon::orm::Mapper<PayOrder> orderMapper(client);
+    PayOrder order;
+    order.setOrderNo(orderNo);
+    order.setUserId(30021);
+    order.setAmount(amount);
+    order.setCurrency("CNY");
+    order.setStatus("PAID");
+    order.setChannel("wechat");
+    order.setTitle("Refund Snapshot Persist Before Callback");
+    order.setCreatedAt(trantor::Date::now());
+    order.setUpdatedAt(trantor::Date::now());
+    orderMapper.insert(order);
+
+    using PayPayment = drogon_model::pay_test::PayPayment;
+    drogon::orm::Mapper<PayPayment> paymentMapper(client);
+    PayPayment payment;
+    payment.setOrderNo(orderNo);
+    payment.setPaymentNo(paymentNo);
+    payment.setStatus("SUCCESS");
+    payment.setAmount(amount);
+    payment.setCreatedAt(trantor::Date::now());
+    payment.setUpdatedAt(trantor::Date::now());
+    paymentMapper.insert(payment);
+
+    // Deliberately misconfigured WeChat client so the channel call fails (1502).
+    Json::Value wechatConfig;
+    wechatConfig["api_base"] = "https://api.mch.weixin.qq.com";
+    wechatConfig["mch_id"] = "";
+    wechatConfig["serial_no"] = "";
+    wechatConfig["private_key_path"] = "";
+    wechatConfig["api_v3_key"] = "0123456789abcdef0123456789abcdef";
+    auto wechatClient = std::make_shared<WechatPayClient>(wechatConfig);
+
+    PayPlugin plugin;
+    plugin.setTestClients(wechatClient, nullptr, client);
+
+    CreateRefundRequest request;
+    request.orderNo = orderNo;
+    request.paymentNo = paymentNo;
+    request.amount = amount;
+    request.refundNo = "";  // Auto-generated
+
+    std::promise<Json::Value> resultPromise;
+    std::promise<std::error_code> errorPromise;
+
+    auto refundService = plugin.refundService();
+    refundService->createRefund(
+      request,
+      idempotencyKey,
+      [&resultPromise, &errorPromise](const Json::Value &result, const std::error_code &error) {
+          resultPromise.set_value(result);
+          errorPromise.set_value(error);
+      }
+    );
+
+    auto resultFuture = resultPromise.get_future();
+    auto errorFuture = errorPromise.get_future();
+
+    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+
+    const auto result = resultFuture.get();
+    const auto error = errorFuture.get();
+
+    CHECK(error);
+    CHECK(error.value() == 1502);
+    CHECK(result["data"]["status"].asString() == "REFUND_FAIL");
+
+    // Core assertion: the moment the caller is notified, the snapshot is already
+    // durably written (no second call, no wait). With the old fire-and-forget
+    // dispatch this could still be NULL here.
+    const auto idempRows = client->execSqlSync(
+      "SELECT response_snapshot FROM pay_idempotency WHERE idempotency_key = $1", idempotencyKey
+    );
+    CHECK(!idempRows.empty());
+    CHECK(!idempRows.front()["response_snapshot"].isNull());
+
+    client->execSqlSync("DELETE FROM pay_idempotency WHERE idempotency_key = $1", idempotencyKey);
+    client->execSqlSync("DELETE FROM pay_refund WHERE order_no = $1", orderNo);
+    client->execSqlSync("DELETE FROM pay_payment WHERE payment_no = $1", paymentNo);
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no = $1", orderNo);
+}
+
 DROGON_TEST(PayPlugin_Refund_DefaultPaymentNo)
 {
     Json::Value root;
