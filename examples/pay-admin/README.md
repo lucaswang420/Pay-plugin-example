@@ -1,6 +1,6 @@
 # pay-admin — 示例宿主配套管理控制台
 
-基于 Vue 3 + Element Plus 的支付管理界面，是 [examples/pay-server](../pay-server/)
+基于 Vue 3 + Element Plus 的支付管理控制台，是 [examples/pay-server](../pay-server/)
 示例宿主的**配套演示层**：它消费宿主上 drogon-pay 插件注册的 `/api/pay/*` 接口
 （即 PayPlugin 默认的 `base_path` 前缀）。
 
@@ -11,74 +11,48 @@
 
 ## 技术栈
 
-- **框架:** Vue 3 (Composition API)
-- **UI组件库:** Element Plus
+- **框架:** Vue 3 (Composition API, `<script setup>`)
+- **UI 组件库:** Element Plus（unplugin 按需引入）
 - **状态管理:** Pinia
-- **HTTP客户端:** Axios
-- **构建工具:** Vite
-- **路由:** Vue Router
+- **HTTP 客户端:** Axios（统一拦截器归一化响应）
+- **构建工具:** Vite（vendor 手动分包）
+- **路由:** Vue Router（懒加载 + 嵌套布局）
 
-## 功能特性
+## 功能页面
 
-### 1. 订单创建 (Step 1-2)
-- 用户认证（API Key）
-- 订单信息录入
-- 支付渠道选择（支付宝/微信）
-- 实时金额验证
+管理台为侧边导航布局（`src/layouts/AdminLayout.vue`），四个业务页面：
 
-### 2. 支付处理 (Step 3)
-- 支付宝二维码展示
-- 支付状态轮询（5秒间隔，智能错误处理）
-- 支付超时检测
-- 状态同步功能
+| 路由 | 页面 | 说明 |
+|---|---|---|
+| `/payments/create` | 创建支付 | 渠道选择、金额校验、二维码展示、支付状态自动轮询（指数退避） |
+| `/orders` | 订单管理 | 状态筛选 / 用户搜索 / limit+1 探测法翻页（后端无 total 字段） |
+| `/orders/:orderNo` | 订单详情 | 实时渠道状态同步、渠道原始响应 JSON 折叠展示、一键发起退款 |
+| `/refunds` | 退款管理 | 全额/部分退款、退款进度轮询（REFUND_INIT → REFUNDING → 终态）、历史退款查询 |
+| `/dashboard` | 对账与指标 | 对账摘要统计卡（按日期）+ 认证指标卡，30 秒自动刷新 |
 
-### 3. 订单管理
-- 订单列表查询
-- 订单详情查看
-- 状态筛选和搜索
-- 从支付宝同步最新状态
-
-### 4. 退款处理 (Step 4-5)
-- 退款申请表单
-- 退款金额验证
-- 退款状态跟踪
-- 退款历史查询
+顶栏提供 API Key 状态指示与设置对话框（存 `sessionStorage`），无需独立登录页。
 
 ## 快速开始
 
 ### 环境要求
 
-- Node.js 16+
-- npm 或 yarn
+- Node.js 18+
+- 本地运行中的 pay-server（默认 5566 端口）
 
-### 安装依赖
+### 安装与启动
 
 ```bash
 npm install
+cp .env.example .env.local   # 按需修改默认 API Key / 用户 ID
+npm run dev                  # http://localhost:5173
 ```
 
-### 配置环境变量
-
-创建 `.env.local` 文件：
-
-```env
-VITE_DEFAULT_USER_ID=2088722100150330
-VITE_DEFAULT_API_KEY=your_api_key_here
-VITE_API_BASE_URL=http://localhost:5566
-```
-
-### 启动开发服务器
-
-```bash
-npm run dev
-```
-
-访问 http://localhost:5173
+开发模式下 `/api` 请求经 Vite 代理转发到 `http://localhost:5566`，不涉及 CORS。
 
 ### 构建生产版本
 
 ```bash
-npm run build
+npm run build   # 产物在 dist/，vendor 分包：vue-vendor / element-plus / qrcode
 ```
 
 ## 项目结构
@@ -86,168 +60,72 @@ npm run build
 ```
 pay-admin/
 ├── src/
-│   ├── views/
-│   │   └── StepView.vue        # 主界面（5步流程）
-│   ├── components/             # 可复用组件
 │   ├── api/
-│   │   └── index.js            # API 客户端
-│   ├── stores/
-│   │   ├── user.js             # 用户认证状态
-│   │   └── payment.js          # 支付流程状态
+│   │   ├── http.js             # Axios 实例 + 统一拦截器（鉴权注入、错误归一化、降级标记）
+│   │   └── pay.js              # 7 个后端端点函数（全部支持 AbortSignal）
+│   ├── composables/
+│   │   └── usePolling.js       # 统一轮询原语（指数退避/页面隐藏暂停/自动 abort）
+│   ├── config/
+│   │   └── channels.js         # 支付渠道配置（新渠道零代码接入）
+│   ├── layouts/
+│   │   └── AdminLayout.vue     # 侧边导航 + 顶栏（API Key 设置）
+│   ├── router/index.js         # 懒加载路由
+│   ├── stores/user.js          # API Key / 用户 ID（sessionStorage 持久化）
+│   ├── styles/index.css        # 全局 reset + 主题变量
 │   ├── utils/
-│   │   ├── request.js          # HTTP 请求封装
-│   │   └── constants.js        # 常量定义
-│   ├── App.vue
+│   │   ├── format.js           # 金额 / 时间格式化
+│   │   └── status.js           # 订单与退款状态映射表（与后端词表严格一致）
+│   ├── views/
+│   │   ├── payments/CreatePaymentView.vue
+│   │   ├── orders/OrderListView.vue
+│   │   ├── orders/OrderDetailView.vue
+│   │   ├── refunds/RefundView.vue
+│   │   └── dashboard/DashboardView.vue
+│   ├── App.vue                 # ElConfigProvider（中文 locale）
 │   └── main.js
-├── public/                     # 静态资源
-├── .env.example                # 环境变量示例
-├── .env.local                  # 本地环境变量（不提交）
-├── index.html
-├── vite.config.js
+├── .env.example
+├── vite.config.js              # Element Plus 按需引入 + manualChunks
 └── package.json
 ```
 
-## 主要功能说明
+## 后端契约要点
 
-### 1. 用户认证
+- 响应包裹 `{code, message, data}`；`code` 为 `0` 或 `200` 表示成功，`1` 表示
+  渠道查询降级（拦截器透传 data 并附 `degraded: true`），页面据此提示"以本地状态为准"。
+- 鉴权失败返回**纯文本** body（401/403/503），拦截器按 HTTP status 归一化中文提示。
+- 订单状态词表：`PAYING → PAID / FAILED`；退款状态词表：
+  `REFUND_INIT → REFUNDING → REFUND_SUCCESS / REFUND_FAIL`。
+- `/api/pay/orders` 无 total 字段，列表采用 limit+1 探测法实现上一页/下一页。
+- 支付宝退款状态以数据库快照为准（后端仅微信渠道实时刷新退款状态）。
 
-前端使用 API Key 进行认证，支持两种方式：
+## 四大场景操作指引
 
-1. **环境变量配置** - 通过 `.env.local` 设置默认值
-2. **用户手动输入** - 界面上输入 API Key
-
-API Key 存储在 `sessionStorage` 中，刷新页面后需要重新登录。
-
-### 2. 支付流程
-
-#### Step 1: 创建订单
-- 输入用户ID（如果有默认值则自动填充）
-- 输入订单金额
-- 选择支付标题
-- 点击"创建订单"按钮
-
-#### Step 2: 选择支付方式
-- 选择支付宝或微信支付
-- 确认订单信息
-
-#### Step 3: 完成支付
-- **支付宝**: 展示二维码，扫描支付
-- **微信**: 展示支付链接
-- 系统自动轮询支付状态（每5秒）
-- 支付成功后自动跳转到下一步
-
-#### Step 4: 申请退款（可选）
-- 查看订单详情
-- 输入退款金额
-- 填写退款原因
-- 提交退款申请
-
-#### Step 5: 查看结果
-- 查看退款状态
-- 查看退款金额
-- 可以返回创建新订单
-
-### 3. 订单管理
-
-- **订单列表**: 显示所有订单
-- **状态筛选**: 按状态过滤订单
-- **订单详情**: 点击查看详细信息
-- **同步状态**: 从支付宝同步最新状态
-
-### 4. 轮询机制
-
-支付状态轮询特性：
-
-- **智能错误处理**: 连续失败3次后停止轮询
-- **请求去重**: 防止重复请求
-- **超时保护**: 避免无限轮询
-- **状态同步**: 实时更新支付状态
-
-## API 接口
-
-前端使用的主要 API 接口：
-
-```javascript
-// 用户认证
-POST /api/auth/metrics
-
-// 创建支付订单
-POST /api/payments
-
-// 查询支付状态
-GET /api/payments/{payment_no}
-
-// 同步支付宝状态
-POST /api/payments/{payment_no}/sync
-
-// 创建退款
-POST /api/refunds
-
-// 查询订单列表
-GET /api/orders?user_id={userId}&status={status}
-```
+1. **创建支付并轮询到终态**：创建支付 → 展示二维码（支付宝取 `qr_code`，微信取
+   `code_url`）→ 自动轮询 `/pay/query`（3s 起指数退避至 15s，页面隐藏时暂停）→
+   支付成功显示成功页，可跳转订单详情。
+2. **订单管理**：列表按状态 / 用户 ID 筛选，点击行进入详情；详情页实时调
+   `/pay/query` 同步渠道状态，渠道原始响应折叠展示。
+3. **退款**：订单详情"发起退款"按钮预填订单号与金额（全额），或手动填写部分退款；
+   提交后自动轮询退款进度，支持输入 refund_no 查询历史退款。
+4. **对账与指标**：Dashboard 选日期查看对账摘要（滞留支付/退款统计），下排为
+   认证指标计数（missing_key / invalid_key / scope_denied / not_configured）。
 
 ## 错误处理
 
-### 常见错误及解决方案
-
-1. **请先登录或提供API密钥**
-   - 原因: API Key 未设置或已过期
-   - 解决: 在 Step 1 输入有效的 API Key
-
-2. **网络请求失败**
-   - 原因: 后端服务未启动或网络问题
-   - 解决: 检查后端服务是否运行在 5566 端口
-
-3. **支付超时**
-   - 原因: 支付宝响应超时或网络问题
-   - 解决: 使用"Sync from Alipay"按钮手动同步
-
-4. **轮询失败**
-   - 原因: 后端服务异常或网络中断
-   - 解决: 系统会自动停止轮询，可手动刷新状态
-
-## 开发建议
-
-### 添加新功能
-
-1. 在 `src/views/StepView.vue` 中添加新的步骤
-2. 在 `src/api/index.js` 中添加新的 API 接口
-3. 在 `src/stores/` 中添加新的状态管理（如需要）
-
-### 样式定制
-
-- 修改 `src/assets/styles/` 中的样式文件
-- Element Plus 主题配置在 `main.js` 中
-
-### 调试技巧
-
-- 打开浏览器控制台查看详细日志
-- 使用 Vue DevTools 查看组件状态
-- 检查 Network 标签查看 API 请求
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| 提示 "API Key 缺失或无效" | 未设置或 Key 错误 | 顶栏"设置"填入有效 Key（默认 `test_key_123456`） |
+| 提示 "权限不足（scope）" | Key 的 scope 不含该操作 | 检查 pay-server `config.json` 的 `api_key_default_scopes` |
+| 提示 "网络异常" | pay-server 未启动 | 确认后端运行在 5566 端口 |
+| 轮询转手动刷新 | 达到轮询次数上限（60 次） | 点击"手动刷新"按钮继续查询 |
 
 ## 部署
 
-### 生产环境配置
-
-1. 修改 `.env.production`:
-```env
-VITE_API_BASE_URL=https://your-api-domain.com
-```
-
-2. 构建生产版本:
-```bash
-npm run build
-```
-
-3. 部署 `dist/` 目录到 Web 服务器
-
-### Nginx 配置示例
+构建后将 `dist/` 部署到任意静态服务器，`/api` 需反向代理到 pay-server：
 
 ```nginx
 server {
     listen 80;
-    server_name your-frontend-domain.com;
     root /path/to/dist;
     index index.html;
 
@@ -262,13 +140,6 @@ server {
     }
 }
 ```
-
-## 浏览器兼容性
-
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
 
 ## 许可证
 
