@@ -64,9 +64,17 @@
         <el-input v-model="keyForm.userId" placeholder="创建支付时的 user_id" clearable />
       </el-form-item>
     </el-form>
+    <div class="key-dialog-tip">
+      保存空 Key 将清除凭据并停止从 .env 默认值回填（用于验证未授权场景）
+    </div>
     <template #footer>
-      <el-button @click="keyDialogVisible = false">取消</el-button>
-      <el-button type="primary" @click="saveKey">保存</el-button>
+      <div class="key-dialog-footer">
+        <el-button text type="primary" @click="restoreDefaults">恢复 .env 默认值</el-button>
+        <span>
+          <el-button @click="keyDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveKey">保存</el-button>
+        </span>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -101,13 +109,36 @@ function openKeyDialog() {
 function saveKey() {
   userStore.setCredentials({ apiKey: keyForm.apiKey.trim(), userId: keyForm.userId.trim() })
   keyDialogVisible.value = false
-  ElMessage.success('已保存')
+  ElMessage.success(keyForm.apiKey.trim() ? '已保存' : '已清除 Key，刷新后不再自动回填')
+}
+
+function restoreDefaults() {
+  userStore.loadFromEnv()
+  if (userStore.hasApiKey) {
+    keyForm.apiKey = userStore.apiKey
+    keyForm.userId = userStore.userId
+    ElMessage.success('已恢复 .env 默认凭据')
+  } else {
+    ElMessage.warning('.env 未配置 VITE_DEFAULT_API_KEY')
+  }
 }
 
 defineExpose({ openKeyDialog })
 </script>
 
 <style scoped>
+.key-dialog-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.key-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .admin-layout {
   height: 100%;
 }
