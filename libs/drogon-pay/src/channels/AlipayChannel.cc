@@ -269,10 +269,14 @@ void AlipaySandboxClient::sendRequest(
         std::string signData;
         std::vector<std::string> keys;
 
-        // Only include these parameters in signature (in this order):
-        // app_id, biz_content, method, sign_type, timestamp
+        // Only include these parameters in signature (alphabetical order):
+        // app_id, biz_content, charset, method, sign_type, timestamp
+        // NOTE: charset is signed and transmitted via the URL query string
+        // (official SDK behavior); without it the gateway falls back to GBK
+        // responses and Chinese sub_msg text gets mangled when stored as UTF-8.
         keys.push_back("app_id");
         keys.push_back("biz_content");
+        keys.push_back("charset");
         keys.push_back("method");
         keys.push_back("sign_type");
         keys.push_back("timestamp");
@@ -328,7 +332,10 @@ void AlipaySandboxClient::sendRequest(
 
         auto req = drogon::HttpRequest::newHttpRequest();
         req->setMethod(drogon::Post);
-        req->setPath("/gateway.do");
+        // charset must also appear in the URL query: the gateway decides the
+        // response encoding from the query string (official SDK behavior), the
+        // body param alone still yields GBK responses.
+        req->setPath("/gateway.do?charset=utf-8");
         req->setContentTypeCode(drogon::CT_APPLICATION_X_FORM);
         req->setBody(requestBody);
         // Add charset to Content-Type header
