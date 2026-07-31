@@ -394,8 +394,28 @@ void PaymentService::createPayment(
               if (!idempotencyKey.empty() && !error && result.isMember("data"))
               {
                   idempotencyService->updateResult(
-                    idempotencyKey, requestHash, result, [sharedCb, result, error](bool) {
-                        sharedCb->call(result, error);
+                    idempotencyKey,
+                    requestHash,
+                    result,
+                    [idempotencyService, idempotencyKey, requestHash, sharedCb, result, error](
+                      bool success
+                    ) {
+                        if (success)
+                        {
+                            sharedCb->call(result, error);
+                            return;
+                        }
+                        // The snapshot write failed: release the reservation so a
+                        // retry is not poisoned with InProgress (NULL snapshot)
+                        // until the TTL expires. (B1-1 follow-up)
+                        LOG_ERROR << "[PaymentService] Failed to save idempotency snapshot; "
+                                     "clearing reservation for key="
+                                  << idempotencyKey;
+                        idempotencyService->clearReservation(
+                          idempotencyKey, requestHash, [sharedCb, result, error](bool) {
+                              sharedCb->call(result, error);
+                          }
+                        );
                     }
                   );
                   return;
@@ -1351,12 +1371,32 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                           response["message"] = "QR code created successfully";
                           response["data"] = data;
 
-                          // Store idempotency result for future replays
+                          // Persist the idempotency snapshot BEFORE responding so
+                          // a retry cannot observe an in-progress (NULL snapshot)
+                          // reservation, and release the reservation if the write
+                          // fails so retries are not poisoned. (B1-1 follow-up)
                           idempotencyService->updateResult(
-                            idempotencyKey, requestHash, response, [](bool) {}
+                            idempotencyKey,
+                            requestHash,
+                            response,
+                            [sharedCb, idempotencyService, idempotencyKey, requestHash, response](
+                              bool success
+                            ) {
+                                if (success)
+                                {
+                                    sharedCb->call(response, std::error_code());
+                                    return;
+                                }
+                                LOG_ERROR << "[PaymentService] Failed to save QR idempotency "
+                                             "snapshot; clearing reservation for key="
+                                          << idempotencyKey;
+                                idempotencyService->clearReservation(
+                                  idempotencyKey, requestHash, [sharedCb, response](bool) {
+                                      sharedCb->call(response, std::error_code());
+                                  }
+                                );
+                            }
                           );
-
-                          sharedCb->call(response, std::error_code());
                       },
                       [sharedCb, idempotencyService, idempotencyKey, requestHash](
                         const DrogonDbException &e

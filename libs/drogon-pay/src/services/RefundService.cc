@@ -271,28 +271,54 @@ void RefundService::createRefund(
                             sharedCb](const Json::Value &response, const std::error_code &error) {
         LOG_INFO << "[RefundService] wrappedCallback: key=" << idempotencyKey
                  << ", error=" << error.value() << ", has_data=" << response.isMember("data");
-        // Store idempotency snapshot whenever response contains data, regardless
-        // of error_code — previously error_code() was always zero (even on errors),
-        // so the old `!error` guard happened to pass. Now that error codes are
-        // properly set (1501/1502), the `!error` guard would incorrectly skip
-        // caching error responses that should be replay-safe. (B1-1 follow-up)
+        // Persist the idempotency snapshot BEFORE responding to the caller.
+        // Previously the snapshot write was dispatched asynchronously and the
+        // HTTP response was sent immediately, so a retry arriving before the
+        // write landed observed an in-progress (NULL snapshot) reservation and
+        // was rejected as InProgress. Awaiting the write collapses that window.
+        //
+        // Store the snapshot whenever the response carries data, regardless of
+        // error_code — soft errors (e.g. 1502) still produce a replay-safe
+        // response. Hard errors (no data) already had their reservation
+        // released by proceedCb, so they fall through to a direct response.
+        // (B1-1 follow-up)
         if (!idempotencyKey.empty() && response.isMember("data"))
         {
             LOG_INFO << "[RefundService] Saving idempotency snapshot for key=" << idempotencyKey;
-            // Save successful response to idempotency cache
-            idempotencyService_
-              ->updateResult(idempotencyKey, requestHash, response, [](bool success) {
+            idempotencyService_->updateResult(
+              idempotencyKey,
+              requestHash,
+              response,
+              [this, idempotencyKey, requestHash, sharedCb, response, error](bool success) mutable {
                   if (success)
                   {
                       LOG_INFO << "[RefundService] Idempotency snapshot saved successfully";
+                      if (*sharedCb)
+                      {
+                          (*sharedCb)(response, error);
+                      }
+                      return;
                   }
-                  else
-                  {
-                      LOG_WARN << "[RefundService] Failed to save idempotency snapshot";
-                  }
-              });
+                  // The snapshot write failed: the reservation would otherwise
+                  // stay stuck with a NULL snapshot and poison every retry with
+                  // InProgress until the TTL expires. Release it so the next
+                  // retry can re-attempt the refund instead. (B1-1 follow-up)
+                  LOG_ERROR << "[RefundService] Failed to save idempotency snapshot; clearing "
+                               "reservation for key="
+                            << idempotencyKey;
+                  idempotencyService_->clearReservation(
+                    idempotencyKey, requestHash, [sharedCb, response, error](bool) {
+                        if (*sharedCb)
+                        {
+                            (*sharedCb)(response, error);
+                        }
+                    }
+                  );
+              }
+            );
+            return;
         }
-        // Call user callback
+        // No snapshot to store (empty key or no data). Respond directly.
         if (*sharedCb)
         {
             (*sharedCb)(response, error);
