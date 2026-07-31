@@ -9,6 +9,7 @@
 
 #include <drogon/drogon.h>
 #include <drogon/drogon_test.h>
+#include "TestConfigHelper.h"
 
 using namespace drogon;
 
@@ -21,7 +22,7 @@ static const std::string kAllowedOrigin = "http://localhost:5173";
 
 DROGON_TEST(HttpHeaders_SecurityHeaders_Present)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Get);
     req->setPath("/healthz");  // use liveness probe — no auth required
@@ -57,7 +58,7 @@ DROGON_TEST(HttpHeaders_SecurityHeaders_Present)
 
 DROGON_TEST(HttpHeaders_CorsOptions_Preflight_AllowedOrigin)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Options);
     req->setPath("/api/pay/create");
@@ -86,7 +87,7 @@ DROGON_TEST(HttpHeaders_CorsOptions_Preflight_AllowedOrigin)
 
 DROGON_TEST(HttpHeaders_CorsOptions_DisallowedOrigin_NoCORS)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Options);
     req->setPath("/api/pay/create");
@@ -107,7 +108,7 @@ DROGON_TEST(HttpHeaders_CorsOptions_DisallowedOrigin_NoCORS)
 
 DROGON_TEST(HttpHeaders_CorsPost_SuccessfulOrigin_HasCORS)
 {
-    auto client = HttpClient::newHttpClient("http://127.0.0.1:5566");
+    auto client = HttpClient::newHttpClient(pay::test_util::testBaseUrl());
     auto req = HttpRequest::newHttpRequest();
     req->setMethod(Get);
     req->setPath("/healthz");

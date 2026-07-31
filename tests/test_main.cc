@@ -3,6 +3,7 @@
 #include <drogon/drogon.h>
 #include "utils/ConfigLoader.h"
 #include "utils/SecurityHeaders.h"
+#include "TestConfigHelper.h"
 #include <fstream>
 #include <json/json.h>
 
@@ -22,6 +23,14 @@ int main(int argc, char **argv)
         if (Json::parseFromStream(builder, configFile, &config, &errors))
         {
             Json::Value processedConfig = ConfigLoader::loadConfig(config);
+            // Isolate the test listener from the dev server: config.json is a
+            // straight copy of examples/pay-server (port 5566), and with two
+            // processes bound to the same port requests get hijacked randomly.
+            // Tests listen on PAY_TEST_PORT (default 5567) instead.
+            for (auto &listener : processedConfig["listeners"])
+            {
+                listener["port"] = pay::test_util::testPort();
+            }
             app().loadConfigJson(std::move(processedConfig));
         }
     }
