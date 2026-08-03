@@ -297,8 +297,8 @@ DROGON_TEST(PayPlugin_WechatCallback_WechatClientNotReady)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
@@ -354,8 +354,8 @@ DROGON_TEST(PayPlugin_WechatCallback_DbClientNotReady)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -558,8 +558,8 @@ DROGON_TEST(PayPlugin_WechatCallback_EndToEnd)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -785,8 +785,8 @@ DROGON_TEST(PayPlugin_WechatCallback_IdempotencyHitRecordsCallback)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -1040,8 +1040,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundIdempotencyHitRecordsCallback)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -1266,8 +1266,8 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionClosed)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -1494,8 +1494,8 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRevoked)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -1722,8 +1722,8 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionRefundState)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -1950,8 +1950,8 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionUserPaying)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -2178,8 +2178,8 @@ DROGON_TEST(PayPlugin_WechatCallback_TransactionNotPay)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -2407,8 +2407,8 @@ DROGON_TEST(PayPlugin_WechatCallback_DuplicatePaymentNoDoubleLedger)
 
         auto resultFuture = resultPromise.get_future();
         auto errorFuture = errorPromise.get_future();
-        CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-        CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+        REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+        REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
         const auto result = resultFuture.get();
         const auto error = errorFuture.get();
         CHECK(!error);
@@ -2620,8 +2620,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidSignature)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -2826,8 +2826,8 @@ DROGON_TEST(PayPlugin_WechatCallback_DecryptFailure)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -2989,8 +2989,8 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingSignatureHeaders)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3088,8 +3088,8 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingResource)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3175,8 +3175,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidJson)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3269,8 +3269,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceFields)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3370,8 +3370,8 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingEventType)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3481,8 +3481,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundEventType)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3592,8 +3592,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTradeState)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3702,8 +3702,8 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingTransactionId)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3813,8 +3813,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAssociatedData)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -3924,8 +3924,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidTransactionAssociatedData)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4018,8 +4018,8 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedResourceType)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4112,8 +4112,8 @@ DROGON_TEST(PayPlugin_WechatCallback_UnsupportedAlgorithm)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4214,8 +4214,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidResourceJson)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4309,8 +4309,8 @@ DROGON_TEST(PayPlugin_WechatCallback_SerialMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4502,8 +4502,8 @@ DROGON_TEST(PayPlugin_WechatCallback_AppIdMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4743,8 +4743,8 @@ DROGON_TEST(PayPlugin_WechatCallback_MchIdMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -4946,8 +4946,8 @@ DROGON_TEST(PayPlugin_WechatCallback_AmountMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -5152,8 +5152,8 @@ DROGON_TEST(PayPlugin_WechatCallback_CurrencyMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -5386,8 +5386,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundSuccess)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -5636,8 +5636,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundAmountMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -5855,8 +5855,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundCurrencyMismatch)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -6062,8 +6062,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundNotFound)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -6276,8 +6276,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundMissingFields)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -6396,8 +6396,8 @@ DROGON_TEST(PayPlugin_WechatCallback_MissingRefundId)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -6627,8 +6627,8 @@ DROGON_TEST(PayPlugin_WechatCallback_RefundClosed)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -6858,8 +6858,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundStatus)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);
@@ -7077,8 +7077,8 @@ DROGON_TEST(PayPlugin_WechatCallback_InvalidRefundAmount)
 
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const auto result = resultFuture.get();
     const auto error = errorFuture.get();
     CHECK(error);

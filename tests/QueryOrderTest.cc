@@ -85,8 +85,8 @@ DROGON_TEST(PayPlugin_QueryOrder_NoWechatClient)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -175,8 +175,8 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatQueryError)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     const auto result = resultFuture.get();
@@ -284,8 +284,8 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatSuccess)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -402,8 +402,8 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatSuccess_PaymentAlreadySuccess)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -520,8 +520,8 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatUserPaying)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -637,8 +637,8 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatNotPay)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);
@@ -754,8 +754,8 @@ DROGON_TEST(PayPlugin_QueryOrder_WechatClosed)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);

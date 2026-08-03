@@ -170,8 +170,8 @@ DROGON_TEST(PayPlugin_ReconcileSummary)
     auto resultFuture = resultPromise.get_future();
     auto errorFuture = errorPromise.get_future();
 
-    CHECK(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    CHECK(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(resultFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(errorFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
     const auto error = errorFuture.get();
     CHECK(!error);

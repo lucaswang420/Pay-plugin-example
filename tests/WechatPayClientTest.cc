@@ -481,7 +481,7 @@ DROGON_TEST(WechatPayClient_DownloadCertificates)
     });
 
     auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     const std::string err = future.get();
     CHECK(!err.empty());
     CHECK(err.find("missing mch_id/serial_no/private_key_path") != std::string::npos);
