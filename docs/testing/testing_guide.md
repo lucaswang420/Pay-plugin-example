@@ -1,108 +1,98 @@
 # Pay Plugin Testing Guide
 
+Tests live in the repository-root `tests/` directory and use Drogon's own
+`DROGON_TEST` framework (not gtest). The test binary is built by
+`tests/CMakeLists.txt` and registered with CTest.
+
 ## Test Structure
 
 ```
-test/
-├── service/              # Service unit tests
-│   ├── MockHelpers.h
-│   ├── IdempotencyServiceTest.cc
-│   ├── PaymentServiceTest.cc
-│   ├── RefundServiceTest.cc
-│   └── CallbackServiceTest.cc
-└── integration/          # Integration tests
-    ├── WechatCallbackIntegrationTest.cc
-    ├── CreatePaymentIntegrationTest.cc
-    └── ...
+tests/
+├── test_main.cc                  # DROGON_TEST_MAIN entry; overrides listener port
+├── TestConfigHelper.h            # testPort() / baseUrl() helpers (PAY_TEST_PORT, default 5567)
+├── CMakeLists.txt                # builds the test binary + ctest registration
+├── AuthCheckTest.cc              # auth / scope enforcement
+├── PayAuthMetricsTest.cc         # auth metrics counters + Prometheus format
+├── PayErrorCategoryTest.cc       # error-code → HTTP status mapping
+├── CreatePaymentIntegrationTest.cc
+├── QueryOrderTest.cc
+├── QueryOrderListAndReconcileTest.cc
+├── ReconcileSummaryTest.cc
+├── RefundQueryTest.cc
+├── IdempotencyIntegrationTest.cc
+├── CallbackControllerTest.cc
+├── WechatCallbackIntegrationTest.cc
+├── WechatPayClientTest.cc
+├── HealthProbeTest.cc            # /healthz, /readyz probes
+├── HttpResponseHeadersTest.cc    # CORS preflight + security headers
+├── ControllerMetricsTest.cc      # /metrics + auth metrics endpoints
+├── RouteRegistrationSmokeTest.cc
+├── ConfigLoaderTest.cc
+├── StartupValidatorTest.cc
+├── OnceCallbackTest.cc
+├── PayUtilsTest.cc
+├── e2e_test.sh / e2e_test.ps1    # HTTP-level smoke scripts
+└── run_all_tests.ps1
 ```
 
 ## Running Tests
 
-### Unit Tests
+Tests are driven by CTest. They require PostgreSQL (and Redis when the
+`redis_client` key is present in the loaded config). The test binary loads a
+copy of `examples/pay-server/config.json` but overrides the listener port to
+`PAY_TEST_PORT` (default **5567**) so it never collides with a locally running
+dev `PayServer` on 5566.
+
+### All tests
 
 ```bash
-cd build/windows-msvc/Release
-./pay-serverTest --gtest_filter=*Service*
+ctest --test-dir build/windows-msvc -C Release        # Windows
+ctest --test-dir build/linux-release                  # Linux/macOS
 ```
 
-### Integration Tests
+### A single test (by CTest name)
 
 ```bash
-./pay-serverTest
+ctest --test-dir build/windows-msvc -C Release -R RefundQuery
 ```
 
-### Specific Test
+### Direct binary (verbose)
 
 ```bash
-./pay-serverTest --gtest_filter=*PaymentService.CreatePayment_Success
+./build/windows-msvc/tests/Release/PayBackendTests
 ```
 
-## Writing Service Tests
+### End-to-end HTTP smoke scripts
 
-### Example Test Structure
-
-```cpp
-TEST_F(PaymentServiceTest, CreatePayment_Success) {
-    // Arrange
-    CreatePaymentRequest request;
-    request.orderNo = "TEST-ORDER-001";
-    request.amount = "10000";
-    request.currency = "CNY";
-    request.description = "Test payment";
-    request.userId = 12345;
-
-    Json::Value wechatResponse;
-    wechatResponse["prepay_id"] = "wx_prepay_123";
-
-    EXPECT_CALL(*mockWechatClient_, createOrder(testing::_, testing::_))
-        .WillOnce([wechatResponse](const Json::Value& req, auto callback) {
-            callback(wechatResponse);
-        });
-
-    // Mock database operations
-    EXPECT_CALL(*mockDbClient_, execSqlAsync(testing::_, testing::_))
-        .Times(testing::AtLeast(3));
-
-    // Act
-    service_->createPayment(request, "idempotency-key-001",
-        [this](const Json::Value&result, const std::error_code& error) {
-            // Assert
-            ASSERT_FALSE(error);
-            ASSERT_EQ(result["code"].asInt(), 0);
-            ASSERT_FALSE(result["data"]["payment_no"].asString().empty());
-        }
-    );
-}
+```bash
+cd tests
+./e2e_test.sh        # Bash
+./e2e_test.ps1       # PowerShell
 ```
+
+## Writing Tests
+
+Tests use the `DROGON_TEST` macros (`TEST`, assertions via the framework).
+Inject test channels with `PayPlugin::setTestChannels(...)` (the legacy
+`setTestClients(...)` adapter is kept for compatibility). Listener/client base
+URLs should be built from `pay::test_util::baseUrl()` rather than hardcoding a
+port, so tests follow `PAY_TEST_PORT`.
 
 ## Test Coverage Goals
 
-- Service unit tests: 80%+ coverage
-- Integration tests: All critical paths
-- Edge cases: Error handling, validation, idempotency
-- Performance: Load tests for high-concurrency scenarios
-
-## Mock Objects
-
-### MockWechatPayClient
-Simulates WeChat Pay API responses without making actual API calls.
-
-### MockDbClient
-Simulates database operations for fast, isolated testing.
-
-### MockRedisClient
-Simulates Redis cache operations.
+- Service / handler coverage across create / query / refund / callback paths
+- Integration tests: all critical paths through the real Drogon HTTP layer
+- Edge cases: error handling, validation, idempotency, error-code mapping
+- Auth: missing / invalid key, scope denial, not-configured
 
 ## CI/CD Integration
 
 Tests run automatically on:
-- Every pull request
-- Every merge to main branch
-- Scheduled nightly builds
+- Every pull request (Windows / Linux / macOS CI)
+- The Windows CI gates merges on a green CTest run
 
 ## Test Data Management
 
-- Use test database schema (separate from production)
-- Clean up test data after each test
-- Use transactions for rollback
-- Mock external API calls
+- Use a test database schema (run `sql/000` reset + `001`–`004` setup)
+- The test config points at a throwaway database; isolate per CI run
+- External provider calls are stubbed via test channels (no real network)

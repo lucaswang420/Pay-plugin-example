@@ -90,7 +90,7 @@ Failed to refresh WeChat certificate
 - Database queries are slow
 
 **Solution:**
-1. Check database indexes: `\dx pay_order_user_id` should exist
+1. Check database indexes: `\di idx_pay_order_user_id` should exist
 2. Enable Redis caching for idempotency
 3. Check database connection pool settings
 4. Monitor database query performance
@@ -139,10 +139,14 @@ Failed to refresh WeChat certificate
 
 ### Enable Debug Logging
 
-Edit `config.json`:
+Edit `config.json`（日志配置位于 `app.log` 下）:
 ```json
 {
-  "log_level": "debug"
+  "app": {
+    "log": {
+      "log_level": "DEBUG"
+    }
+  }
 }
 ```
 
@@ -159,8 +163,8 @@ export DROGON_CTRL_LOG_LEVEL=debug
 If issues persist:
 
 1. Check logs: `tail -f /var/log/payserver.log`
-2. Review architecture: [architecture_overview.md](architecture_overview.md)
-3. Review configuration: [configuration_guide.md](configuration_guide.md)
+2. Review architecture: [architecture_overview.md](../architecture/architecture_overview.md)
+3. Review configuration: [configuration_guide.md](../development/configuration_guide.md)
 4. Search existing issues: Check project issue tracker
 5. Create support ticket with:
    - Log files

@@ -369,7 +369,7 @@ Before committing code with logging:
 
 - [Drogon Configuration](https://github.com/drogonframework/drogon/wiki/ENG/ENG-11-Configuration-File)
 - [Trantor Logger](https://github.com/an-tao/trantor)
-- [PayPlugin Architecture](../architecture/overview.md)
+- [PayPlugin Architecture](../architecture/architecture_overview.md)
 
 ---
 

@@ -2,26 +2,42 @@
 
 ## Configuration File Location
 
-Configuration is loaded from `config.json` in the build directory.
+Configuration is loaded from `config.json` (the example host lives in
+`examples/pay-server/config.json`). Sensitive values use `__env_var:NAME__`
+placeholders that the host's `ConfigLoader` substitutes from the environment
+at startup, so the file itself stays safe to commit.
 
 ## Configuration Structure
 
 ```json
 {
-  "app": {
-    "threads_num": 16,
-    "enable_session": true,
-    "session_timeout": 1200
-  },
   "listeners": [
     {
       "address": "0.0.0.0",
-      "port": 8080,
-      "https": {
-        "cert": "./certs/server.crt",
-        "key": "./certs/server.key",
-        "conf": "./certs/openssl.cnf"
-      }
+      "port": 5566,
+      "https": false
+    }
+  ],
+  "db_clients": [
+    {
+      "name": "default",
+      "rdbms": "postgresql",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "dbname": "pay_test",
+      "user": "test",
+      "passwd": "__env_var:PAY_DB_PASSWORD__",
+      "number_of_connections": 4
+    }
+  ],
+  "redis_clients": [
+    {
+      "name": "default",
+      "host": "127.0.0.1",
+      "port": 6379,
+      "passwd": "__env_var:PAY_REDIS_PASSWORD__",
+      "db": 0,
+      "number_of_connections": 4
     }
   ],
   "plugins": [
@@ -29,98 +45,133 @@ Configuration is loaded from `config.json` in the build directory.
       "name": "PayPlugin",
       "dependencies": [],
       "config": {
-        "wechat": {
-          "appid": "wx1234567890abcdef",
-          "mchid": "1234567890",
-          "api_v3_key": "your_api_v3_key_here",
-          "cert_path": "./certs/apiclient_cert.pem",
-          "key_path": "./certs/apiclient_key.pem",
-          "serial_no": "serial_number_here",
-          "notify_url": "https://yourdomain.com/api/callback",
-          "base_url": "https://api.mch.weixin.qq.com"
+        "base_path": "/api/pay",
+        "db_client": "default",
+        "redis_client": "default",
+        "idempotency_ttl_seconds": 604800,
+        "reconcile": {
+          "enabled": true,
+          "interval_seconds": 300,
+          "batch_size": 50
         },
-        "idempotency": {
-          "ttl": 604800,
-          "use_redis": true
-        },
-        "database": {
-          "host": "localhost",
-          "port": 5432,
-          "dbname": "pay_test",
-          "user": "postgres",
-          "password": "postgres"
-        },
-        "redis": {
-          "host": "localhost",
-          "port": 6379,
-          "database": 0,
-          "password": ""
+        "channels": {
+          "wechat": {
+            "enabled": true,
+            "app_id": "__env_var:WECHAT_PAY_APP_ID__",
+            "mch_id": "__env_var:WECHAT_PAY_MCH_ID__",
+            "serial_no": "__env_var:WECHAT_PAY_SERIAL_NO__",
+            "api_v3_key": "__env_var:WECHAT_PAY_API_V3_KEY__",
+            "private_key_path": "__env_var:WECHAT_PAY_PRIVATE_KEY_PATH__",
+            "platform_cert_path": "__env_var:WECHAT_PAY_PLATFORM_CERT_PATH__",
+            "notify_url": "__env_var:WECHAT_PAY_NOTIFY_URL__",
+            "api_base": "https://api.mch.weixin.qq.com",
+            "timeout_ms": 5000
+          },
+          "alipay": {
+            "enabled": true,
+            "app_id": "__env_var:ALIPAY_SANDBOX_APP_ID__",
+            "gateway_url": "__env_var:ALIPAY_SANDBOX_GATEWAY_URL__",
+            "private_key_path": "__env_var:ALIPAY_SANDBOX_PRIVATE_KEY_PATH__",
+            "alipay_public_key_path": "__env_var:ALIPAY_SANDBOX_PUBLIC_KEY_PATH__",
+            "notify_url": "http://localhost:5566/api/pay/notify/alipay",
+            "timeout_ms": 30000
+          }
         }
       }
     }
-  ]
-}
-```
-
-## Configuration Parameters
-
-### WeChat Pay Configuration
-
-| Parameter | Description | Required | Default |
-|-----------|-------------|----------|---------|
-| `appid` | WeChat AppID | Yes | - |
-| `mchid` | Merchant ID | Yes | - |
-| `api_v3_key` | API v3 Key | Yes | - |
-| `cert_path` | Certificate path | Yes | - |
-| `key_path` | Private key path | Yes | - |
-| `serial_no` | Certificate serial number | Yes | - |
-| `notify_url` | Payment callback URL | Yes | - |
-| `base_url` | WeChat API base URL | No | https://api.mch.weixin.qq.com |
-
-### Idempotency Configuration
-
-| Parameter | Description | Required | Default |
-|-----------|-------------|----------|---------|
-| `ttl` | Idempotency record TTL (seconds) | No | 604800 (7 days) |
-| `use_redis` | Enable Redis caching | No | true |
-
-### Database Configuration
-
-| Parameter | Description | Required | Default |
-|-----------|-------------|----------|---------|
-| `host` | Database host | No | localhost |
-| `port` | Database port | No | 5432 |
-| `dbname` | Database name | No | pay_test |
-| `user` | Database user | No | postgres |
-| `password` | Database password | No | empty |
-
-### Redis Configuration
-
-| Parameter | Description | Required | Default |
-|-----------|-------------|----------|---------|
-| `host` | Redis host | No | localhost |
-| `port` | Redis port | No | 6379 |
-| `database` | Redis database number | No | 0 |
-| `password` | Redis password | No | empty |
-
-## Environment Variables
-
-For sensitive data, use environment variables:
-
-```json
-{
-  "wechat": {
-    "api_v3_key": "${WECHAT_API_KEY}",
-    "cert_path": "${WECHAT_CERT_PATH}"
+  ],
+  "custom_config": {
+    "pay": {
+      "api_keys": [],
+      "api_key_scopes": {},
+      "api_key_default_scopes": ["read", "order_query", "refund", "refund_query", "reconcile"],
+      "metrics_base_url": "http://127.0.0.1:5566/metrics/base"
+    }
   }
 }
 ```
 
-Set environment variables:
-```bash
-export WECHAT_API_KEY="your_key_here"
-export WECHAT_CERT_PATH="/path/to/cert.pem"
+> Database / Redis / listener blocks are standard Drogon config
+> (`db_clients`, `redis_clients`, `listeners`); the plugin only references them
+> by name via `db_client` / `redis_client`.
+
+## Configuration Parameters
+
+### Plugin-level (`PayPlugin.config`)
+
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `base_path` | Route prefix for all pay routes | No | `/api/pay` |
+| `db_client` | Name of the Drogon `db_clients` entry (PostgreSQL) | No | `default` |
+| `redis_client` | Name of the Drogon `redis_clients` entry (**opt-in**) | No | (omitted → DB-only idempotency) |
+| `idempotency_ttl_seconds` | Idempotency record TTL (seconds) | No | 604800 (7 days) |
+| `reconcile.enabled` | Run the scheduled reconciliation timer | No | false |
+| `reconcile.interval_seconds` | Reconcile interval | No | 300 |
+| `reconcile.batch_size` | Reconcile batch size | No | 50 |
+| `channels.<name>.enabled` | Enable a channel; unknown/disabled → `CHANNEL_NOT_AVAILABLE` | No | false |
+
+### WeChat Pay (`channels.wechat`)
+
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `app_id` | WeChat AppID | Yes | - |
+| `mch_id` | Merchant ID | Yes | - |
+| `api_v3_key` | API v3 Key | Yes | - |
+| `serial_no` | Merchant certificate serial number | Yes | - |
+| `private_key_path` | Merchant private key path | Yes | - |
+| `platform_cert_path` | WeChat platform certificate path | Yes | - |
+| `notify_url` | Payment callback URL | Yes | - |
+| `api_base` | WeChat API base URL | No | https://api.mch.weixin.qq.com |
+| `timeout_ms` | API timeout | No | 5000 |
+
+### Alipay (`channels.alipay`)
+
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `app_id` | Alipay AppID | Yes | - |
+| `gateway_url` | Gateway URL | Yes | - |
+| `private_key_path` | Application private key path | Yes | - |
+| `alipay_public_key_path` | Alipay public key path | Yes | - |
+| `notify_url` | Payment callback URL | Yes | - |
+| `timeout_ms` | API timeout | No | 30000 |
+
+### Database / Redis (Drogon `db_clients` / `redis_clients`)
+
+These are standard Drogon connection-pool blocks, not plugin-specific keys. The
+plugin picks the entry whose `name` matches `db_client` / `redis_client`.
+
+### API Key / auth (`custom_config.pay`)
+
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `api_keys` | Allowed API keys | No (can also come from env) | `[]` |
+| `api_key_scopes` | Per-key scopes | No | `{}` |
+| `api_key_default_scopes` | Scopes used when a key has no explicit entry | No | (host-defined) |
+
+Enforced scopes (resolved from the path under `base_path`): `order_query`,
+`refund`, `refund_query`, `reconcile`. See
+[API Key Configuration](../api/api_key_configuration.md).
+
+## Environment Variables
+
+Sensitive values are referenced with the `__env_var:NAME__` placeholder and
+loaded from the environment (the example host reads a `.env` file via
+`ConfigLoader`):
+
+```json
+{
+  "channels": {
+    "wechat": {
+      "api_v3_key": "__env_var:WECHAT_PAY_API_V3_KEY__",
+      "private_key_path": "__env_var:WECHAT_PAY_PRIVATE_KEY_PATH__"
+    }
+  }
+}
 ```
+
+Required by the example host (`StartupValidator`): `PAY_DB_PASSWORD`,
+`PAY_API_KEY`. `PAY_REDIS_PASSWORD` is optional. See
+[environment_setup.md](environment_setup.md) for the full list.
 
 ## Validation
 
@@ -128,10 +179,10 @@ Configuration is validated on startup:
 - Required parameters must be present
 - Certificate files must exist
 - Database connection must succeed
-- Redis connection must succeed
+- Redis connection must succeed (when `redis_client` is configured)
 
 If validation fails:
 1. Check log output for specific error
 2. Verify file paths are correct
 3. Ensure database is running
-4. Confirm Redis is running
+4. Confirm Redis is running (or omit `redis_client` to run DB-only)
