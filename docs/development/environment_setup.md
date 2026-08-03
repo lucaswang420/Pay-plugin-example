@@ -89,19 +89,24 @@ build\windows-msvc\examples\pay-server\Release\PayServer.exe
 
 | 环境变量 | 说明 | 示例 |
 |---------|------|------|
-| `POSTGRES_PASSWORD` | PostgreSQL密码 | 使用强密码 |
+| `PAY_DB_PASSWORD` | PostgreSQL密码 | 使用强密码 |
 
 ### Redis 配置
 
 | 环境变量 | 说明 | 示例 |
 |---------|------|------|
-| `REDIS_PASSWORD` | Redis密码 | 使用强密码 |
+| `PAY_REDIS_PASSWORD` | Redis密码（无鉴权时为空串） | 使用强密码 |
 
 ### API 密钥配置
 
 | 环境变量 | 说明 | 格式 |
 |---------|------|------|
-| `PAY_API_KEYS` | API密钥列表 | 逗号分隔：key1,key2,key3 |
+| `PAY_API_KEY` | 单个 API 密钥 | `your-api-key` |
+| `PAY_API_KEYS` | API密钥列表（可选，逗号分隔多个） | 逗号分隔：key1,key2,key3 |
+
+> 说明：启动时仅 `PAY_DB_PASSWORD` 与 `PAY_API_KEY` 被强制校验；
+> `PAY_REDIS_PASSWORD` 为可选（示例 docker-compose 的 Redis 无鉴权）。
+> `PAY_API_KEY` 与 `PAY_API_KEYS` 任一存在即可，两者都会并入允许列表。
 
 ## 不同环境配置
 
@@ -110,7 +115,7 @@ build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```bash
 # .env
 ALIPAY_SANDBOX_APP_ID=dev_app_id
-POSTGRES_PASSWORD=dev_password
+PAY_DB_PASSWORD=dev_password
 ```
 
 ### 测试环境
@@ -118,7 +123,7 @@ POSTGRES_PASSWORD=dev_password
 ```bash
 # .env.test
 ALIPAY_SANDBOX_APP_ID=test_app_id
-POSTGRES_PASSWORD=test_password
+PAY_DB_PASSWORD=test_password
 ```
 
 ### 生产环境
@@ -127,13 +132,13 @@ POSTGRES_PASSWORD=test_password
 ```bash
 # .env.production
 ALIPAY_SANDBOX_APP_ID=prod_app_id
-POSTGRES_PASSWORD=<strong_password>
+PAY_DB_PASSWORD=<strong_password>
 ```
 
 方式 2：使用系统环境变量
 ```bash
 export ALIPAY_SANDBOX_APP_ID=prod_app_id
-export POSTGRES_PASSWORD=<strong_password>
+export PAY_DB_PASSWORD=<strong_password>
 ./PayServer.exe
 ```
 
@@ -200,13 +205,15 @@ ALIPAY_SANDBOX_PUBLIC_KEY_PATH=./certs/alipay_public_key.pem
 ALIPAY_SANDBOX_GATEWAY_URL=https://openapi-sandbox.dl.alipaydev.com/gateway.do
 
 # 数据库
-POSTGRES_PASSWORD=MyStr0ngP@ssw0rd!2024
+PAY_DB_PASSWORD=MyStr0ngP@ssw0rd!2024
 
 # Redis
-REDIS_PASSWORD=MyStr0ngR3disP@ssw0rd!2024
+PAY_REDIS_PASSWORD=MyStr0ngR3disP@ssw0rd!2024
 
 # API 密钥
-PAY_API_KEYS=dev-key-12345,test-key-67890,admin-key-abcde
+PAY_API_KEY=dev-key-12345
+# 或逗号分隔多个：
+# PAY_API_KEYS=dev-key-12345,test-key-67890,admin-key-abcde
 ```
 
 ## 参考链接

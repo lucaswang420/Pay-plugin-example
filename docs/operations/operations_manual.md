@@ -136,25 +136,24 @@ sudo systemctl restart payplugin  # Linux
 
 **健康检查：**
 ```bash
-curl http://localhost:5566/health
+curl http://localhost:5566/healthz   # 存活探针
+curl http://localhost:5566/readyz    # 就绪探针（探测 DB/Redis 连通性）
 ```
 
-**预期响应：**
+**预期响应（就绪）：**
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1680739200,
-  "services": {
-    "database": "ok",
-    "redis": "ok"
-  }
+  "status": "ready"
 }
 ```
+
+> 说明：`/health` 是 `/readyz` 的废弃别名（响应头含 `Deprecation: true`）；
+> 就绪失败时返回 `{"status":"not_ready","failed":["db"]}`。
 
 **API测试：**
 ```bash
 curl -H "X-Api-Key: test-key" \
-  http://localhost:5566/pay/query?order_no=test_1
+  http://localhost:5566/api/pay/query?order_no=test_1
 ```
 
 ---
@@ -863,7 +862,7 @@ std::string db_name = "pay_production_shard_" + std::to_string(shard_id);
 - **数据库**: 连接数、慢查询、锁等待
 - **Redis**: 内存使用、连接数、慢查询
 
-详见 [monitoring_setup.md](monitoring_setup.md)
+详见 [monitoring_setup.md](../deployment/monitoring_setup.md)
 
 ---
 

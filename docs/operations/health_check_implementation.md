@@ -1,84 +1,88 @@
 # Health Check Endpoint Implementation
 
 ## Overview
-A health check endpoint has been implemented at `/health` to monitor service status and connectivity to dependencies.
+Health check endpoints are implemented in the example host (`examples/pay-server`)
+to monitor service status and connectivity to dependencies. Three routes are
+exposed: `/healthz` (liveness), `/readyz` (readiness), and `/health`
+(deprecated alias of `/readyz`).
 
 ## Implementation Details
 
-### Files Created
-1. **libs/drogon-pay/src/handlers/HealthCheckController.h**
+### Files
+1. **examples/pay-server/controllers/HealthCheckController.h**
    - Header file for the health check controller
    - Defines the HealthCheckController class
-   - Registers the `/health` route for GET and OPTIONS methods
+   - Registers the `/healthz`, `/readyz`, and `/health` routes for GET and OPTIONS methods
 
-2. **libs/drogon-pay/src/handlers/HealthCheckController.cc**
+2. **examples/pay-server/controllers/HealthCheckController.cc**
    - Implementation of the health check logic
-   - Checks database and Redis connectivity
+   - `/healthz` checks the event loop / running state
+   - `/readyz` checks database (`SELECT 1`) and Redis (`PING`) connectivity
    - Returns JSON response with service status
 
 ### API Specification
 
-**Endpoint:** `GET /health`
+**Endpoint:** `GET /healthz` — liveness (process is alive)
 
-**Response Format (Healthy - HTTP 200):**
+**Response Format (Alive - HTTP 200):**
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1234567890,
-  "services": {
-    "database": "ok",
-    "redis": "ok"
-  }
+  "status": "alive"
 }
 ```
 
-**Response Format (Unhealthy - HTTP 503):**
+**Response Format (Dead - HTTP 503):**
 ```json
 {
-  "status": "unhealthy",
-  "timestamp": 1234567890,
-  "services": {
-    "database": "error: No database client",
-    "redis": "not_configured"
-  }
+  "status": "dead",
+  "reason": "event_loop_null"
 }
 ```
 
-**Response Format (Partial - HTTP 200):**
+**Endpoint:** `GET /readyz` — readiness (dependencies reachable)
+
+**Response Format (Ready - HTTP 200):**
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1234567890,
-  "services": {
-    "database": "ok",
-    "redis": "not_configured"
-  }
+  "status": "ready"
 }
 ```
+
+**Response Format (Not ready - HTTP 503):**
+```json
+{
+  "status": "not_ready",
+  "failed": ["db"]
+}
+```
+
+`failed` is an array that may contain `"db"`, `"redis"`, and `"timeout"`
+(the readiness probe has a 1-second deadline). Readiness also applies a
+consecutive-failure threshold before flipping to "not_ready".
+
+**Endpoint:** `GET /health` — deprecated alias of `/readyz`
+
+Returns the same body and status as `/readyz`, with additional
+`Deprecation: true` and `Sunset: 2026-08-28` headers.
 
 ### Health Check Logic
 
-1. **Database Check:**
-   - Verifies database client is available
-   - Returns "ok" if client exists
-   - Returns error message if client is missing or exception occurs
-   - Database failure results in HTTP 503
+1. **Liveness (`/healthz`):**
+   - Verifies the Drogon event loop is non-null and the app is running
+   - HTTP 200 `"alive"` / HTTP 503 `"dead"`
 
-2. **Redis Check:**
-   - Verifies Redis client is available
-   - Returns "ok" if client exists
-   - Returns "not_configured" if Redis is not available
-   - Redis is treated as optional - does not cause HTTP 503
-
-3. **Overall Status:**
-   - "healthy" if all critical services (database) are ok
-   - "unhealthy" if any critical service is failing
-   - HTTP 200 for healthy status
-   - HTTP 503 for unhealthy status
+2. **Readiness (`/readyz`):**
+   - Database: runs `SELECT 1`; failure recorded as `"db"`
+   - Redis: runs `PING`; only probed when a Redis client is configured
+     (when `redis_client` is omitted from config, Redis is not checked)
+   - A 1-second deadline records `"timeout"` if probes do not complete
+   - HTTP 200 `"ready"` when no failures, otherwise HTTP 503 `"not_ready"`
+     with the `failed` list
 
 ### Building the Project
 
-The health check controller is automatically included in the build via the CMakeLists.txt configuration:
+The health check controller is part of the example host build (see the
+example host CMakeLists):
 
 ```bash
 examples\pay-server\scripts\build.bat
@@ -87,7 +91,7 @@ examples\pay-server\scripts\build.bat
 Build output will show:
 ```
 HealthCheckController.cc
-PayServer.vcxproj -> D:\...\build\windows-msvc\Release\PayServer.exe
+PayServer.vcxproj -> D:\...\build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 ### Testing the Endpoint
@@ -99,54 +103,46 @@ PayServer.vcxproj -> D:\...\build\windows-msvc\Release\PayServer.exe
 
 **Start the server:**
 ```bash
-cd build/windows-msvc/Release
-./PayServer.exe
+cd examples/pay-server
+build/windows-msvc/examples/pay-server/Release/PayServer.exe
 ```
 
-**Test the endpoint:**
+**Test liveness:**
 ```bash
-curl http://localhost:5566/health
+curl http://localhost:5566/healthz
 ```
 
-**Expected response (with all services):**
+**Expected response (alive):**
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1680739200,
-  "services": {
-    "database": "ok",
-    "redis": "ok"
-  }
+  "status": "alive"
 }
 ```
 
-**Test without Redis:**
+**Test readiness:**
+```bash
+curl http://localhost:5566/readyz
+```
+
+**Expected response (ready, with DB reachable):**
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1680739200,
-  "services": {
-    "database": "ok",
-    "redis": "not_configured"
-  }
+  "status": "ready"
 }
 ```
 
-**Test without database:**
+**Test without database (not ready):**
 ```json
 {
-  "status": "unhealthy",
-  "timestamp": 1680739200,
-  "services": {
-    "database": "error: No database client",
-    "redis": "not_configured"
-  }
+  "status": "not_ready",
+  "failed": ["db"]
 }
 ```
 
 ### Integration with Existing Code
 
-The health check controller follows the same pattern as existing controllers:
+The health check controller follows the same pattern as other example-host
+controllers:
 - Uses Drogon's HttpController framework
 - Automatic route registration via METHOD_LIST_BEGIN/END macros
 - Handles OPTIONS requests for CORS
@@ -154,14 +150,16 @@ The health check controller follows the same pattern as existing controllers:
 
 ### Notes
 
-- The current implementation checks if clients are initialized, not actual connectivity
-- For production use, you may want to add actual database queries (e.g., `SELECT 1`)
-- The timestamp is in Unix epoch format (seconds since 1970-01-01)
-- Redis is treated as an optional service - unavailability doesn't fail the health check
-- The endpoint automatically handles OPTIONS preflight requests for CORS
+- `/readyz` probes real connectivity: `SELECT 1` for the database and `PING`
+  for Redis
+- Redis is treated as an optional service — when no `redis_client` is
+  configured it is not probed at all
+- The endpoints automatically handle OPTIONS preflight requests for CORS
+- `/health` is kept only as a deprecated alias of `/readyz`
+  (`Deprecation: true`, `Sunset: 2026-08-28`)
 
 ### Build Status
 
 ✅ Build completed successfully
 ✅ No compilation warnings
-✅ Executable created at: build/windows-msvc/Release/PayServer.exe
+✅ Executable created at: build/windows-msvc/examples/pay-server/Release/PayServer.exe

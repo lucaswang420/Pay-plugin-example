@@ -140,15 +140,20 @@ Configure scopes in `config.json` to control what each key can do:
 
 ### Available Scopes
 
-| Scope | Description | Example Use Case |
-|-------|-------------|------------------|
-| `read` | Read-only access | Monitoring, dashboards |
-| `write` | Create/modify resources | Payment creation |
-| `admin` | Administrative operations | Configuration changes |
-| `order_query` | Query payment orders | Order status checks |
-| `refund_query` | Query refund status | Refund status checks |
-| `refund` | Create refunds | Refund processing |
-| `reconcile` | Access reconciliation data | Financial reconciliation |
+Scopes are resolved from the request path relative to the configured
+`base_path` (default `/api/pay`). The enforced scopes are:
+
+| Scope | Endpoint it gates | Description |
+|-------|-------------------|-------------|
+| `order_query` | `GET {base}/query` | Query payment orders |
+| `refund` | `POST {base}/refund` | Create refunds |
+| `refund_query` | `GET {base}/refund/query` | Query refund status |
+| `reconcile` | `GET {base}/reconcile/summary` | Access reconciliation data |
+
+Note: routes that resolve to no scope (e.g. create payment, QR create, the
+metrics endpoints) are not scope-gated — only a valid API key is required.
+Other scope strings (such as `read`) may appear in a key's scope list but are
+not matched by any route and have no effect.
 
 ## Testing API Keys
 
@@ -157,11 +162,11 @@ Configure scopes in `config.json` to control what each key can do:
 ```bash
 # Using X-Api-Key header
 curl -H "X-Api-Key: test-dev-key" \
-     http://localhost:5566/pay/query?order_no=test_123
+     http://localhost:5566/api/pay/query?order_no=test_123
 
 # Using Authorization Bearer header
 curl -H "Authorization: Bearer test-dev-key" \
-     http://localhost:5566/pay/query?order_no=test_123
+     http://localhost:5566/api/pay/query?order_no=test_123
 ```
 
 ### Test with multiple keys:
@@ -172,7 +177,7 @@ for key in "test-dev-key" "performance-test-key" "admin-test-key"; do
   echo "Testing key: $key"
   curl -s -H "X-Api-Key: $key" \
        -H "X-Api-Key: test-dev-key" \
-       http://localhost:5566/pay/query?order_no=test_123
+       http://localhost:5566/api/pay/query?order_no=test_123
 done
 ```
 

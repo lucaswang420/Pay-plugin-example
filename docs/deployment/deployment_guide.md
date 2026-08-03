@@ -29,10 +29,10 @@
 **依赖软件：**
 - PostgreSQL 13.0+
 - Redis 6.0+
-- Drogon Framework (最新稳定版)
-- Conan 1.40+ (依赖管理)
-- Visual Studio 2019+ (Windows) / GCC 7+ (Linux)
-- CMake 3.15+
+- Drogon Framework 1.9.13（钉死版本；库与宿主必须一致）
+- Conan 2 (依赖管理)
+- Visual Studio 2022 (Windows) / GCC / Clang (Linux)
+- CMake 3.21+
 
 ---
 
@@ -60,14 +60,14 @@ choco install redis-64
 wsl redis-server
 ```
 
-#### 3. 安装Visual Studio 2019/2022
+#### 3. 安装Visual Studio 2022
 
 确保安装以下组件：
 - Desktop development with C++
 - CMake tools
 - Windows 10 SDK
 
-#### 4. 安装Conan
+#### 4. 安装Conan 2
 
 ```powershell
 pip install conan
@@ -301,20 +301,18 @@ sudo systemctl start payplugin
 #### 健康检查
 
 ```bash
-curl http://localhost:5566/health
+curl http://localhost:5566/healthz   # 存活探针
+curl http://localhost:5566/readyz    # 就绪探针（探测 DB/Redis 连通性）
 ```
 
-**预期响应：**
+**预期响应（就绪）：**
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1680739200,
-  "services": {
-    "database": "ok",
-    "redis": "ok"
-  }
+  "status": "ready"
 }
 ```
+
+> `/health` 是 `/readyz` 的废弃别名（响应头含 `Deprecation: true`）。
 
 ---
 

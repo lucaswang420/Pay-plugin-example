@@ -233,10 +233,10 @@ redis_connections_idle
 sum(rate(payment_success_total[5m])) / sum(rate(payment_attempts_total[5m]))
 ```
 
-**7. 退款成功率**
-```promql
-sum(rate(refund_success_total[5m])) / sum(rate(refund_attempts_total[5m]))
-```
+> 注意：`payment_success_total` / `payment_attempts_total` /
+> `refund_success_total` / `refund_attempts_total` 并非插件默认导出的指标。
+> 当前插件仅导出鉴权计数（见上方"业务指标（鉴权）"）。如需支付/退款
+> 成功率面板，需先在业务层实现这些计数器。
 
 ### 4. 仪表板布局
 
@@ -275,15 +275,21 @@ sum(rate(refund_success_total[5m])) / sum(rate(refund_attempts_total[5m]))
 | `http_request_duration_seconds` | Histogram | HTTP请求延迟 |
 | `http_requests_in_flight` | Gauge | 当前正在处理的请求数 |
 
-### 业务指标
+### 业务指标（鉴权）
+
+插件暴露的鉴权指标（见 `PayAuthMetrics`），在 `/api/pay/metrics/auth.prom`
+以及聚合的 `/metrics` 端点中以 Prometheus 文本格式输出：
 
 | 指标名称 | 类型 | 描述 |
 |---------|------|------|
-| `payment_attempts_total` | Counter | 支付尝试次数 |
-| `payment_success_total` | Counter | 支付成功次数 |
-| `refund_attempts_total` | Counter | 退款尝试次数 |
-| `refund_success_total` | Counter | 退款成功次数 |
-| `callback_processed_total` | Counter | 回调处理次数 |
+| `pay_auth_missing_key_total` | Counter | 请求缺少 API Key 的次数 |
+| `pay_auth_invalid_key_total` | Counter | API Key 无效的次数 |
+| `pay_auth_scope_denied_total` | Counter | 因 scope 不足被拒绝的次数 |
+| `pay_auth_not_configured_total` | Counter | 未配置任何 API Key 的命中次数 |
+
+> 说明：`/metrics` 端点聚合了 Drogon PromExporter 的基础指标（路径
+> `/metrics/base`）与上述鉴权指标。HTTP 吞吐 / 延迟等通用指标来自 Drogon
+> 自身的导出器。
 
 ### 数据库指标
 

@@ -100,27 +100,42 @@ Paste the Alipay public key content.
 
 ### Update config.json
 
-Add to `examples/pay-server/config.json`:
+The Alipay channel lives under `channels.alipay` in the PayPlugin config block.
+The example host (`examples/pay-server/config.json`) already references the
+sandbox values via `__env_var:...__` placeholders; set them in `.env`:
 
 ```json
 {
   "plugins": [
     {
       "name": "PayPlugin",
-      "dependencies": [],
       "config": {
-        "payment_provider": "alipay_sandbox",
-        "alipay_sandbox": {
-          "app_id": "YOUR_SANDBOX_APPID",
-          "seller_id": "YOUR_SANDBOX_SELLER_EMAIL_OR_UID",
-          "gateway_url": "https://openapi.alipaydev.com/gateway.do",
-          "private_key_path": "./certs/alipay/app_private_key.pem",
-          "alipay_public_key_path": "./certs/alipay/alipay_public_key.pem"
+        "channels": {
+          "alipay": {
+            "enabled": true,
+            "app_id": "__env_var:ALIPAY_SANDBOX_APP_ID__",
+            "seller_id": "__env_var:ALIPAY_SANDBOX_SELLER_ID__",
+            "gateway_url": "__env_var:ALIPAY_SANDBOX_GATEWAY_URL__",
+            "private_key_path": "__env_var:ALIPAY_SANDBOX_PRIVATE_KEY_PATH__",
+            "alipay_public_key_path": "__env_var:ALIPAY_SANDBOX_PUBLIC_KEY_PATH__",
+            "notify_url": "http://localhost:5566/api/pay/notify/alipay",
+            "timeout_ms": 30000
+          }
         }
       }
     }
   ]
 }
+```
+
+Then in `examples/pay-server/.env` set (use your values from the sandbox page):
+
+```env
+ALIPAY_SANDBOX_APP_ID=YOUR_SANDBOX_APPID
+ALIPAY_SANDBOX_SELLER_ID=YOUR_SANDBOX_SELLER_EMAIL_OR_UID
+ALIPAY_SANDBOX_GATEWAY_URL=https://openapi-sandbox.dl.alipaydev.com/gateway.do
+ALIPAY_SANDBOX_PRIVATE_KEY_PATH=./certs/alipay/app_private_key.pem
+ALIPAY_SANDBOX_PUBLIC_KEY_PATH=./certs/alipay/alipay_public_key.pem
 ```
 
 **Replace placeholders:**
@@ -145,7 +160,7 @@ ls -la examples/pay-server/certs/alipay/
 ### 1. Set API Key
 
 ```bash
-export PAY_API_KEYS=test-dev-key
+export PAY_API_KEY=test-dev-key
 ```
 
 ### 2. Start Server
@@ -158,14 +173,15 @@ build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ### 3. Create Payment
 
 ```bash
-curl -X POST http://localhost:5566/pay/create \
+curl -X POST http://localhost:5566/api/pay/create \
   -H "Content-Type: application/json" \
   -H "X-Api-Key: test-dev-key" \
   -d '{
     "user_id": "10001",
+    "order_no": "ORDER_001",
     "amount": "0.01",
     "currency": "CNY",
-    "title": "Sandbox Test"
+    "channel": "alipay"
   }'
 ```
 
@@ -179,7 +195,7 @@ curl -X POST http://localhost:5566/pay/create \
 ### 5. Query Order
 
 ```bash
-curl "http://localhost:5566/pay/query?order_no=ORDER_NO" \
+curl "http://localhost:5566/api/pay/query?order_no=ORDER_NO" \
   -H "X-Api-Key: test-dev-key"
 ```
 

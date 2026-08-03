@@ -32,15 +32,24 @@
 ```bash
 # 使用环境变量存储敏感信息
 export WECHAT_PAY_MCH_ID="your_merchant_id"
-export WECHAT_PAY_API_KEY_V3="your_api_key"
+export WECHAT_PAY_API_V3_KEY="your_api_v3_key"
 export WECHAT_PAY_SERIAL_NO="your_serial_no"
 export WECHAT_PAY_PRIVATE_KEY_PATH="/path/to/private/key"
+```
 
-# 在config.json中引用环境变量
+config.json 中通过 `__env_var:VAR_NAME__` 占位符引用上述环境变量
+（由示例宿主的 ConfigLoader 在启动时替换，敏感值不落盘）：
+
+```json
 {
-  "wechat_pay": {
-    "mch_id": "${WECHAT_PAY_MCH_ID}",
-    "api_key_v3": "${WECHAT_PAY_API_KEY_V3}"
+  "channels": {
+    "wechat": {
+      "enabled": true,
+      "mch_id": "__env_var:WECHAT_PAY_MCH_ID__",
+      "api_v3_key": "__env_var:WECHAT_PAY_API_V3_KEY__",
+      "serial_no": "__env_var:WECHAT_PAY_SERIAL_NO__",
+      "private_key_path": "__env_var:WECHAT_PAY_PRIVATE_KEY_PATH__"
+    }
   }
 }
 ```
@@ -101,18 +110,19 @@ LOG_INFO << "Payment processed: order_no=" << orderNo
   - [ ] 会话超时配置合理（如30分钟）
   - [ ] 会话token安全存储（HttpOnly, Secure标志）
 
-**当前权限范围配置：**
+**当前权限范围（Scope）配置：**
 
 ```cpp
-// pay_api_keys表中的scope定义
-// "payment":create - 创建支付
-// "payment":read - 查询支付
-// "refund":create - 创建退款
-// "refund":read - 查询退款
-// "callback":handle - 处理回调
-// "metrics":read - 读取指标
-// "health":read - 健康检查
+// 实际生效的 scope（按路由路径相对 base_path 解析）：
+// order_query   - 查询订单（GET {base}/query）
+// refund        - 发起退款（POST {base}/refund）
+// refund_query  - 查询退款（GET {base}/refund/query）
+// reconcile     - 对账摘要（GET {base}/reconcile/summary）
 ```
+
+配置位置：`config.json` 的 `custom_config.pay.api_key_scopes`（按密钥）与
+`api_key_default_scopes`（未显式配置时的默认）。详见
+[API Key 配置](../api/api_key_configuration.md)。
 
 ---
 
@@ -253,11 +263,10 @@ LOG_INFO << "AUDIT: timestamp=" << timestamp
 
 **速率限制配置：**
 
-```cpp
-// 在PayAuthFilter中实现速率限制
-const int MAX_REQUESTS_PER_MINUTE = 100;
-const int MAX_FAILED_AUTH_PER_HOUR = 10;
-```
+示例宿主通过 `drogon::plugin::Hodor` 插件实现，在 config.json 中按 URL
+正则配置（令牌桶算法），例如对 `/api/pay/create`、`/api/pay/refund` 分别
+设更紧的 `ip_capacity`。详见 `examples/pay-server/config.json` 中的
+`plugins[].Hodor` 配置块。
 
 ---
 
@@ -409,18 +418,18 @@ git secrets --add 'api_key.*=.*'
 
 ### 已实施的安全措施
 
-- ✅ API密钥通过数据库管理，支持scope权限
-- ✅ X-Api-Key认证在所有受保护端点
-- ✅ PayAuthFilter实现认证和授权
-- ✅ 幂等性键防止重复提交
-- ✅ 错误码统一管理，不泄露内部信息
-- ✅ /health端点用于健康检查
+- ✅ API 密钥经环境变量 / config.json 的 `custom_config.pay` 管理，支持 scope 权限
+- ✅ X-Api-Key（或 `Authorization: Bearer`）认证在所有受保护端点
+- ✅ `checkAuth()` 函数在处理器内做认证和授权（取代旧的 drogon filter）
+- ✅ 密钥校验使用常量时间比较（`OPENSSL_memcmp`），避免时序侧信道
+- ✅ 幂等性键防止重复提交（Redis 可选，数据库兜底）
+- ✅ 错误码统一管理，响应 body 不回显密钥
+- ✅ `/healthz` + `/readyz` 健康检查端点
+- ✅ 示例宿主通过 `drogon::plugin::Hodor` 对 `/api/pay/*` 等路由做速率限制
+- ✅ 示例宿主 `SecurityHeaders.h` 设置安全响应头
 
 ### 待实施的安全措施
 
-- ⚠️ 安全头配置（X-Frame-Options, CSP等）
-- ⚠️ 速率限制实施
-- ⚠️ 日志脱敏处理
 - ⚠️ 敏感字段加密存储
 - ⚠️ 审计日志实施
 - ⚠️ 依赖漏洞扫描

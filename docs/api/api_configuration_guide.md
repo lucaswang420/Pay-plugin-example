@@ -11,10 +11,10 @@ PayPlugin需要**两类**配置：
 
 ### 1️⃣ 微信支付商户配置
 **用途：** 调用微信支付API
-**位置：** `config.json` → `plugins` → `PayPlugin` → `config` → `wechat_pay`
+**位置：** `config.json` → `plugins` → `PayPlugin` → `config` → `channels` → `wechat`
 
 ### 2️⃣ 内部API密钥配置
-**用途：** 认证内部API调用（如 /pay/query）
+**用途：** 认证内部API调用（如 /api/pay/query）
 **位置：** `config.json` → `custom_config` → `pay` → `api_keys`
 
 ---
@@ -29,15 +29,18 @@ PayPlugin需要**两类**配置：
     {
       "name": "PayPlugin",
       "config": {
-        "wechat_pay": {
-          "app_id": "wx8888888888888888",
-          "mch_id": "1234567890",
-          "serial_no": "ABCDEFGHIJKLMNOPQRST",
-          "api_v3_key": "your32characterbase64encodedkey==",
-          "private_key_path": "./certs/apiclient_key.pem",
-          "platform_cert_path": "./certs/wechatpay_platform.pem",
-          "api_base": "https://api.mch.weixin.qq.com",
-          "timeout_ms": 5000
+        "channels": {
+          "wechat": {
+            "enabled": true,
+            "app_id": "wx8888888888888888",
+            "mch_id": "1234567890",
+            "serial_no": "ABCDEFGHIJKLMNOPQRST",
+            "api_v3_key": "your32characterbase64encodedkey==",
+            "private_key_path": "./certs/apiclient_key.pem",
+            "platform_cert_path": "./certs/wechatpay_platform.pem",
+            "api_base": "https://api.mch.weixin.qq.com",
+            "timeout_ms": 5000
+          }
         }
       }
     }
@@ -108,7 +111,7 @@ examples/pay-server/
 
 ### 为什么需要API Keys？
 
-PayPlugin的某些API端点（如 `/pay/query`, `/pay/refund/query`）需要API密钥认证，防止未授权访问。
+PayPlugin的某些API端点（如 `/api/pay/query`, `/api/pay/refund/query`）需要API密钥认证，防止未授权访问。
 
 ### 配置方式
 
@@ -122,11 +125,11 @@ PayPlugin的某些API端点（如 `/pay/query`, `/pay/refund/query`）需要API�
         "admin-key-456"
       ],
       "api_key_scopes": {
-        "test-api-key": ["read", "write", "admin"],
-        "prod-api-key-123": ["read", "write"],
-        "admin-key-456": ["read", "write", "admin", "reconcile"]
+        "test-api-key": ["order_query", "refund", "refund_query"],
+        "prod-api-key-123": ["order_query", "refund_query"],
+        "admin-key-456": ["order_query", "refund", "refund_query", "reconcile"]
       },
-      "api_key_default_scopes": ["read", "write"]
+      "api_key_default_scopes": ["read", "order_query", "refund", "refund_query", "reconcile"]
     }
   }
 }
@@ -137,31 +140,35 @@ PayPlugin的某些API端点（如 `/pay/query`, `/pay/refund/query`）需要API�
 | 配置项 | 说明 | 示例 |
 |--------|------|------|
 | **api_keys** | 允许的API密钥列表 | `["test-api-key", "prod-key"]` |
-| **api_key_scopes** | 每个密钥的权限范围 | `{"key": ["read", "write"]}` |
-| **api_key_default_scopes** | 未指定scope时的默认权限 | `["read"]` |
+| **api_key_scopes** | 每个密钥的权限范围 | `{"key": ["order_query", "refund"]}` |
+| **api_key_default_scopes** | 密钥未显式配置 scope 时的默认权限 | `["read", "order_query", "refund", "refund_query", "reconcile"]` |
 
 ### 权限范围（Scopes）
 
-| Scope | 说明 | 允许的端点 |
+Scope 按请求路径相对配置的 `base_path`（默认 `/api/pay`）解析。实际生效的 scope：
+
+| Scope | 说明 | 守护的端点 |
 |-------|------|-----------|
-| **read** | 读取权限 | GET /pay/query, GET /pay/refund/query |
-| **write** | 写入权限 | POST /pay/create, POST /pay/refund |
-| **admin** | 管理员权限 | /pay/metrics/*, 对账操作 |
-| **reconcile** | 对账权限 | 对账相关操作 |
+| **order_query** | 查询订单 | GET {base}/query |
+| **refund** | 发起退款 | POST {base}/refund |
+| **refund_query** | 查询退款 | GET {base}/refund/query |
+| **reconcile** | 对账摘要 | GET {base}/reconcile/summary |
+
+> 其余路由（创建支付 / 扫码支付 / metrics）不按 scope 守护，仅需有效 API Key。
 
 ### 如何使用API Keys
 
 **客户端请求示例：**
 ```bash
-curl "http://localhost:5566/pay/query?order_no=xxx" \
+curl "http://localhost:5566/api/pay/query?order_no=xxx" \
   -H "X-Api-Key: test-api-key"
 ```
 
 **如果没有API Key：**
 ```bash
-curl "http://localhost:5566/pay/query?order_no=xxx"
+curl "http://localhost:5566/api/pay/query?order_no=xxx"
 # 返回：HTTP 503 Service Unavailable
-# Body: {"code": 403, "message": "api key not configured"}
+# Body（纯文本）: api key not configured
 ```
 
 ---
@@ -178,16 +185,19 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
     {
       "name": "PayPlugin",
       "config": {
-        "wechat_pay": {
-          "app_id": "wx8888888888888888",
-          "mch_id": "1234567890",
-          "serial_no": "ABCDEFGHIJKLMNOPQRST",
-          "api_v3_key": "your32characterbase64encodedkey==",
-          "private_key_path": "./certs/apiclient_key.pem",
-          "platform_cert_path": "./certs/wechatpay_platform.pem",
-          "api_base": "https://api.mch.weixin.qq.com",
-          "timeout_ms": 5000,
-          "notify_url": "https://your-domain.com/pay/notify/wechat"
+        "channels": {
+          "wechat": {
+            "enabled": true,
+            "app_id": "wx8888888888888888",
+            "mch_id": "1234567890",
+            "serial_no": "ABCDEFGHIJKLMNOPQRST",
+            "api_v3_key": "your32characterbase64encodedkey==",
+            "private_key_path": "./certs/apiclient_key.pem",
+            "platform_cert_path": "./certs/wechatpay_platform.pem",
+            "api_base": "https://api.mch.weixin.qq.com",
+            "timeout_ms": 5000,
+            "notify_url": "https://your-domain.com/api/pay/notify/wechat"
+          }
         }
       }
     }
@@ -196,8 +206,8 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
     "pay": {
       "api_keys": ["test-integration-key", "test-qa-key"],
       "api_key_scopes": {
-        "test-integration-key": ["read", "write", "admin"],
-        "test-qa-key": ["read", "write"]
+        "test-integration-key": ["order_query", "refund", "refund_query", "reconcile"],
+        "test-qa-key": ["order_query", "refund_query"]
       }
     }
   }
@@ -230,16 +240,19 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
     {
       "name": "PayPlugin",
       "config": {
-        "wechat_pay": {
-          "app_id": "wx_mock_8888888888",
-          "mch_id": "1230000109",
-          "serial_no": "MOCK_SERIAL_NO_123",
-          "api_v3_key": "mock32characterbase64encodedkey==",
-          "private_key_path": "./certs/mock_apiclient_key.pem",
-          "platform_cert_path": "./certs/mock_wechatpay_platform.pem",
-          "api_base": "http://localhost:8080",  // Mock服务地址
-          "timeout_ms": 5000,
-          "notify_url": "http://localhost:5566/pay/notify/wechat"
+        "channels": {
+          "wechat": {
+            "enabled": true,
+            "app_id": "wx_mock_8888888888",
+            "mch_id": "1230000109",
+            "serial_no": "MOCK_SERIAL_NO_123",
+            "api_v3_key": "mock32characterbase64encodedkey==",
+            "private_key_path": "./certs/mock_apiclient_key.pem",
+            "platform_cert_path": "./certs/mock_wechatpay_platform.pem",
+            "api_base": "http://localhost:8080",  // Mock服务地址
+            "timeout_ms": 5000,
+            "notify_url": "http://localhost:5566/api/pay/notify/wechat"
+          }
         }
       }
     }
@@ -248,8 +261,8 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
     "pay": {
       "api_keys": ["dev-test-key", "mock-test-key"],
       "api_key_scopes": {
-        "dev-test-key": ["read", "write", "admin"],
-        "mock-test-key": ["read", "write"]
+        "dev-test-key": ["order_query", "refund", "refund_query", "reconcile"],
+        "mock-test-key": ["order_query", "refund_query"]
       }
     }
   }
@@ -276,15 +289,18 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
     {
       "name": "PayPlugin",
       "config": {
-        "wechat_pay": {
-          "app_id": "PLACEHOLDER",
-          "mch_id": "PLACEHOLDER",
-          "serial_no": "PLACEHOLDER",
-          "api_v3_key": "PLACEHOLDER_32_CHARACTER_KEY==",
-          "private_key_path": "./certs/placeholder.pem",
-          "platform_cert_path": "./certs/placeholder.pem",
-          "api_base": "https://api.mch.weixin.qq.com",
-          "timeout_ms": 5000
+        "channels": {
+          "wechat": {
+            "enabled": true,
+            "app_id": "PLACEHOLDER",
+            "mch_id": "PLACEHOLDER",
+            "serial_no": "PLACEHOLDER",
+            "api_v3_key": "PLACEHOLDER_32_CHARACTER_KEY==",
+            "private_key_path": "./certs/placeholder.pem",
+            "platform_cert_path": "./certs/placeholder.pem",
+            "api_base": "https://api.mch.weixin.qq.com",
+            "timeout_ms": 5000
+          }
         }
       }
     }
@@ -297,9 +313,9 @@ curl "http://localhost:5566/pay/query?order_no=xxx"
         "perf-test-key-3"
       ],
       "api_key_scopes": {
-        "perf-test-key-1": ["read", "write", "admin"],
-        "perf-test-key-2": ["read", "write"],
-        "perf-test-key-3": ["read"]
+        "perf-test-key-1": ["order_query", "refund", "refund_query", "reconcile"],
+        "perf-test-key-2": ["order_query", "refund_query"],
+        "perf-test-key-3": ["order_query"]
       }
     }
   }
@@ -338,11 +354,11 @@ cp config.json config.json.backup
         "admin-key"
       ],
       "api_key_scopes": {
-        "test-dev-key": ["read", "write", "admin"],
-        "performance-test-key": ["read", "write"],
-        "admin-key": ["read", "write", "admin", "reconcile"]
+        "test-dev-key": ["order_query", "refund", "refund_query", "reconcile"],
+        "performance-test-key": ["order_query", "refund_query"],
+        "admin-key": ["order_query", "refund", "refund_query", "reconcile"]
       },
-      "api_key_default_scopes": ["read"]
+      "api_key_default_scopes": ["read", "order_query", "refund", "refund_query", "reconcile"]
     }
   }
 }
@@ -372,14 +388,14 @@ build/windows-msvc/examples/pay-server/Release/PayServer.exe
 ```bash
 # 测试有API Key
 curl -H "X-Api-Key: test-dev-key" \
-  "http://localhost:5566/pay/query?order_no=test_123"
+  "http://localhost:5566/api/pay/query?order_no=test_123"
 
 # 应该返回：HTTP 200 + JSON响应（即使订单不存在）
 
 # 测试无API Key
-curl "http://localhost:5566/pay/query?order_no=test_123"
+curl "http://localhost:5566/api/pay/query?order_no=test_123"
 
-# 应该返回：HTTP 503 + {"code": 403, "message": "Missing or invalid API key"}
+# 应该返回：HTTP 503 + 纯文本 "api key not configured"
 ```
 
 ---
@@ -392,8 +408,8 @@ curl "http://localhost:5566/pay/query?order_no=test_123"
 - [ ] API keys已配置在 `custom_config.pay.api_keys`
 - [ ] API key scopes已配置
 - [ ] PayServer启动无错误
-- [ ] 查询API返回预期响应（需要API key）
-- [ ] Prometheus metrics端点可访问（不需要API key）
+- [ ] 查询API（`/api/pay/query`）返回预期响应（需要API key）
+- [ ] Prometheus metrics端点（`/metrics`）可访问（不需要API key）
 
 ### 常见配置错误
 
@@ -401,7 +417,7 @@ curl "http://localhost:5566/pay/query?order_no=test_123"
 
 **现象：**
 ```bash
-curl "http://localhost:5566/pay/query?order_no=test"
+curl "http://localhost:5566/api/pay/query?order_no=test"
 HTTP 503: api key not configured
 ```
 
@@ -415,6 +431,7 @@ HTTP 503: api key not configured
   }
 }
 ```
+或设置环境变量 `PAY_API_KEY` / `PAY_API_KEYS`。
 
 #### 错误2：证书文件不存在
 
@@ -447,18 +464,18 @@ ERROR: Invalid API v3 key format
 
 **现象：**
 ```bash
-curl -H "X-Api-Key: read-only-key" \
-  -X POST http://localhost:5566/pay/create \
+curl -H "X-Api-Key: query-only-key" \
+  -X POST http://localhost:5566/api/pay/refund \
   -d '{"order_no":"xxx","amount":"9.99"}'
 
-HTTP 403: Scope denied
+HTTP 403: api key scope not allowed
 ```
 
 **解决：**
 ```json
 {
   "api_key_scopes": {
-    "read-only-key": ["read", "write"]  // 添加 "write" 权限
+    "query-only-key": ["order_query", "refund"]  // 添加 "refund" 权限
   }
 }
 ```
@@ -478,8 +495,8 @@ HTTP 403: Scope denied
         "dev-key-2"
       ],
       "api_key_scopes": {
-        "dev-key-1": ["read", "write", "admin"],
-        "dev-key-2": ["read", "write"]
+        "dev-key-1": ["order_query", "refund", "refund_query", "reconcile"],
+        "dev-key-2": ["order_query", "refund_query"]
       }
     }
   }
@@ -493,14 +510,14 @@ HTTP 403: Scope denied
   "custom_config": {
     "pay": {
       "api_keys": [
-        "test-read-key",
-        "test-write-key",
+        "test-query-key",
+        "test-refund-key",
         "test-admin-key"
       ],
       "api_key_scopes": {
-        "test-read-key": ["read"],
-        "test-write-key": ["write"],
-        "test-admin-key": ["read", "write", "admin"]
+        "test-query-key": ["order_query", "refund_query"],
+        "test-refund-key": ["order_query", "refund"],
+        "test-admin-key": ["order_query", "refund", "refund_query", "reconcile"]
       }
     }
   }
@@ -566,7 +583,7 @@ export PAY_API_KEY_WRITE="prod-write-key-yyy"
     "pay": {
       "api_keys": ["perf-test-key"],
       "api_key_scopes": {
-        "perf-test-key": ["read", "write", "admin"]
+        "perf-test-key": ["order_query", "refund", "refund_query", "reconcile"]
       }
     }
   }
@@ -578,7 +595,7 @@ export PAY_API_KEY_WRITE="prod-write-key-yyy"
 3. 运行性能测试：
 ```bash
 curl -H "X-Api-Key: perf-test-key" \
-  "http://localhost:5566/pay/query?order_no=test_123"
+  "http://localhost:5566/api/pay/query?order_no=test_123"
 ```
 
 ---

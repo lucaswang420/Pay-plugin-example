@@ -17,7 +17,7 @@ cd examples/pay-server
 或者在 Windows 上：
 ```powershell
 cd examples/pay-server
-.\build\Release\PayServer.exe
+.\build\windows-msvc\examples\pay-server\Release\PayServer.exe
 ```
 
 ### 2. 运行端到端测试
@@ -31,7 +31,7 @@ chmod +x e2e_test.sh
 
 **Windows (PowerShell):**
 ```powershell
-cd examples/pay-server\test
+cd tests
 .\e2e_test.ps1
 ```
 
@@ -53,12 +53,14 @@ cd examples/pay-server\test
 
 | 测试场景 | API 端点 | 验证内容 |
 |---------|---------|---------|
-| 创建支付 | POST /pay/create | order_no, payment_no, status |
-| 查询订单 | GET /pay/query | 订单详情, 状态 |
-| 创建退款 | POST /pay/refund | refund_no, 状态 |
-| 查询退款 | GET /pay/refund/query | 退款详情, 状态 |
-| 认证指标 | GET /pay/metrics/auth | 指标数据 |
+| 创建支付 | POST /api/pay/create | order_no, payment_no, status |
+| 查询订单 | GET /api/pay/query | 订单详情, 状态 |
+| 创建退款 | POST /api/pay/refund | refund_no, 状态 |
+| 查询退款 | GET /api/pay/refund/query | 退款详情, 状态 |
+| 认证指标 | GET /api/pay/metrics/auth | 指标数据 |
 | Prometheus 指标 | GET /metrics | Prometheus 格式 |
+
+> 路由前缀由 PayPlugin 的 `base_path` 决定（默认 `/api/pay`）。
 
 ---
 
@@ -85,14 +87,15 @@ export API_KEY="your-api-key"
 ### 1. 创建支付
 
 ```bash
-curl -X POST http://localhost:5566/pay/create \
+curl -X POST http://localhost:5566/api/pay/create \
   -H "Idempotency-Key: test_idempotency_key" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "10001",
+    "order_no": "ORDER_001",
     "amount": "9.99",
     "currency": "CNY",
-    "title": "E2E Test Order"
+    "channel": "wechat"
   }'
 ```
 
@@ -111,7 +114,7 @@ curl -X POST http://localhost:5566/pay/create \
 ### 2. 查询订单
 
 ```bash
-curl "http://localhost:5566/pay/query?order_no=c2d7c8ad-6a4b-4f3f-9a31-32db0a3fcd82" \
+curl "http://localhost:5566/api/pay/query?order_no=c2d7c8ad-6a4b-4f3f-9a31-32db0a3fcd82" \
   -H "X-Api-Key: test-api-key"
 ```
 
@@ -133,7 +136,7 @@ curl "http://localhost:5566/pay/query?order_no=c2d7c8ad-6a4b-4f3f-9a31-32db0a3fc
 ### 3. 创建退款
 
 ```bash
-curl -X POST http://localhost:5566/pay/refund \
+curl -X POST http://localhost:5566/api/pay/refund \
   -H "Idempotency-Key: test_refund_idempotency_key" \
   -H "X-Api-Key: test-api-key" \
   -H "Content-Type: application/json" \
@@ -157,7 +160,7 @@ curl -X POST http://localhost:5566/pay/refund \
 ### 4. 查询退款
 
 ```bash
-curl "http://localhost:5566/pay/refund/query?refund_no=refund_xxx" \
+curl "http://localhost:5566/api/pay/refund/query?refund_no=refund_xxx" \
   -H "X-Api-Key: test-api-key"
 ```
 
@@ -187,6 +190,10 @@ curl "http://localhost:5566/pay/refund/query?refund_no=refund_xxx" \
 cd examples/pay-server
 ./build/linux-release/examples/pay-server/PayServer
 ```
+
+> 注意：端到端脚本连接的是示例宿主的默认端口 **5566**（`base_path` 默认
+> `/api/pay`）。`tests/` 下的 CTest 套件则监听独立端口 `PAY_TEST_PORT`
+> （默认 5567），二者互不干扰。
 
 ### 问题：Connection refused
 
@@ -227,28 +234,29 @@ export API_KEY="your-correct-api-key"
 ### 测试创建支付
 
 ```bash
-curl -X POST http://localhost:5566/pay/create \
+curl -X POST http://localhost:5566/api/pay/create \
   -H "Idempotency-Key: manual_test_$(date +%s)" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "10001",
+    "order_no": "ORDER_002",
     "amount": "19.99",
     "currency": "CNY",
-    "title": "Manual Test Order"
+    "channel": "wechat"
   }'
 ```
 
 ### 测试查询订单
 
 ```bash
-curl "http://localhost:5566/pay/query?order_no=YOUR_ORDER_NO" \
+curl "http://localhost:5566/api/pay/query?order_no=YOUR_ORDER_NO" \
   -H "X-Api-Key: test-api-key"
 ```
 
 ### 测试指标端点
 
 ```bash
-curl "http://localhost:5566/pay/metrics/auth" \
+curl "http://localhost:5566/api/pay/metrics/auth" \
   -H "X-Api-Key: test-api-key"
 ```
 
@@ -327,9 +335,9 @@ jobs:
 
 ## 📚 相关文档
 
-- [Pay API Examples](pay-api-examples.md) - API 使用示例
+- [Pay API Examples](../api/pay-api-examples.md) - API 使用示例
 - [Test Update Progress](../history/reports/test_update_progress.md) - 测试更新进度
-- [Validation Report](validation_report.md) - 重构验证报告
+- [Validation Report](../history/archive/legacy_docs/validation_report.md) - 重构验证报告（历史归档）
 
 ---
 
@@ -362,5 +370,5 @@ jobs:
 ---
 
 **创建时间：** 2026-04-11
-**脚本位置：** `test/e2e_test.sh` (Bash), `test/e2e_test.ps1` (PowerShell)
+**脚本位置：** `tests/e2e_test.sh` (Bash), `tests/e2e_test.ps1` (PowerShell)
 **状态：** ✅ 完成 - 可立即使用
