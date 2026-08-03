@@ -14,6 +14,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <chrono>
 #include <string>
 #include <vector>
 #include "utils/ConfigLoader.h"
@@ -108,6 +110,55 @@ inline std::string buildPgConnInfo(const Json::Value &db)
         connInfo += " password=" + passwd;
     }
     return connInfo;
+}
+
+// ============================================================================
+// Future wait helpers
+// ============================================================================
+// Root-cause defense against the ctest hang. Integration tests drive async
+// services through a std::promise and wait on the matching std::future. The old
+// idiom was:
+//
+//     CHECK(fut.wait_for(5s) == std::future_status::ready);
+//     auto x = fut.get();   // blocks forever if the callback never fires
+//
+// Drogon's CHECK does NOT abort on failure, so a 5s timeout fell through to
+// fut.get() with no timeout and deadlocked the whole ctest run. The fix below
+// pairs REQUIRE-style abort-on-timeout (handled at call sites via the boolean
+// return) with a get() that only runs when the future is known ready.
+//
+// waitForFutureReady(): pure readiness check; does NOT call .get(). Use it as
+//   REQUIRE(waitForFutureReady(fut, 5s));  // fails+returns on timeout
+//   auto x = fut.get();                    // safe: only reached when ready
+//
+// tryFutureGet(): readiness check + value extraction in one. For sites that
+// previously did `auto x = promise.get_future().get();` with no wait at all.
+// Returns false on timeout and leaves `out` untouched so the caller's
+// subsequent assertions fail loudly instead of hanging.
+// ============================================================================
+
+template <typename T, typename Rep, typename Period>
+inline bool waitForFutureReady(
+  std::future<T> &fut,
+  const std::chrono::duration<Rep, Period> &timeout
+)
+{
+    return fut.wait_for(timeout) == std::future_status::ready;
+}
+
+template <typename T, typename Rep, typename Period>
+inline bool tryFutureGet(
+  std::future<T> &fut,
+  T &out,
+  const std::chrono::duration<Rep, Period> &timeout
+)
+{
+    if (fut.wait_for(timeout) != std::future_status::ready)
+    {
+        return false;
+    }
+    out = fut.get();
+    return true;
 }
 
 }  // namespace pay::test_util

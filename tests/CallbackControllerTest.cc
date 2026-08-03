@@ -54,7 +54,7 @@ DROGON_TEST(CallbackController_Wechat_InvalidJson_Rejected)
     );
 
     auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     auto r = future.get();
     CHECK(r.called);
 
@@ -92,7 +92,7 @@ DROGON_TEST(CallbackController_Wechat_MissingEventType_Rejected)
     );
 
     auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     auto r = future.get();
     CHECK(r.called);
 
@@ -131,7 +131,7 @@ DROGON_TEST(CallbackController_Wechat_UnknownEventType_Rejected)
     );
 
     auto future = promise.get_future();
-    CHECK(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     auto r = future.get();
     CHECK(r.called);
 

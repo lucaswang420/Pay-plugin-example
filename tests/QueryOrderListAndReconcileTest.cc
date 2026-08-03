@@ -157,7 +157,9 @@ DROGON_TEST(QueryOrderList_MultiStatus_Filtering)
               promise.set_value({r, e});
           }
         );
-        auto [res, err] = promise.get_future().get();
+        auto pairFuture = promise.get_future();
+        REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+        auto [res, err] = pairFuture.get();
         CHECK(!err);
         CHECK(res["code"].asInt() == 200);
         CHECK(res["data"].size() >= 2);
@@ -173,7 +175,9 @@ DROGON_TEST(QueryOrderList_MultiStatus_Filtering)
               promise.set_value({r, e});
           }
         );
-        auto [res, err] = promise.get_future().get();
+        auto pairFuture = promise.get_future();
+        REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+        auto [res, err] = pairFuture.get();
         CHECK(!err);
         CHECK(res["code"].asInt() == 200);
         CHECK(res["data"].size() >= 1);
@@ -188,7 +192,9 @@ DROGON_TEST(QueryOrderList_MultiStatus_Filtering)
               promise.set_value({r, e});
           }
         );
-        auto [res, err] = promise.get_future().get();
+        auto pairFuture = promise.get_future();
+        REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+        auto [res, err] = pairFuture.get();
         CHECK(!err);
         CHECK(res["code"].asInt() == 200);
         CHECK(res["data"].size() >= 4);
@@ -266,7 +272,9 @@ DROGON_TEST(QueryOrderList_UserIdFilter)
           promise.set_value({r, e});
       }
     );
-    auto [res, err] = promise.get_future().get();
+    auto pairFuture = promise.get_future();
+    REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+    auto [res, err] = pairFuture.get();
     CHECK(!err);
     CHECK(res["code"].asInt() == 200);
     CHECK(res["data"].size() >= 2);
@@ -324,7 +332,9 @@ DROGON_TEST(QueryOrderList_Pagination)
               promise.set_value({r, e});
           }
         );
-        auto [res, err] = promise.get_future().get();
+        auto pairFuture = promise.get_future();
+        REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+        auto [res, err] = pairFuture.get();
         CHECK(!err);
         CHECK(res["code"].asInt() == 200);
         // With limit=3, offset=0: should return at least 3 rows
@@ -340,7 +350,9 @@ DROGON_TEST(QueryOrderList_Pagination)
               promise.set_value({r, e});
           }
         );
-        auto [res, err] = promise.get_future().get();
+        auto pairFuture = promise.get_future();
+        REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+        auto [res, err] = pairFuture.get();
         CHECK(!err);
         CHECK(res["code"].asInt() == 200);
     }
@@ -354,7 +366,9 @@ DROGON_TEST(QueryOrderList_Pagination)
               promise.set_value({r, e});
           }
         );
-        auto [res, err] = promise.get_future().get();
+        auto pairFuture = promise.get_future();
+        REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+        auto [res, err] = pairFuture.get();
         CHECK(!err);
         CHECK(res["code"].asInt() == 200);
     }
@@ -399,7 +413,9 @@ DROGON_TEST(QueryOrderList_EmptyDatabase)
           promise.set_value({r, e});
       }
     );
-    auto [res, err] = promise.get_future().get();
+    auto pairFuture = promise.get_future();
+    REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+    auto [res, err] = pairFuture.get();
     CHECK(!err);
     CHECK(res["code"].asInt() == 200);
     CHECK(res["data"].size() == 0);
@@ -439,7 +455,9 @@ DROGON_TEST(QueryOrderList_StatusCodeConsistency_CREATED_and_PAYING)
           promise.set_value({r, e});
       }
     );
-    auto [res, err] = promise.get_future().get();
+    auto pairFuture = promise.get_future();
+    REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+    auto [res, err] = pairFuture.get();
     CHECK(!err);
     CHECK(res["code"].asInt() == 200);
     // Both CREATED and PAYING should appear
@@ -492,7 +510,9 @@ DROGON_TEST(ReconcileSummary_MultiState)
           promise.set_value({r, e});
       }
     );
-    auto [res, err] = promise.get_future().get();
+    auto pairFuture = promise.get_future();
+    REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
+    auto [res, err] = pairFuture.get();
     CHECK(!err);
     CHECK(res["code"].asInt() == 0);
     CHECK(res.isMember("data"));

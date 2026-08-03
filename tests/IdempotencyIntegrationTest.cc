@@ -665,15 +665,28 @@ DROGON_TEST(PayIdempotency_ClearReservationReleasesKey)
         svc.checkAndSetStatus(k, h, req, [p](const IdempotencyService::CheckResult &r) {
             p->set_value(r);
         });
-        CHECK(f.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-        return f.get();
+        // tryFutureGet() returns false (and leaves `r` default-constructed) on
+        // timeout instead of blocking forever; the caller's CHECK on `.status`
+        // then fails loudly. REQUIRE/RETURN_ON_FAILURE cannot be used inside a
+        // value-returning lambda because its `return;` would clash with
+        // `return r;` (C3487).
+        IdempotencyService::CheckResult r;
+        if (!pay::test_util::tryFutureGet(f, r, std::chrono::seconds(5)))
+        {
+            FAIL("check() timed out waiting for checkAndSetStatus callback");
+        }
+        return r;
     };
     auto clear = [&](const std::string &k, const std::string &h) {
         auto p = std::make_shared<std::promise<bool>>();
         auto f = p->get_future();
         svc.clearReservation(k, h, [p](bool ok) { p->set_value(ok); });
-        CHECK(f.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-        return f.get();
+        bool ok = false;
+        if (!pay::test_util::tryFutureGet(f, ok, std::chrono::seconds(5)))
+        {
+            FAIL("clear() timed out waiting for clearReservation callback");
+        }
+        return ok;
     };
 
     // 1. First request reserves the key.
