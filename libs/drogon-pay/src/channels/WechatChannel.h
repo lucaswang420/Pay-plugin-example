@@ -27,9 +27,11 @@ class WechatPayClient : public drogon_pay::PaymentChannel
     void queryPayment(const std::string &orderNo, JsonCallback &&callback) override;
     void refund(const Json::Value &payload, JsonCallback &&callback) override;
     void queryRefund(const std::string &refundNo, JsonCallback &&callback) override;
-    bool verifyCallback(const drogon::HttpRequestPtr &req,
-                        drogon_pay::CallbackEvent &event,
-                        std::string &error) override;
+    bool verifyCallback(
+      const drogon::HttpRequestPtr &req,
+      drogon_pay::CallbackEvent &event,
+      std::string &error
+    ) override;
     /// Warm up the platform certificates (asymmetric capability folded into
     /// the channel life cycle instead of a plugin-owned timer bootstrap).
     void onStart() override;
@@ -37,7 +39,6 @@ class WechatPayClient : public drogon_pay::PaymentChannel
     // ---- Wechat-specific capabilities (reach via dynamic_pointer_cast) ----
     void createTransactionNative(const Json::Value &payload, JsonCallback &&callback);
     void queryTransaction(const std::string &orderNo, JsonCallback &&callback);
-
 
     void downloadCertificates(JsonCallback &&callback);
     std::string getPlatformCert(const std::string &serialNo) const;

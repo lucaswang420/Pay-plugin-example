@@ -13,8 +13,6 @@ class StartupValidator
 {
   public:
     static bool isPlaceholder(const std::string &value);
-    static ValidationResult validateRequired(
-      const std::vector<std::string> &requiredVars
-    );
+    static ValidationResult validateRequired(const std::vector<std::string> &requiredVars);
     static void validate(const std::vector<std::string> &requiredVars);
 };

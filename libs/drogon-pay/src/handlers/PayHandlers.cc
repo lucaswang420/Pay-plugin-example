@@ -43,7 +43,7 @@ static bool validateAmount(const std::string &amount)
     return !amount.empty() && std::regex_match(amount, pattern);
 }
 
-}
+}  // namespace
 
 void PayController::createPayment(
   const HttpRequestPtr &req,
@@ -88,7 +88,9 @@ void PayController::createPayment(
     {
         Json::Value error;
         error["code"] = 40001;
-        error["message"] = "Invalid amount format. Expected positive number with up to 2 decimal places (e.g. 100.00)";
+        error["message"] =
+          "Invalid amount format. Expected positive number with up to 2 decimal places (e.g. "
+          "100.00)";
         auto resp = HttpResponse::newHttpJsonResponse(error);
         resp->setStatusCode(k400BadRequest);
         callback(resp);
@@ -145,8 +147,7 @@ void PayController::createPayment(
         // Generate standardized idempotency key
         // Use order_no as the base to ensure same order always gets same key
         // Include user_id and amount for additional uniqueness
-        idempotencyKey = "payment:" + request.orderNo + ":" +
-                         std::to_string(request.userId) + ":" +
+        idempotencyKey = "payment:" + request.orderNo + ":" + std::to_string(request.userId) + ":" +
                          drogon::utils::getSha256(request.amount + request.currency);
     }
 
@@ -354,7 +355,9 @@ void PayController::refund(
     {
         Json::Value error;
         error["code"] = 40001;
-        error["message"] = "Invalid amount format. Expected positive number with up to 2 decimal places (e.g. 100.00)";
+        error["message"] =
+          "Invalid amount format. Expected positive number with up to 2 decimal places (e.g. "
+          "100.00)";
         auto resp = HttpResponse::newHttpJsonResponse(error);
         resp->setStatusCode(k400BadRequest);
         callback(resp);

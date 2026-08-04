@@ -14,9 +14,8 @@
 
 namespace
 {
-using pay::test_util::loadConfig;
 using pay::test_util::buildPgConnInfo;
-
+using pay::test_util::loadConfig;
 
 }  // namespace
 

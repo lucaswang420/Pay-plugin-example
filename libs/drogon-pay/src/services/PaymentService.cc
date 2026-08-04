@@ -557,179 +557,624 @@ void PaymentService::proceedCreatePayment(
         // Wrap PayOrder INSERT + PayPayment INSERT in a single transaction.
         // Channel API call happens AFTER COMMIT (outside the transaction),
         // matching the RefundService pattern. (A1-1 fix)
-        dbClient_->newTransactionAsync(
-          [this, request, paymentNo, payload, requestPayload, sharedCb, order](
-            const std::shared_ptr<Transaction> &transPtr
-          ) mutable {
-              if (!transPtr)
-              {
-                  if (*sharedCb)
-                  {
-                      Json::Value err;
-                      err["code"] = 1003;
-                      err["message"] = "Transaction unavailable";
-                      (*sharedCb)(err, pay::makePayError(1003, "Transaction unavailable"));
-                  }
-                  return;
-              }
+        dbClient_->newTransactionAsync([this,
+                                        request,
+                                        paymentNo,
+                                        payload,
+                                        requestPayload,
+                                        sharedCb,
+                                        order](
+                                         const std::shared_ptr<Transaction> &transPtr
+                                       ) mutable {
+            if (!transPtr)
+            {
+                if (*sharedCb)
+                {
+                    Json::Value err;
+                    err["code"] = 1003;
+                    err["message"] = "Transaction unavailable";
+                    (*sharedCb)(err, pay::makePayError(1003, "Transaction unavailable"));
+                }
+                return;
+            }
 
-              auto failDb = [sharedCb, transPtr](const DrogonDbException &e) {
-                  transPtr->rollback();
-                  if (*sharedCb)
-                  {
-                      Json::Value err;
-                      err["code"] = 1003;
-                      err["message"] = "Database error: " + std::string(e.base().what());
-                      (*sharedCb)(err, pay::makePayError(1003, "Database error"));
-                  }
-              };
+            auto failDb = [sharedCb, transPtr](const DrogonDbException &e) {
+                transPtr->rollback();
+                if (*sharedCb)
+                {
+                    Json::Value err;
+                    err["code"] = 1003;
+                    err["message"] = "Database error: " + std::string(e.base().what());
+                    (*sharedCb)(err, pay::makePayError(1003, "Database error"));
+                }
+            };
 
-              // 1. INSERT PayOrder inside the transaction.
-              try
-              {
-                  Mapper<PayOrderModel> txnOrderMapper(transPtr);
-                  txnOrderMapper.insert(
-                    order,
-                    [this,
-                     request,
-                     paymentNo,
-                     payload,
-                     requestPayload,
-                     sharedCb,
-                     transPtr,
-                     failDb](const PayOrderModel &) {
-                        LOG_INFO << "[PaymentService] Order created (in txn): order_no="
-                                 << request.orderNo << ", payment_no=" << paymentNo;
+            // 1. INSERT PayOrder inside the transaction.
+            try
+            {
+                Mapper<PayOrderModel> txnOrderMapper(transPtr);
+                txnOrderMapper.insert(
+                  order,
+                  [this, request, paymentNo, payload, requestPayload, sharedCb, transPtr, failDb](
+                    const PayOrderModel &
+                  ) {
+                      LOG_INFO << "[PaymentService] Order created (in txn): order_no="
+                               << request.orderNo << ", payment_no=" << paymentNo;
 
-                        // 2. INSERT PayPayment inside the same transaction.
-                        try
-                        {
-                            Mapper<PayPaymentModel> txnPaymentMapper(transPtr);
-                            PayPaymentModel payment;
-                            payment.setOrderNo(request.orderNo);
-                            payment.setPaymentNo(paymentNo);
-                            payment.setStatus("INIT");
-                            payment.setAmount(request.amount);
-                            payment.setRequestPayload(requestPayload);
-                            payment.setCreatedAt(trantor::Date::now());
-                            txnPaymentMapper.insert(
-                              payment,
-                              [this, request, paymentNo, payload, sharedCb, transPtr](
-                                const PayPaymentModel &
-                              ) {
-                                  LOG_INFO << "[PaymentService] Payment record created (in txn): "
-                                              "payment_no="
-                                           << paymentNo << ", order_no=" << request.orderNo
-                                           << ", channel=" << request.channel;
+                      // 2. INSERT PayPayment inside the same transaction.
+                      try
+                      {
+                          Mapper<PayPaymentModel> txnPaymentMapper(transPtr);
+                          PayPaymentModel payment;
+                          payment.setOrderNo(request.orderNo);
+                          payment.setPaymentNo(paymentNo);
+                          payment.setStatus("INIT");
+                          payment.setAmount(request.amount);
+                          payment.setRequestPayload(requestPayload);
+                          payment.setCreatedAt(trantor::Date::now());
+                          txnPaymentMapper.insert(
+                            payment,
+                            [this, request, paymentNo, payload, sharedCb, transPtr](
+                              const PayPaymentModel &
+                            ) {
+                                LOG_INFO << "[PaymentService] Payment record created (in txn): "
+                                            "payment_no="
+                                         << paymentNo << ", order_no=" << request.orderNo
+                                         << ", channel=" << request.channel;
 
-                                  // 3. COMMIT before any channel API call.
-                                  transPtr->execSqlAsync(
-                                    "COMMIT",
-                                    [this,
-                                     request,
-                                     paymentNo,
-                                     payload,
-                                     sharedCb](const Result &) {
-                                        LOG_INFO
-                                          << "[PaymentService] Transaction committed: payment_no="
-                                          << paymentNo;
+                                // 3. COMMIT before any channel API call.
+                                transPtr->execSqlAsync(
+                                  "COMMIT",
+                                  [this, request, paymentNo, payload, sharedCb](const Result &) {
+                                      LOG_INFO
+                                        << "[PaymentService] Transaction committed: payment_no="
+                                        << paymentNo;
 
-                                        // 4. Channel API call (OUTSIDE transaction).
-                                        auto paymentCallback = [this, request, paymentNo, sharedCb](
-                                                                 const Json::Value &result,
-                                                                 const std::string &error
-                                                               ) {
-                            if (!error.empty())
-                            {
-                                // Handle payment error
-                                Json::Value errJson;
-                                errJson["error"] = error;
-                                const std::string errPayload = pay::utils::toJsonString(errJson);
+                                      // 4. Channel API call (OUTSIDE transaction).
+                                      auto paymentCallback = [this, request, paymentNo, sharedCb](
+                                                               const Json::Value &result,
+                                                               const std::string &error
+                                                             ) {
+                                          if (!error.empty())
+                                          {
+                                              // Handle payment error
+                                              Json::Value errJson;
+                                              errJson["error"] = error;
+                                              const std::string errPayload =
+                                                pay::utils::toJsonString(errJson);
 
-                                // Update payment status to FAILED (best effort; the
-                                // 1002 channel-error response below still fires).
-                                try
-                                {
-                                    Mapper<PayPaymentModel> paymentMapper(dbClient_);
-                                    auto payCriteria = Criteria(
-                                      PayPaymentModel::Cols::_payment_no,
-                                      CompareOperator::EQ,
-                                      paymentNo
-                                    );
-                                    paymentMapper.findOne(
-                                      payCriteria,
-                                      [this, errPayload, request, sharedCb](
-                                        PayPaymentModel payment
-                                      ) {
-                                          payment.setStatus("FAIL");
-                                          payment.setResponsePayload(errPayload);
+                                              // Update payment status to FAILED (best effort; the
+                                              // 1002 channel-error response below still fires).
+                                              try
+                                              {
+                                                  Mapper<PayPaymentModel> paymentMapper(dbClient_);
+                                                  auto payCriteria = Criteria(
+                                                    PayPaymentModel::Cols::_payment_no,
+                                                    CompareOperator::EQ,
+                                                    paymentNo
+                                                  );
+                                                  paymentMapper.findOne(
+                                                    payCriteria,
+                                                    [this, errPayload, request, sharedCb](
+                                                      PayPaymentModel payment
+                                                    ) {
+                                                        payment.setStatus("FAIL");
+                                                        payment.setResponsePayload(errPayload);
+                                                        try
+                                                        {
+                                                            Mapper<PayPaymentModel> paymentUpdater(
+                                                              dbClient_
+                                                            );
+                                                            paymentUpdater.update(
+                                                              payment,
+                                                              [this,
+                                                               request,
+                                                               sharedCb](const size_t) {
+                                                                  // Update order status to FAILED
+                                                                  try
+                                                                  {
+                                                                      Mapper<PayOrderModel>
+                                                                        orderMapper(dbClient_);
+                                                                      auto orderCriteria = Criteria(
+                                                                        PayOrderModel::Cols::
+                                                                          _order_no,
+                                                                        CompareOperator::EQ,
+                                                                        request.orderNo
+                                                                      );
+                                                                      orderMapper.findOne(
+                                                                        orderCriteria,
+                                                                        [this, sharedCb](
+                                                                          PayOrderModel order
+                                                                        ) {
+                                                                            order.setStatus(
+                                                                              "FAILED"
+                                                                            );
+                                                                            try
+                                                                            {
+                                                                                Mapper<
+                                                                                  PayOrderModel>
+                                                                                  orderUpdater(
+                                                                                    dbClient_
+                                                                                  );
+                                                                                orderUpdater.update(
+                                                                                  order,
+                                                                                  [](const size_t) {
+                                                                                  },
+                                                                                  [](
+                                                                                    const DrogonDbException
+                                                                                      &e
+                                                                                  ) {
+                                                                                      LOG_ERROR
+                                                                                        << "[Paymen"
+                                                                                           "tServic"
+                                                                                           "e] "
+                                                                                           "order "
+                                                                                           "FAILED "
+                                                                                           "status "
+                                                                                           "update "
+                                                                                           "error: "
+                                                                                        << e.base()
+                                                                                             .what();
+                                                                                  }
+                                                                                );
+                                                                            }
+                                                                            catch (
+                                                                              const std::exception
+                                                                                &e
+                                                                            )
+                                                                            {
+                                                                                LOG_ERROR
+                                                                                  << "[PaymentServi"
+                                                                                     "ce] order "
+                                                                                     "FAILED "
+                                                                                     "status "
+                                                                                     "update "
+                                                                                     "error: "
+                                                                                  << e.what();
+                                                                            }
+                                                                            catch (...)
+                                                                            {
+                                                                                LOG_ERROR
+                                                                                  << "[PaymentServi"
+                                                                                     "ce] order "
+                                                                                     "FAILED "
+                                                                                     "status "
+                                                                                     "update "
+                                                                                     "error: "
+                                                                                     "unknown "
+                                                                                     "exception";
+                                                                            }
+                                                                        },
+                                                                        [sharedCb](
+                                                                          const DrogonDbException &
+                                                                        ) {
+                                                                            if (*sharedCb)
+                                                                            {
+                                                                                Json::Value
+                                                                                  response;
+                                                                                response["code"] =
+                                                                                  1003;
+                                                                                response
+                                                                                  ["message"] =
+                                                                                    "Database "
+                                                                                    "error during "
+                                                                                    "payment "
+                                                                                    "failure "
+                                                                                    "update";
+                                                                                (*sharedCb)(
+                                                                                  response,
+                                                                                  pay::makePayError(
+                                                                                    1003,
+                                                                                    "Database "
+                                                                                    "error during "
+                                                                                    "payment "
+                                                                                    "failure update"
+                                                                                  )
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                      );
+                                                                  }
+                                                                  catch (const std::exception &e)
+                                                                  {
+                                                                      reportMapperFailure(
+                                                                        sharedCb, e.what()
+                                                                      );
+                                                                  }
+                                                                  catch (...)
+                                                                  {
+                                                                      reportMapperFailure(
+                                                                        sharedCb,
+                                                                        "unknown exception"
+                                                                      );
+                                                                  }
+                                                              },
+                                                              [sharedCb](
+                                                                const DrogonDbException &
+                                                              ) {
+                                                                  if (*sharedCb)
+                                                                  {
+                                                                      Json::Value response;
+                                                                      response["code"] = 1003;
+                                                                      response["message"] =
+                                                                        "Database error during "
+                                                                        "payment failure "
+                                                                        "update";
+                                                                      (*sharedCb)(
+                                                                        response,
+                                                                        pay::makePayError(
+                                                                          1003,
+                                                                          "Database error during "
+                                                                          "payment failure "
+                                                                          "update"
+                                                                        )
+                                                                      );
+                                                                  }
+                                                              }
+                                                            );
+                                                        }
+                                                        catch (const std::exception &e)
+                                                        {
+                                                            reportMapperFailure(sharedCb, e.what());
+                                                        }
+                                                        catch (...)
+                                                        {
+                                                            reportMapperFailure(
+                                                              sharedCb, "unknown exception"
+                                                            );
+                                                        }
+                                                    },
+                                                    [sharedCb](const DrogonDbException &) {
+                                                        if (*sharedCb)
+                                                        {
+                                                            Json::Value response;
+                                                            response["code"] = 1003;
+                                                            response["message"] =
+                                                              "Database error during payment "
+                                                              "failure update";
+                                                            (*sharedCb)(
+                                                              response,
+                                                              pay::makePayError(
+                                                                1003,
+                                                                "Database error during payment "
+                                                                "failure update"
+                                                              )
+                                                            );
+                                                        }
+                                                    }
+                                                  );
+                                              }
+                                              catch (const std::exception &e)
+                                              {
+                                                  LOG_ERROR << "[PaymentService] Mapper "
+                                                               "construction failed: "
+                                                            << e.what();
+                                              }
+                                              catch (...)
+                                              {
+                                                  LOG_ERROR << "[PaymentService] Mapper "
+                                                               "construction failed: "
+                                                               "unknown exception";
+                                              }
+
+                                              // Return error response
+                                              if (*sharedCb)
+                                              {
+                                                  Json::Value response;
+                                                  response["code"] = 1002;
+                                                  std::string channelName =
+                                                    request.channel == "alipay" ? "Alipay"
+                                                                                : "WeChat Pay";
+                                                  response["message"] =
+                                                    channelName + " error: " + error;
+                                                  (*sharedCb)(
+                                                    response, pay::makePayError(1002, error)
+                                                  );
+                                              }
+                                              return;
+                                          }
+
+                                          // Success - update payment and order status
+                                          const std::string responsePayload =
+                                            pay::utils::toJsonString(result);
+
                                           try
                                           {
-                                              Mapper<PayPaymentModel> paymentUpdater(dbClient_);
-                                              paymentUpdater.update(
-                                                payment,
-                                                [this, request, sharedCb](const size_t) {
-                                                    // Update order status to FAILED
+                                              Mapper<PayPaymentModel> paymentMapper(dbClient_);
+                                              auto payCriteria = Criteria(
+                                                PayPaymentModel::Cols::_payment_no,
+                                                CompareOperator::EQ,
+                                                paymentNo
+                                              );
+                                              paymentMapper.findOne(
+                                                payCriteria,
+                                                [this,
+                                                 request,
+                                                 paymentNo,
+                                                 result,
+                                                 responsePayload,
+                                                 sharedCb](PayPaymentModel payment) {
+                                                    payment.setStatus("PROCESSING");
+                                                    payment.setResponsePayload(responsePayload);
                                                     try
                                                     {
-                                                        Mapper<PayOrderModel> orderMapper(
+                                                        Mapper<PayPaymentModel> paymentUpdater(
                                                           dbClient_
                                                         );
-                                                        auto orderCriteria = Criteria(
-                                                          PayOrderModel::Cols::_order_no,
-                                                          CompareOperator::EQ,
-                                                          request.orderNo
-                                                        );
-                                                        orderMapper.findOne(
-                                                          orderCriteria,
-                                                          [this, sharedCb](PayOrderModel order) {
-                                                              order.setStatus("FAILED");
+                                                        paymentUpdater.update(
+                                                          payment,
+                                                          [this,
+                                                           request,
+                                                           paymentNo,
+                                                           result,
+                                                           sharedCb](const size_t) {
+                                                              // Update order status to PAYING
                                                               try
                                                               {
-                                                                  Mapper<PayOrderModel>
-                                                                    orderUpdater(dbClient_);
-                                                                  orderUpdater.update(
-                                                                    order,
-                                                                    [](const size_t) {},
-                                                                    [](const DrogonDbException &e) {
-                                                                        LOG_ERROR
-                                                                          << "[PaymentService] "
-                                                                             "order FAILED "
-                                                                             "status update error: "
-                                                                          << e.base().what();
+                                                                  Mapper<PayOrderModel> orderMapper(
+                                                                    dbClient_
+                                                                  );
+                                                                  auto orderCriteria = Criteria(
+                                                                    PayOrderModel::Cols::_order_no,
+                                                                    CompareOperator::EQ,
+                                                                    request.orderNo
+                                                                  );
+                                                                  orderMapper.findOne(
+                                                                    orderCriteria,
+                                                                    [this,
+                                                                     request,
+                                                                     paymentNo,
+                                                                     result,
+                                                                     sharedCb](
+                                                                      PayOrderModel order
+                                                                    ) {
+                                                                        order.setStatus("PAYING");
+                                                                        try
+                                                                        {
+                                                                            Mapper<PayOrderModel>
+                                                                              orderUpdater(
+                                                                                dbClient_
+                                                                              );
+                                                                            orderUpdater.update(
+                                                                              order,
+                                                                              [this,
+                                                                               request,
+                                                                               paymentNo,
+                                                                               result,
+                                                                               sharedCb](
+                                                                                const size_t
+                                                                              ) {
+                                                                                  // Build success
+                                                                                  // response
+                                                                                  Json::Value
+                                                                                    response;
+                                                                                  response["code"] =
+                                                                                    0;
+                                                                                  response
+                                                                                    ["message"] =
+                                                                                      "Payment "
+                                                                                      "created "
+                                                                                      "successfull"
+                                                                                      "y";
+                                                                                  Json::Value data;
+                                                                                  data["order_no"] =
+                                                                                    request.orderNo;
+                                                                                  data
+                                                                                    ["payment_no"] =
+                                                                                      paymentNo;
+                                                                                  data["status"] =
+                                                                                    "PAYING";
+
+                                                                                  // Add payment
+                                                                                  // channel
+                                                                                  // response
+                                                                                  // details
+                                                                                  if (
+                                                                                    request
+                                                                                      .channel ==
+                                                                                    "alipay"
+                                                                                  )
+                                                                                  {
+                                                                                      // Alipay
+                                                                                      // response
+                                                                                      data
+                                                                                        ["alipay_"
+                                                                                         "respons"
+                                                                                         "e"] =
+                                                                                          result;
+                                                                                      const auto
+                                                                                        qrCode =
+                                                                                          result
+                                                                                            .get(
+                                                                                              "qr_"
+                                                                                              "cod"
+                                                                                              "e",
+                                                                                              ""
+                                                                                            )
+                                                                                            .asString();
+                                                                                      if (
+                                                                                        !qrCode
+                                                                                           .empty()
+                                                                                      )
+                                                                                      {
+                                                                                          data
+                                                                                            ["qr_"
+                                                                                             "cod"
+                                                                                             "e"] =
+                                                                                              qrCode;
+                                                                                      }
+                                                                                  }
+                                                                                  else
+                                                                                  {
+                                                                                      // WeChat Pay
+                                                                                      // response
+                                                                                      data
+                                                                                        ["wechat_"
+                                                                                         "respons"
+                                                                                         "e"] =
+                                                                                          result;
+                                                                                      const auto
+                                                                                        codeUrl =
+                                                                                          result
+                                                                                            .get(
+                                                                                              "code"
+                                                                                              "_ur"
+                                                                                              "l",
+                                                                                              ""
+                                                                                            )
+                                                                                            .asString();
+                                                                                      if (
+                                                                                        !codeUrl
+                                                                                           .empty()
+                                                                                      )
+                                                                                      {
+                                                                                          data
+                                                                                            ["code_"
+                                                                                             "ur"
+                                                                                             "l"] =
+                                                                                              codeUrl;
+                                                                                      }
+                                                                                      const auto
+                                                                                        prepayId =
+                                                                                          result
+                                                                                            .get(
+                                                                                              "prep"
+                                                                                              "ay_"
+                                                                                              "id",
+                                                                                              ""
+                                                                                            )
+                                                                                            .asString();
+                                                                                      if (
+                                                                                        !prepayId
+                                                                                           .empty()
+                                                                                      )
+                                                                                      {
+                                                                                          data
+                                                                                            ["prepa"
+                                                                                             "y_"
+                                                                                             "id"] =
+                                                                                              prepayId;
+                                                                                      }
+                                                                                  }
+
+                                                                                  response["data"] =
+                                                                                    data;
+                                                                                  if (*sharedCb)
+                                                                                  {
+                                                                                      (*sharedCb)(
+                                                                                        response,
+                                                                                        std::
+                                                                                          error_code()
+                                                                                      );
+                                                                                  }
+                                                                              },
+                                                                              [sharedCb](
+                                                                                const DrogonDbException
+                                                                                  &e
+                                                                              ) {
+                                                                                  if (*sharedCb)
+                                                                                  {
+                                                                                      Json::Value
+                                                                                        response;
+                                                                                      response
+                                                                                        ["code"] =
+                                                                                          1003;
+                                                                                      response
+                                                                                        ["messag"
+                                                                                         "e"] =
+                                                                                          "Database"
+                                                                                          " error:"
+                                                                                          " " +
+                                                                                          std::string(
+                                                                                            e.base()
+                                                                                              .what()
+                                                                                          );
+                                                                                      (*sharedCb)(
+                                                                                        response,
+                                                                                        pay::makePayError(
+                                                                                          1003,
+                                                                                          "Database"
+                                                                                          " error:"
+                                                                                          " " +
+                                                                                            std::string(
+                                                                                              e.base()
+                                                                                                .what()
+                                                                                            )
+                                                                                        )
+                                                                                      );
+                                                                                  }
+                                                                              }
+                                                                            );
+                                                                        }
+                                                                        catch (
+                                                                          const std::exception &e
+                                                                        )
+                                                                        {
+                                                                            reportMapperFailure(
+                                                                              sharedCb, e.what()
+                                                                            );
+                                                                        }
+                                                                        catch (...)
+                                                                        {
+                                                                            reportMapperFailure(
+                                                                              sharedCb,
+                                                                              "unknown exception"
+                                                                            );
+                                                                        }
+                                                                    },
+                                                                    [sharedCb](
+                                                                      const DrogonDbException &e
+                                                                    ) {
+                                                                        if (*sharedCb)
+                                                                        {
+                                                                            Json::Value response;
+                                                                            response["code"] = 1003;
+                                                                            response["message"] =
+                                                                              "Database error: " +
+                                                                              std::string(
+                                                                                e.base().what()
+                                                                              );
+                                                                            (*sharedCb)(
+                                                                              response,
+                                                                              pay::makePayError(
+                                                                                1003,
+                                                                                "Database error: " +
+                                                                                  std::string(
+                                                                                    e.base().what()
+                                                                                  )
+                                                                              )
+                                                                            );
+                                                                        }
                                                                     }
                                                                   );
                                                               }
                                                               catch (const std::exception &e)
                                                               {
-                                                                  LOG_ERROR
-                                                                    << "[PaymentService] order "
-                                                                       "FAILED status update "
-                                                                       "error: "
-                                                                    << e.what();
+                                                                  reportMapperFailure(
+                                                                    sharedCb, e.what()
+                                                                  );
                                                               }
                                                               catch (...)
                                                               {
-                                                                  LOG_ERROR
-                                                                    << "[PaymentService] order "
-                                                                       "FAILED status update "
-                                                                       "error: unknown exception";
+                                                                  reportMapperFailure(
+                                                                    sharedCb, "unknown exception"
+                                                                  );
                                                               }
                                                           },
-                                                          [sharedCb](const DrogonDbException &) {
+                                                          [sharedCb](const DrogonDbException &e) {
                                                               if (*sharedCb)
                                                               {
                                                                   Json::Value response;
                                                                   response["code"] = 1003;
                                                                   response["message"] =
-                                                                    "Database error during payment "
-                                                                    "failure update";
+                                                                    "Database error: " +
+                                                                    std::string(e.base().what());
                                                                   (*sharedCb)(
                                                                     response,
                                                                     pay::makePayError(
                                                                       1003,
-                                                                      "Database error during "
-                                                                      "payment failure update"
+                                                                      "Database error: " +
+                                                                        std::string(e.base().what())
                                                                     )
                                                                   );
                                                               }
@@ -747,20 +1192,20 @@ void PaymentService::proceedCreatePayment(
                                                         );
                                                     }
                                                 },
-                                                [sharedCb](const DrogonDbException &) {
+                                                [sharedCb](const DrogonDbException &e) {
                                                     if (*sharedCb)
                                                     {
                                                         Json::Value response;
                                                         response["code"] = 1003;
                                                         response["message"] =
-                                                          "Database error during payment failure "
-                                                          "update";
+                                                          "Database error: " +
+                                                          std::string(e.base().what());
                                                         (*sharedCb)(
                                                           response,
                                                           pay::makePayError(
                                                             1003,
-                                                            "Database error during payment failure "
-                                                            "update"
+                                                            "Database error: " +
+                                                              std::string(e.base().what())
                                                           )
                                                         );
                                                     }
@@ -775,368 +1220,90 @@ void PaymentService::proceedCreatePayment(
                                           {
                                               reportMapperFailure(sharedCb, "unknown exception");
                                           }
-                                      },
-                                      [sharedCb](const DrogonDbException &) {
-                                          if (*sharedCb)
-                                          {
-                                              Json::Value response;
-                                              response["code"] = 1003;
-                                              response["message"] =
-                                                "Database error during payment failure update";
-                                              (*sharedCb)(
-                                                response,
-                                                pay::makePayError(
-                                                  1003,
-                                                  "Database error during payment failure update"
-                                                )
-                                              );
-                                          }
-                                      }
-                                    );
-                                }
-                                catch (const std::exception &e)
-                                {
-                                    LOG_ERROR << "[PaymentService] Mapper construction failed: "
-                                              << e.what();
-                                }
-                                catch (...)
-                                {
-                                    LOG_ERROR << "[PaymentService] Mapper construction failed: "
-                                                 "unknown exception";
-                                }
+                                      };
 
-                                // Return error response
-                                if (*sharedCb)
-                                {
-                                    Json::Value response;
-                                    response["code"] = 1002;
-                                    std::string channelName =
-                                      request.channel == "alipay" ? "Alipay" : "WeChat Pay";
-                                    response["message"] = channelName + " error: " + error;
-                                    (*sharedCb)(response, pay::makePayError(1002, error));
-                                }
-                                return;
-                            }
-
-                            // Success - update payment and order status
-                            const std::string responsePayload = pay::utils::toJsonString(result);
-
-                            try
-                            {
-                                Mapper<PayPaymentModel> paymentMapper(dbClient_);
-                                auto payCriteria = Criteria(
-                                  PayPaymentModel::Cols::_payment_no, CompareOperator::EQ, paymentNo
-                                );
-                                paymentMapper.findOne(
-                                  payCriteria,
-                                  [this, request, paymentNo, result, responsePayload, sharedCb](
-                                    PayPaymentModel payment
-                                  ) {
-                                      payment.setStatus("PROCESSING");
-                                      payment.setResponsePayload(responsePayload);
-                                      try
+                                      // Route through the channel registry. Unknown or
+                                      // unconfigured channels are rejected explicitly —
+                                      // never fall back to another channel.
+                                      LOG_INFO
+                                        << "[PaymentService] Calling payment channel: channel="
+                                        << request.channel << ", order_no=" << request.orderNo
+                                        << ", payment_no=" << paymentNo;
+                                      auto channelImpl = findChannel(request.channel);
+                                      if (!channelImpl)
                                       {
-                                          Mapper<PayPaymentModel> paymentUpdater(dbClient_);
-                                          paymentUpdater.update(
-                                            payment,
-                                            [this, request, paymentNo, result, sharedCb](
-                                              const size_t
-                                            ) {
-                                                // Update order status to PAYING
-                                                try
-                                                {
-                                                    Mapper<PayOrderModel> orderMapper(dbClient_);
-                                                    auto orderCriteria = Criteria(
-                                                      PayOrderModel::Cols::_order_no,
-                                                      CompareOperator::EQ,
-                                                      request.orderNo
-                                                    );
-                                                    orderMapper.findOne(
-                                                      orderCriteria,
-                                                      [this, request, paymentNo, result, sharedCb](
-                                                        PayOrderModel order
-                                                      ) {
-                                                          order.setStatus("PAYING");
-                                                          try
-                                                          {
-                                                              Mapper<PayOrderModel> orderUpdater(
-                                                                dbClient_
-                                                              );
-                                                              orderUpdater.update(
-                                                                order,
-                                                                [this,
-                                                                 request,
-                                                                 paymentNo,
-                                                                 result,
-                                                                 sharedCb](const size_t) {
-                                                                    // Build success response
-                                                                    Json::Value response;
-                                                                    response["code"] = 0;
-                                                                    response["message"] =
-                                                                      "Payment created "
-                                                                      "successfully";
-                                                                    Json::Value data;
-                                                                    data["order_no"] =
-                                                                      request.orderNo;
-                                                                    data["payment_no"] = paymentNo;
-                                                                    data["status"] = "PAYING";
-
-                                                                    // Add payment channel response
-                                                                    // details
-                                                                    if (request.channel == "alipay")
-                                                                    {
-                                                                        // Alipay response
-                                                                        data["alipay_response"] =
-                                                                          result;
-                                                                        const auto qrCode =
-                                                                          result.get("qr_code", "")
-                                                                            .asString();
-                                                                        if (!qrCode.empty())
-                                                                        {
-                                                                            data["qr_code"] =
-                                                                              qrCode;
-                                                                        }
-                                                                    }
-                                                                    else
-                                                                    {
-                                                                        // WeChat Pay response
-                                                                        data["wechat_response"] =
-                                                                          result;
-                                                                        const auto codeUrl =
-                                                                          result.get("code_url", "")
-                                                                            .asString();
-                                                                        if (!codeUrl.empty())
-                                                                        {
-                                                                            data["code_url"] =
-                                                                              codeUrl;
-                                                                        }
-                                                                        const auto prepayId =
-                                                                          result
-                                                                            .get("prepay_id", "")
-                                                                            .asString();
-                                                                        if (!prepayId.empty())
-                                                                        {
-                                                                            data["prepay_id"] =
-                                                                              prepayId;
-                                                                        }
-                                                                    }
-
-                                                                    response["data"] = data;
-                                                                    if (*sharedCb)
-                                                                    {
-                                                                        (*sharedCb)(
-                                                                          response,
-                                                                          std::error_code()
-                                                                        );
-                                                                    }
-                                                                },
-                                                                [sharedCb](
-                                                                  const DrogonDbException &e
-                                                                ) {
-                                                                    if (*sharedCb)
-                                                                    {
-                                                                        Json::Value response;
-                                                                        response["code"] = 1003;
-                                                                        response["message"] =
-                                                                          "Database error: " +
-                                                                          std::string(
-                                                                            e.base().what()
-                                                                          );
-                                                                        (*sharedCb)(
-                                                                          response,
-                                                                          pay::makePayError(
-                                                                            1003,
-                                                                            "Database error: " +
-                                                                              std::string(
-                                                                                e.base().what()
-                                                                              )
-                                                                          )
-                                                                        );
-                                                                    }
-                                                                }
-                                                              );
-                                                          }
-                                                          catch (const std::exception &e)
-                                                          {
-                                                              reportMapperFailure(
-                                                                sharedCb, e.what()
-                                                              );
-                                                          }
-                                                          catch (...)
-                                                          {
-                                                              reportMapperFailure(
-                                                                sharedCb, "unknown exception"
-                                                              );
-                                                          }
-                                                      },
-                                                      [sharedCb](const DrogonDbException &e) {
-                                                          if (*sharedCb)
-                                                          {
-                                                              Json::Value response;
-                                                              response["code"] = 1003;
-                                                              response["message"] =
-                                                                "Database error: " +
-                                                                std::string(e.base().what());
-                                                              (*sharedCb)(
-                                                                response,
-                                                                pay::makePayError(
-                                                                  1003,
-                                                                  "Database error: " +
-                                                                    std::string(e.base().what())
-                                                                )
-                                                              );
-                                                          }
-                                                      }
-                                                    );
-                                                }
-                                                catch (const std::exception &e)
-                                                {
-                                                    reportMapperFailure(sharedCb, e.what());
-                                                }
-                                                catch (...)
-                                                {
-                                                    reportMapperFailure(
-                                                      sharedCb, "unknown exception"
-                                                    );
-                                                }
-                                            },
-                                            [sharedCb](const DrogonDbException &e) {
-                                                if (*sharedCb)
-                                                {
-                                                    Json::Value response;
-                                                    response["code"] = 1003;
-                                                    response["message"] =
-                                                      "Database error: " +
-                                                      std::string(e.base().what());
-                                                    (*sharedCb)(
-                                                      response,
-                                                      pay::makePayError(
-                                                        1003,
-                                                        "Database error: " +
-                                                          std::string(e.base().what())
-                                                      )
-                                                    );
-                                                }
-                                            }
+                                          LOG_ERROR << "[PaymentService] Channel not available: "
+                                                    << request.channel;
+                                          // Reuse the channel-error path so the idempotency
+                                          // reservation is cleaned up like any channel failure.
+                                          Json::Value empty;
+                                          paymentCallback(
+                                            empty, "CHANNEL_NOT_AVAILABLE: " + request.channel
                                           );
                                       }
-                                      catch (const std::exception &e)
+                                      else
                                       {
-                                          reportMapperFailure(sharedCb, e.what());
-                                      }
-                                      catch (...)
-                                      {
-                                          reportMapperFailure(sharedCb, "unknown exception");
+                                          // Both wechat (native transaction) and alipay
+                                          // (precreate) surface as QR payments here.
+                                          channelImpl
+                                            ->createQRPayment(payload, std::move(paymentCallback));
                                       }
                                   },
                                   [sharedCb](const DrogonDbException &e) {
+                                      LOG_ERROR << "Failed to commit transaction: "
+                                                << e.base().what();
                                       if (*sharedCb)
                                       {
-                                          Json::Value response;
-                                          response["code"] = 1003;
-                                          response["message"] =
-                                            "Database error: " + std::string(e.base().what());
+                                          Json::Value err;
+                                          err["code"] = 1003;
+                                          err["message"] = "Failed to commit transaction: " +
+                                                           std::string(e.base().what());
                                           (*sharedCb)(
-                                            response,
+                                            err,
                                             pay::makePayError(
                                               1003,
-                                              "Database error: " + std::string(e.base().what())
+                                              "Failed to commit transaction: " +
+                                                std::string(e.base().what())
                                             )
                                           );
                                       }
                                   }
                                 );
-                            }
-                            catch (const std::exception &e)
-                            {
-                                reportMapperFailure(sharedCb, e.what());
-                            }
-                            catch (...)
-                            {
-                                reportMapperFailure(sharedCb, "unknown exception");
-                            }
-                        };
-
-                        // Route through the channel registry. Unknown or
-                        // unconfigured channels are rejected explicitly —
-                        // never fall back to another channel.
-                        LOG_INFO << "[PaymentService] Calling payment channel: channel="
-                                 << request.channel << ", order_no=" << request.orderNo
-                                 << ", payment_no=" << paymentNo;
-                        auto channelImpl = findChannel(request.channel);
-                        if (!channelImpl)
-                        {
-                            LOG_ERROR << "[PaymentService] Channel not available: "
-                                      << request.channel;
-                            // Reuse the channel-error path so the idempotency
-                            // reservation is cleaned up like any channel failure.
-                            Json::Value empty;
-                            paymentCallback(empty, "CHANNEL_NOT_AVAILABLE: " + request.channel);
-                        }
-                        else
-                        {
-                            // Both wechat (native transaction) and alipay
-                            // (precreate) surface as QR payments here.
-                            channelImpl->createQRPayment(payload, std::move(paymentCallback));
-                        }
-                                    },
-                                    [sharedCb](const DrogonDbException &e) {
-                                        LOG_ERROR << "Failed to commit transaction: "
-                                                  << e.base().what();
-                                        if (*sharedCb)
-                                        {
-                                            Json::Value err;
-                                            err["code"] = 1003;
-                                            err["message"] =
-                                              "Failed to commit transaction: " +
-                                              std::string(e.base().what());
-                                            (*sharedCb)(
-                                              err,
-                                              pay::makePayError(
-                                                1003,
-                                                "Failed to commit transaction: " +
-                                                  std::string(e.base().what())
-                                              )
-                                            );
-                                        }
-                                    }
-                                  );
-                              },
-                              failDb
-                            );
-                        }
-                        catch (const std::exception &e)
-                        {
-                            transPtr->rollback();
-                            LOG_ERROR << "[PaymentService] Payment Mapper construction failed: "
-                                      << e.what();
-                            reportMapperFailure(sharedCb, e.what());
-                        }
-                        catch (...)
-                        {
-                            transPtr->rollback();
-                            LOG_ERROR << "[PaymentService] Payment Mapper construction failed: "
-                                         "unknown exception";
-                            reportMapperFailure(sharedCb, "unknown exception");
-                        }
-                    },
-                    failDb
-                  );
-              }
-              catch (const std::exception &e)
-              {
-                  transPtr->rollback();
-                  LOG_ERROR << "[PaymentService] Order Mapper construction failed: " << e.what();
-                  reportMapperFailure(sharedCb, e.what());
-              }
-              catch (...)
-              {
-                  transPtr->rollback();
-                  LOG_ERROR << "[PaymentService] Order Mapper construction failed: unknown exception";
-                  reportMapperFailure(sharedCb, "unknown exception");
-              }
-          }
-        );
+                            },
+                            failDb
+                          );
+                      }
+                      catch (const std::exception &e)
+                      {
+                          transPtr->rollback();
+                          LOG_ERROR << "[PaymentService] Payment Mapper construction failed: "
+                                    << e.what();
+                          reportMapperFailure(sharedCb, e.what());
+                      }
+                      catch (...)
+                      {
+                          transPtr->rollback();
+                          LOG_ERROR << "[PaymentService] Payment Mapper construction failed: "
+                                       "unknown exception";
+                          reportMapperFailure(sharedCb, "unknown exception");
+                      }
+                  },
+                  failDb
+                );
+            }
+            catch (const std::exception &e)
+            {
+                transPtr->rollback();
+                LOG_ERROR << "[PaymentService] Order Mapper construction failed: " << e.what();
+                reportMapperFailure(sharedCb, e.what());
+            }
+            catch (...)
+            {
+                transPtr->rollback();
+                LOG_ERROR << "[PaymentService] Order Mapper construction failed: unknown exception";
+                reportMapperFailure(sharedCb, "unknown exception");
+            }
+        });
     }
     catch (const std::exception &e)
     {
@@ -1162,10 +1329,9 @@ void PaymentService::proceedCreatePayment(
 
 void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback &&callback)
 {
-    auto finalCb =
-      pay::utils::makeOnceCallback<void(const Json::Value &, const std::error_code &)>(
-        std::move(callback)
-      );
+    auto finalCb = pay::utils::makeOnceCallback<void(const Json::Value &, const std::error_code &)>(
+      std::move(callback)
+    );
     auto sharedCb = std::make_shared<decltype(finalCb)>(finalCb);
 
     // Extract parameters
@@ -1274,7 +1440,8 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
               Json::Value response;
               response["code"] = 1005;
               response["message"] = "CHANNEL_NOT_AVAILABLE: " + channel;
-              sharedCb->call(response, pay::makePayError(1005, "channel not available: " + channel));
+              sharedCb
+                ->call(response, pay::makePayError(1005, "channel not available: " + channel));
               return;
           }
 
@@ -1292,9 +1459,7 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
              requestHash](const Json::Value &result, const std::string &error) {
                 if (!error.empty())
                 {
-                    idempotencyService->clearReservation(
-                      idempotencyKey, requestHash, [](bool) {}
-                    );
+                    idempotencyService->clearReservation(idempotencyKey, requestHash, [](bool) {});
                     Json::Value response;
                     response["code"] = 500;
                     response["message"] = "QR payment creation failed: " + error;
@@ -1306,9 +1471,7 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                 std::string alipayCode = result.get("code", "").asString();
                 if (alipayCode != "10000")
                 {
-                    idempotencyService->clearReservation(
-                      idempotencyKey, requestHash, [](bool) {}
-                    );
+                    idempotencyService->clearReservation(idempotencyKey, requestHash, [](bool) {});
                     // Alipay business error
                     Json::Value response;
                     response["code"] = 500;
@@ -1363,8 +1526,9 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                        idempotencyService,
                        idempotencyKey,
                        requestHash](const PayOrderModel &order) {
-                          LOG_INFO << "[PaymentService] Order saved successfully: order_no="
-                                   << orderNo << ", db_id=" << order.getValueOfId();
+                          LOG_INFO
+                            << "[PaymentService] Order saved successfully: order_no=" << orderNo
+                            << ", db_id=" << order.getValueOfId();
 
                           Json::Value response;
                           response["code"] = 0;
@@ -1401,25 +1565,20 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                       [sharedCb, idempotencyService, idempotencyKey, requestHash](
                         const DrogonDbException &e
                       ) {
-                          idempotencyService->clearReservation(
-                            idempotencyKey, requestHash, [](bool) {}
-                          );
+                          idempotencyService
+                            ->clearReservation(idempotencyKey, requestHash, [](bool) {});
                           LOG_ERROR << "Failed to save order to database: " << e.base().what();
                           Json::Value errorResponse;
                           errorResponse["code"] = 500;
                           errorResponse["message"] =
                             "Failed to save order: " + std::string(e.base().what());
-                          sharedCb->call(
-                            errorResponse, std::make_error_code(std::errc::io_error)
-                          );
+                          sharedCb->call(errorResponse, std::make_error_code(std::errc::io_error));
                       }
                     );
                 }
                 catch (const std::exception &e)
                 {
-                    idempotencyService->clearReservation(
-                      idempotencyKey, requestHash, [](bool) {}
-                    );
+                    idempotencyService->clearReservation(idempotencyKey, requestHash, [](bool) {});
                     LOG_ERROR << "Failed to save order to database: " << e.what();
                     Json::Value errorResponse;
                     errorResponse["code"] = 500;
@@ -1428,9 +1587,7 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                 }
                 catch (...)
                 {
-                    idempotencyService->clearReservation(
-                      idempotencyKey, requestHash, [](bool) {}
-                    );
+                    idempotencyService->clearReservation(idempotencyKey, requestHash, [](bool) {});
                     LOG_ERROR << "Failed to save order to database: unknown exception";
                     Json::Value errorResponse;
                     errorResponse["code"] = 500;

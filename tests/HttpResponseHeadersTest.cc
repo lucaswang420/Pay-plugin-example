@@ -27,29 +27,21 @@ DROGON_TEST(HttpHeaders_SecurityHeaders_Present)
     req->setMethod(Get);
     req->setPath("/healthz");  // use liveness probe — no auth required
 
-    client->sendRequest(
-      req,
-      [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
-          REQUIRE(result == ReqResult::Ok);
-          REQUIRE(resp != nullptr);
-          CHECK(resp->getStatusCode() == k200OK);
+    client->sendRequest(req, [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
+        REQUIRE(result == ReqResult::Ok);
+        REQUIRE(resp != nullptr);
+        CHECK(resp->getStatusCode() == k200OK);
 
-          CHECK(resp->getHeader("X-Content-Type-Options") == "nosniff");
-          CHECK(resp->getHeader("X-Frame-Options") == "DENY");
-          CHECK(resp->getHeader("X-XSS-Protection") == "1; mode=block");
-          CHECK(
-            resp->getHeader("Strict-Transport-Security").find("max-age=31536000") !=
-            std::string::npos
-          );
-          CHECK(
-            resp->getHeader("Content-Security-Policy").find("default-src") != std::string::npos
-          );
-          CHECK(resp->getHeader("Referrer-Policy") == "no-referrer");
-          CHECK(
-            resp->getHeader("Permissions-Policy").find("geolocation") != std::string::npos
-          );
-      }
-    );
+        CHECK(resp->getHeader("X-Content-Type-Options") == "nosniff");
+        CHECK(resp->getHeader("X-Frame-Options") == "DENY");
+        CHECK(resp->getHeader("X-XSS-Protection") == "1; mode=block");
+        CHECK(
+          resp->getHeader("Strict-Transport-Security").find("max-age=31536000") != std::string::npos
+        );
+        CHECK(resp->getHeader("Content-Security-Policy").find("default-src") != std::string::npos);
+        CHECK(resp->getHeader("Referrer-Policy") == "no-referrer");
+        CHECK(resp->getHeader("Permissions-Policy").find("geolocation") != std::string::npos);
+    });
 }
 
 // =============================================================================
@@ -66,23 +58,17 @@ DROGON_TEST(HttpHeaders_CorsOptions_Preflight_AllowedOrigin)
     req->addHeader("Access-Control-Request-Method", "POST");
     req->addHeader("Access-Control-Request-Headers", "Content-Type, X-Api-Key");
 
-    client->sendRequest(
-      req,
-      [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
-          REQUIRE(result == ReqResult::Ok);
-          REQUIRE(resp != nullptr);
+    client->sendRequest(req, [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
+        REQUIRE(result == ReqResult::Ok);
+        REQUIRE(resp != nullptr);
 
-          CHECK(resp->getHeader("Access-Control-Allow-Origin") == kAllowedOrigin);
-          CHECK(
-            resp->getHeader("Access-Control-Allow-Methods").find("POST") != std::string::npos
-          );
-          CHECK(
-            resp->getHeader("Access-Control-Allow-Headers").find("Content-Type") !=
-            std::string::npos
-          );
-          CHECK(resp->getHeader("Access-Control-Allow-Credentials") == "true");
-      }
-    );
+        CHECK(resp->getHeader("Access-Control-Allow-Origin") == kAllowedOrigin);
+        CHECK(resp->getHeader("Access-Control-Allow-Methods").find("POST") != std::string::npos);
+        CHECK(
+          resp->getHeader("Access-Control-Allow-Headers").find("Content-Type") != std::string::npos
+        );
+        CHECK(resp->getHeader("Access-Control-Allow-Credentials") == "true");
+    });
 }
 
 DROGON_TEST(HttpHeaders_CorsOptions_DisallowedOrigin_NoCORS)
@@ -94,16 +80,13 @@ DROGON_TEST(HttpHeaders_CorsOptions_DisallowedOrigin_NoCORS)
     req->addHeader("Origin", "https://evil.example.com");
     req->addHeader("Access-Control-Request-Method", "POST");
 
-    client->sendRequest(
-      req,
-      [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
-          REQUIRE(result == ReqResult::Ok);
-          REQUIRE(resp != nullptr);
+    client->sendRequest(req, [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
+        REQUIRE(result == ReqResult::Ok);
+        REQUIRE(resp != nullptr);
 
-          // Non-whitelisted origin: should NOT receive CORS allow headers
-          CHECK(resp->getHeader("Access-Control-Allow-Origin").empty());
-      }
-    );
+        // Non-whitelisted origin: should NOT receive CORS allow headers
+        CHECK(resp->getHeader("Access-Control-Allow-Origin").empty());
+    });
 }
 
 DROGON_TEST(HttpHeaders_CorsPost_SuccessfulOrigin_HasCORS)
@@ -114,18 +97,13 @@ DROGON_TEST(HttpHeaders_CorsPost_SuccessfulOrigin_HasCORS)
     req->setPath("/healthz");
     req->addHeader("Origin", kAllowedOrigin);
 
-    client->sendRequest(
-      req,
-      [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
-          REQUIRE(result == ReqResult::Ok);
-          REQUIRE(resp != nullptr);
-          CHECK(resp->getStatusCode() == k200OK);
+    client->sendRequest(req, [TEST_CTX](ReqResult result, const HttpResponsePtr &resp) {
+        REQUIRE(result == ReqResult::Ok);
+        REQUIRE(resp != nullptr);
+        CHECK(resp->getStatusCode() == k200OK);
 
-          // CORS headers applied via PostHandlingAdvice for allowed origins
-          CHECK(resp->getHeader("Access-Control-Allow-Origin") == kAllowedOrigin);
-          CHECK(
-            resp->getHeader("Access-Control-Allow-Methods").find("GET") != std::string::npos
-          );
-      }
-    );
+        // CORS headers applied via PostHandlingAdvice for allowed origins
+        CHECK(resp->getHeader("Access-Control-Allow-Origin") == kAllowedOrigin);
+        CHECK(resp->getHeader("Access-Control-Allow-Methods").find("GET") != std::string::npos);
+    });
 }
