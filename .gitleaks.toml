@@ -6,7 +6,9 @@
 useDefault = true
 
 [allowlist]
-description = "Test-only placeholder credentials used by CI and tests"
+description = "Test-only placeholder credentials and documentation examples"
 regexes = [
   '''test_key_123456''',
+  '''PLACEHOLDER_32_CHARACTER_KEY==''',
+  '''query-only-key''',
 ]
