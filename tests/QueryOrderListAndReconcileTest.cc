@@ -19,8 +19,8 @@
 
 namespace
 {
-using pay::test_util::loadConfig;
 using pay::test_util::buildPgConnInfo;
+using pay::test_util::loadConfig;
 
 using PayOrder = drogon_model::pay_test::PayOrder;
 using PayPayment = drogon_model::pay_test::PayPayment;
@@ -73,21 +73,22 @@ std::pair<std::string, std::string> insertTestOrder(
   const std::string &channel,
   const std::string &amount,
   const std::string &prefix
-) {
+)
+{
     const auto orderNo = prefix + drogon::utils::getUuid();
     const auto paymentNo = "pay_" + orderNo;
 
     client->execSqlSync(
       "INSERT INTO pay_order (order_no,user_id,amount,currency,status,channel) "
-      "VALUES ($1, 30001, '"
-        + amount + "', 'CNY', '"
-        + status + "', '"
-        + channel + "')",
+      "VALUES ($1, 30001, '" +
+        amount + "', 'CNY', '" + status + "', '" + channel + "')",
       orderNo
     );
     client->execSqlSync(
       "INSERT INTO pay_payment (payment_no,order_no,amount) VALUES ($1,$2,$3)",
-      paymentNo, orderNo, amount
+      paymentNo,
+      orderNo,
+      amount
     );
 
     return {orderNo, paymentNo};
@@ -99,13 +100,10 @@ std::pair<std::string, std::string> insertTestOrder(
 void cleanupByPrefix(
   const std::shared_ptr<drogon::orm::DbClient> &client,
   const std::string &prefix
-) {
-    client->execSqlSync(
-      "DELETE FROM pay_payment WHERE order_no LIKE '" + prefix + "%'"
-    );
-    client->execSqlSync(
-      "DELETE FROM pay_order WHERE order_no LIKE '" + prefix + "%'"
-    );
+)
+{
+    client->execSqlSync("DELETE FROM pay_payment WHERE order_no LIKE '" + prefix + "%'");
+    client->execSqlSync("DELETE FROM pay_order WHERE order_no LIKE '" + prefix + "%'");
 }
 
 }  // namespace
@@ -152,8 +150,7 @@ DROGON_TEST(QueryOrderList_MultiStatus_Filtering)
     {
         std::promise<std::pair<Json::Value, std::error_code>> promise;
         plugin.paymentService()->queryOrderList(
-          "SUCCESS", 0, 10, 0,
-          [&promise](const Json::Value &r, const std::error_code &e) {
+          "SUCCESS", 0, 10, 0, [&promise](const Json::Value &r, const std::error_code &e) {
               promise.set_value({r, e});
           }
         );
@@ -170,8 +167,7 @@ DROGON_TEST(QueryOrderList_MultiStatus_Filtering)
     {
         std::promise<std::pair<Json::Value, std::error_code>> promise;
         plugin.paymentService()->queryOrderList(
-          "FAILED", 0, 10, 0,
-          [&promise](const Json::Value &r, const std::error_code &e) {
+          "FAILED", 0, 10, 0, [&promise](const Json::Value &r, const std::error_code &e) {
               promise.set_value({r, e});
           }
         );
@@ -187,8 +183,7 @@ DROGON_TEST(QueryOrderList_MultiStatus_Filtering)
     {
         std::promise<std::pair<Json::Value, std::error_code>> promise;
         plugin.paymentService()->queryOrderList(
-          "all", 0, 10, 0,
-          [&promise](const Json::Value &r, const std::error_code &e) {
+          "all", 0, 10, 0, [&promise](const Json::Value &r, const std::error_code &e) {
               promise.set_value({r, e});
           }
         );
@@ -226,7 +221,9 @@ DROGON_TEST(QueryOrderList_UserIdFilter)
         );
         client->execSqlSync(
           "INSERT INTO pay_payment (payment_no,order_no,amount) VALUES ($1,$2,$3)",
-          "pay_" + orderNo, orderNo, "1.00"
+          "pay_" + orderNo,
+          orderNo,
+          "1.00"
         );
     }
     {
@@ -238,7 +235,9 @@ DROGON_TEST(QueryOrderList_UserIdFilter)
         );
         client->execSqlSync(
           "INSERT INTO pay_payment (payment_no,order_no,amount) VALUES ($1,$2,$3)",
-          "pay_" + orderNo, orderNo, "2.00"
+          "pay_" + orderNo,
+          orderNo,
+          "2.00"
         );
     }
     {
@@ -250,7 +249,9 @@ DROGON_TEST(QueryOrderList_UserIdFilter)
         );
         client->execSqlSync(
           "INSERT INTO pay_payment (payment_no,order_no,amount) VALUES ($1,$2,$3)",
-          "pay_" + orderNo, orderNo, "3.00"
+          "pay_" + orderNo,
+          orderNo,
+          "3.00"
         );
     }
 
@@ -267,8 +268,7 @@ DROGON_TEST(QueryOrderList_UserIdFilter)
 
     std::promise<std::pair<Json::Value, std::error_code>> promise;
     plugin.paymentService()->queryOrderList(
-      "all", 90001, 10, 0,
-      [&promise](const Json::Value &r, const std::error_code &e) {
+      "all", 90001, 10, 0, [&promise](const Json::Value &r, const std::error_code &e) {
           promise.set_value({r, e});
       }
     );
@@ -303,12 +303,15 @@ DROGON_TEST(QueryOrderList_Pagination)
         orderNos.push_back(orderNo);
         client->execSqlSync(
           "INSERT INTO pay_order (order_no,user_id,amount,currency,status,channel) VALUES "
-          "($1, 40000, '" + std::to_string(1 + i) + ".00', 'CNY', 'PAYING', 'alipay')",
+          "($1, 40000, '" +
+            std::to_string(1 + i) + ".00', 'CNY', 'PAYING', 'alipay')",
           orderNo
         );
         client->execSqlSync(
           "INSERT INTO pay_payment (payment_no,order_no,amount) VALUES ($1,$2,$3)",
-          "pay_" + orderNo, orderNo, std::to_string(1 + i) + ".00"
+          "pay_" + orderNo,
+          orderNo,
+          std::to_string(1 + i) + ".00"
         );
     }
 
@@ -327,8 +330,7 @@ DROGON_TEST(QueryOrderList_Pagination)
     {
         std::promise<std::pair<Json::Value, std::error_code>> promise;
         plugin.paymentService()->queryOrderList(
-          "all", 0, 3, 0,
-          [&promise](const Json::Value &r, const std::error_code &e) {
+          "all", 0, 3, 0, [&promise](const Json::Value &r, const std::error_code &e) {
               promise.set_value({r, e});
           }
         );
@@ -345,8 +347,7 @@ DROGON_TEST(QueryOrderList_Pagination)
     {
         std::promise<std::pair<Json::Value, std::error_code>> promise;
         plugin.paymentService()->queryOrderList(
-          "all", 0, 3, 3,
-          [&promise](const Json::Value &r, const std::error_code &e) {
+          "all", 0, 3, 3, [&promise](const Json::Value &r, const std::error_code &e) {
               promise.set_value({r, e});
           }
         );
@@ -361,8 +362,7 @@ DROGON_TEST(QueryOrderList_Pagination)
     {
         std::promise<std::pair<Json::Value, std::error_code>> promise;
         plugin.paymentService()->queryOrderList(
-          "all", 0, 10, 99999,
-          [&promise](const Json::Value &r, const std::error_code &e) {
+          "all", 0, 10, 99999, [&promise](const Json::Value &r, const std::error_code &e) {
               promise.set_value({r, e});
           }
         );
@@ -408,8 +408,7 @@ DROGON_TEST(QueryOrderList_EmptyDatabase)
     // Query with a filter that matches nothing
     std::promise<std::pair<Json::Value, std::error_code>> promise;
     plugin.paymentService()->queryOrderList(
-      "NONEXISTENT", 0, 10, 0,
-      [&promise](const Json::Value &r, const std::error_code &e) {
+      "NONEXISTENT", 0, 10, 0, [&promise](const Json::Value &r, const std::error_code &e) {
           promise.set_value({r, e});
       }
     );
@@ -449,12 +448,10 @@ DROGON_TEST(QueryOrderList_StatusCodeConsistency_CREATED_and_PAYING)
     plugin.setTestClients(wechatClient, nullptr, client);
 
     std::promise<std::pair<Json::Value, std::error_code>> promise;
-    plugin.paymentService()->queryOrderList(
-      "all", 0, 10, 0,
-      [&promise](const Json::Value &r, const std::error_code &e) {
+    plugin.paymentService()
+      ->queryOrderList("all", 0, 10, 0, [&promise](const Json::Value &r, const std::error_code &e) {
           promise.set_value({r, e});
-      }
-    );
+      });
     auto pairFuture = promise.get_future();
     REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));
     auto [res, err] = pairFuture.get();
@@ -465,8 +462,10 @@ DROGON_TEST(QueryOrderList_StatusCodeConsistency_CREATED_and_PAYING)
     for (const auto &o : res["data"])
     {
         auto s = o["status"].asString();
-        if (s == "CREATED") foundCreated = true;
-        if (s == "PAYING") foundPaying = true;
+        if (s == "CREATED")
+            foundCreated = true;
+        if (s == "PAYING")
+            foundPaying = true;
     }
     CHECK(foundCreated);
     CHECK(foundPaying);
@@ -506,9 +505,7 @@ DROGON_TEST(ReconcileSummary_MultiState)
     std::promise<std::pair<Json::Value, std::error_code>> promise;
     plugin.paymentService()->reconcileSummary(
       "2026-07-29",
-      [&promise](const Json::Value &r, const std::error_code &e) {
-          promise.set_value({r, e});
-      }
+      [&promise](const Json::Value &r, const std::error_code &e) { promise.set_value({r, e}); }
     );
     auto pairFuture = promise.get_future();
     REQUIRE(pay::test_util::waitForFutureReady(pairFuture, std::chrono::seconds(5)));

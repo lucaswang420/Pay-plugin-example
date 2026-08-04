@@ -19,15 +19,9 @@ class HealthCheckController : public drogon::HttpController<HealthCheckControlle
       std::function<void(const HttpResponsePtr &)> &&callback
     );
 
-    void readyz(
-      const HttpRequestPtr &req,
-      std::function<void(const HttpResponsePtr &)> &&callback
-    );
+    void readyz(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
 
-    void health(
-      const HttpRequestPtr &req,
-      std::function<void(const HttpResponsePtr &)> &&callback
-    );
+    void health(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
 
   private:
     std::atomic<int> consecutiveFailures_{0};

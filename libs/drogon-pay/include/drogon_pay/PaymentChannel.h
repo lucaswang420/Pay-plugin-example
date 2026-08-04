@@ -75,9 +75,11 @@ class PaymentChannel
      * @return true when the signature checks out and @p event was populated;
      *         false with @p error set otherwise.
      */
-    virtual bool verifyCallback(const drogon::HttpRequestPtr &req,
-                                CallbackEvent &event,
-                                std::string &error) = 0;
+    virtual bool verifyCallback(
+      const drogon::HttpRequestPtr &req,
+      CallbackEvent &event,
+      std::string &error
+    ) = 0;
 
     /// Called once after registration, on the plugin's worker loop (e.g. warm
     /// up certificates). Default: no-op.
