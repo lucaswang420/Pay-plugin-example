@@ -22,7 +22,7 @@ jobs:
   # Windows/Linux CI and local developer workflow. Build-only (no databases),
   # same coverage as the legacy job.
   build-and-test:
-    name: macos-build-and-test
+    name: macos-build
     runs-on: macos-14
     # Cold Conan cache builds drogon/openssl from source, which can take a while
     timeout-minutes: 90
@@ -72,7 +72,7 @@ jobs:
   # legacy-source-build=true if the Conan path regresses. Remove after the
   # Conan path has been stable for a full release cycle.
   build-and-test-legacy:
-    name: macos-build-and-test-legacy
+    name: macos-build-legacy
     if: github.event_name == 'workflow_dispatch' && inputs.legacy-source-build
     runs-on: macos-14
     timeout-minutes: 60
