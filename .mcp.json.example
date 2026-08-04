@@ -5,7 +5,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres@0.6.2",
-        "postgresql://postgres:postgres@127.0.0.1:5432/pay_test"
+        "postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>"
       ]
     },
     "redis": {
@@ -13,7 +13,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-redis@2025.4.25",
-        "redis://127.0.0.1:6379/0"
+        "redis://<HOST>:<PORT>/<DB>"
       ]
     },
     "github": {
