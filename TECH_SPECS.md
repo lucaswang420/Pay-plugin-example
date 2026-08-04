@@ -114,7 +114,7 @@
 | Drogon 异常 | 必须捕获: `catch (const DrogonDbException &e)` |
 | 异步回调失败 | 必须在失败时调用 `(*sharedCb)(errorResult)` |
 | 业务逻辑错误 | 使用 `PayErrorCategory` 定义错误码 |
-| 日志级别 | `LOG_DEBUG`, `LOG_INFO`, `LOG_WARN`, `LOG_ERROR` |
+| 日志级别 | 遵循下方 [日志分级规范](#must-日志分级规范) 六等级 |
 
 ### [MUST] 性能优化
 
@@ -252,12 +252,32 @@ REFUND_INIT ──(channel call)──> REFUND_PROCESSING ──(callback)──
 | `ALIPAY_PRIVATE_KEY` | 支付宝私钥 |
 | `WECHAT_PAY_KEY` | 微信支付密钥 |
 
+### [MUST] 日志分级规范
+
+项目统一使用 Drogon 的六个日志等级，按以下语义使用：
+
+| 等级 | 含义 | 典型场景 |
+|------|------|----------|
+| `LOG_TRACE` | 最细粒度追踪 | 函数入参/出参、循环迭代、逐行执行轨迹，仅深度调试定位时开启 |
+| `LOG_DEBUG` | 调试信息 | 变量值、分支走向、内部状态变化、per-request 流程步骤，开发阶段排查用 |
+| `LOG_INFO` | 常规信息 | 服务启动/停止、关键流程节点、通道注册、任务完成等**生命周期/里程碑**事件 |
+| `LOG_WARN` | 警告 | 可恢复的异常、降级处理（如 fire-and-forget 账本/快照写失败）、配置用默认值、资源接近阈值，系统仍能正常运行 |
+| `LOG_ERROR` | 错误 | 功能失败、请求异常、数据库连接失败等，影响**单次操作**但服务整体可用 |
+| `LOG_FATAL` | 致命错误 | 导致服务崩溃、无法继续运行的严重故障（如启动期配置/环境变量校验失败进程退出），需立即告警并人工介入 |
+
+约定：
+- 生产环境默认开启 `LOG_INFO` 及以上；`LOG_TRACE`/`LOG_DEBUG` 按需动态开启。
+- 等级越高输出越少，`LOG_FATAL` 应极少出现（仅进程无法继续时）。
+- **`LOG_INFO` 仅用于生命周期/里程碑事件**；per-request 流程步骤、分支决定、变量值一律用 `LOG_DEBUG`。
+- **fire-and-forget 的辅助写入**（账本、幂等快照等返回 void、不阻断主流程的路径）失败时用 `LOG_WARN`，而非 `LOG_ERROR`。
+- 禁止在日志中输出敏感信息（密钥、token）。
+
 ### [MUST] 监控和日志
 
 | 监控项 | 要求 |
 |--------|------|
 | 应用指标 | Prometheus 指标暴露在 `/metrics` |
-| 日志级别 | 生产环境使用 `LOG_INFO` 及以上 |
+| 日志级别 | 生产环境使用 `LOG_INFO` 及以上；`trace`/`debug` 按需动态开启，`fatal` 应极少出现 |
 | 错误追踪 | 所有错误必须记录堆栈信息 |
 | 性能监控 | 记录 P50, P95, P99 延迟 |
 

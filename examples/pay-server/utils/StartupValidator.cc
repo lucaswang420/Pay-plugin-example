@@ -46,9 +46,9 @@ void StartupValidator::validate(const std::vector<std::string> &requiredVars)
     {
         for (const auto &varName : result.missingVars)
         {
-            LOG_ERROR << "Missing or invalid required environment variable: " << varName;
+            LOG_FATAL << "Missing or invalid required environment variable: " << varName;
         }
-        LOG_ERROR << "Startup validation failed. Exiting.";
+        LOG_FATAL << "Startup validation failed. Exiting.";
         exit(1);
     }
 

@@ -29,6 +29,7 @@ Test framework: Drogon `DROGON_TEST` (not gtest). Test target: `PayBackendTests`
 - **Prefer async callbacks**; capture shared state as `[sharedCb]` in lambdas.
 - **Use Service API** (`service->method(req, apiKey, callback)`), not the legacy Plugin API.
 - **Secrets never in source** — use `__env_var:NAME__` placeholders in `config.json`; real values via environment variables (`.env` is gitignored).
+- **Log levels follow the six-tier spec** in [TECH_SPECS.md](TECH_SPECS.md) "日志分级规范": `LOG_INFO` = lifecycle/milestone events only (per-request flow steps use `LOG_DEBUG`); fire-and-forget helper failures (ledger/idempotency snapshot) use `LOG_WARN`; process-exit-only failures use `LOG_FATAL` (rare); `LOG_TRACE` for raw bodies/signing internals.
 
 ## Architecture (layers, top-down)
 

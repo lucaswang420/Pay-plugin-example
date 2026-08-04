@@ -28,7 +28,7 @@ int main()
     std::ifstream configFile("./config.json");
     if (!configFile.is_open())
     {
-        LOG_ERROR << "Failed to open config.json";
+        LOG_FATAL << "Failed to open config.json";
         return 1;
     }
     Json::Value config;
@@ -36,7 +36,7 @@ int main()
     std::string errors;
     if (!Json::parseFromStream(builder, configFile, &config, &errors))
     {
-        LOG_ERROR << "Failed to parse config.json: " << errors;
+        LOG_FATAL << "Failed to parse config.json: " << errors;
         return 1;
     }
     Json::Value processedConfig = ConfigLoader::loadConfig(config);

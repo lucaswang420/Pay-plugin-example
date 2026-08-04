@@ -87,17 +87,17 @@ void insertLedgerEntry(
               ledger,
               [](const PayLedgerModel &) {},
               [](const DrogonDbException &e) {
-                  LOG_ERROR << "Ledger insert error: " << e.base().what();
+                  LOG_WARN << "Ledger insert error: " << e.base().what();
               }
             );
         }
         catch (const std::exception &e)
         {
-            LOG_ERROR << "Ledger mapper error: " << e.what();
+            LOG_WARN << "Ledger mapper error: " << e.what();
         }
         catch (...)
         {
-            LOG_ERROR << "Ledger mapper error: unknown exception";
+            LOG_WARN << "Ledger mapper error: unknown exception";
         }
     };
 
@@ -123,17 +123,17 @@ void insertLedgerEntry(
                   }
               },
               [](const DrogonDbException &e) {
-                  LOG_ERROR << "Ledger lookup error: " << e.base().what();
+                  LOG_WARN << "Ledger lookup error: " << e.base().what();
               }
             );
         }
         catch (const std::exception &e)
         {
-            LOG_ERROR << "[PaymentService] Mapper construction failed: " << e.what();
+            LOG_WARN << "[PaymentService] Mapper construction failed: " << e.what();
         }
         catch (...)
         {
-            LOG_ERROR << "[PaymentService] Mapper construction failed: unknown exception";
+            LOG_WARN << "[PaymentService] Mapper construction failed: unknown exception";
         }
         return;
     }
@@ -151,18 +151,16 @@ void insertLedgerEntry(
                   insertRow();
               }
           },
-          [](const DrogonDbException &e) {
-              LOG_ERROR << "Ledger lookup error: " << e.base().what();
-          }
+          [](const DrogonDbException &e) { LOG_WARN << "Ledger lookup error: " << e.base().what(); }
         );
     }
     catch (const std::exception &e)
     {
-        LOG_ERROR << "[PaymentService] Mapper construction failed: " << e.what();
+        LOG_WARN << "[PaymentService] Mapper construction failed: " << e.what();
     }
     catch (...)
     {
-        LOG_ERROR << "[PaymentService] Mapper construction failed: unknown exception";
+        LOG_WARN << "[PaymentService] Mapper construction failed: unknown exception";
     }
 }
 
@@ -195,17 +193,17 @@ void storeIdempotencySnapshot(
           idemp,
           [](const PayIdempotencyModel &) {},
           [](const DrogonDbException &e) {
-              LOG_ERROR << "Idempotency insert error: " << e.base().what();
+              LOG_WARN << "Idempotency insert error: " << e.base().what();
           }
         );
     }
     catch (const std::exception &e)
     {
-        LOG_ERROR << "Idempotency mapper error: " << e.what();
+        LOG_WARN << "Idempotency mapper error: " << e.what();
     }
     catch (...)
     {
-        LOG_ERROR << "Idempotency mapper error: unknown exception";
+        LOG_WARN << "Idempotency mapper error: unknown exception";
     }
 }
 
@@ -598,8 +596,8 @@ void PaymentService::proceedCreatePayment(
                   [this, request, paymentNo, payload, requestPayload, sharedCb, transPtr, failDb](
                     const PayOrderModel &
                   ) {
-                      LOG_INFO << "[PaymentService] Order created (in txn): order_no="
-                               << request.orderNo << ", payment_no=" << paymentNo;
+                      LOG_DEBUG << "[PaymentService] Order created (in txn): order_no="
+                                << request.orderNo << ", payment_no=" << paymentNo;
 
                       // 2. INSERT PayPayment inside the same transaction.
                       try
@@ -617,16 +615,16 @@ void PaymentService::proceedCreatePayment(
                             [this, request, paymentNo, payload, sharedCb, transPtr](
                               const PayPaymentModel &
                             ) {
-                                LOG_INFO << "[PaymentService] Payment record created (in txn): "
-                                            "payment_no="
-                                         << paymentNo << ", order_no=" << request.orderNo
-                                         << ", channel=" << request.channel;
+                                LOG_DEBUG << "[PaymentService] Payment record created (in txn): "
+                                             "payment_no="
+                                          << paymentNo << ", order_no=" << request.orderNo
+                                          << ", channel=" << request.channel;
 
                                 // 3. COMMIT before any channel API call.
                                 transPtr->execSqlAsync(
                                   "COMMIT",
                                   [this, request, paymentNo, payload, sharedCb](const Result &) {
-                                      LOG_INFO
+                                      LOG_DEBUG
                                         << "[PaymentService] Transaction committed: payment_no="
                                         << paymentNo;
 
@@ -1225,7 +1223,7 @@ void PaymentService::proceedCreatePayment(
                                       // Route through the channel registry. Unknown or
                                       // unconfigured channels are rejected explicitly —
                                       // never fall back to another channel.
-                                      LOG_INFO
+                                      LOG_DEBUG
                                         << "[PaymentService] Calling payment channel: channel="
                                         << request.channel << ", order_no=" << request.orderNo
                                         << ", payment_no=" << paymentNo;
@@ -1428,8 +1426,8 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
               payload["buyer_id"] = request["buyer_id"].asString();
           }
 
-          LOG_INFO << "[PaymentService] Creating QR payment: channel=" << channel
-                   << ", order_no=" << orderNo << ", amount=" << amount;
+          LOG_DEBUG << "[PaymentService] Creating QR payment: channel=" << channel
+                    << ", order_no=" << orderNo << ", amount=" << amount;
 
           // Route through the channel registry; unknown channels are rejected
           // explicitly instead of assuming alipay.
@@ -1504,7 +1502,7 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                 }
 
                 // Save order to database
-                LOG_INFO << "[PaymentService] Saving order to database: order_no=" << orderNo;
+                LOG_DEBUG << "[PaymentService] Saving order to database: order_no=" << orderNo;
                 try
                 {
                     Mapper<PayOrderModel> orderMapper(dbClient_);
@@ -1526,7 +1524,7 @@ void PaymentService::createQRPayment(const Json::Value &request, PaymentCallback
                        idempotencyService,
                        idempotencyKey,
                        requestHash](const PayOrderModel &order) {
-                          LOG_INFO
+                          LOG_DEBUG
                             << "[PaymentService] Order saved successfully: order_no=" << orderNo
                             << ", db_id=" << order.getValueOfId();
 
@@ -1876,9 +1874,9 @@ void PaymentService::syncOrderStatusFromWechat(
         return;
     }
 
-    LOG_INFO << "Sync order status from WeChat: order_no=" << orderNo
-             << " trade_state=" << tradeState << " order_status=" << orderStatus
-             << " payment_status=" << paymentStatus;
+    LOG_DEBUG << "Sync order status from WeChat: order_no=" << orderNo
+              << " trade_state=" << tradeState << " order_status=" << orderStatus
+              << " payment_status=" << paymentStatus;
 
     // Find the latest payment record for this order
     try
@@ -2056,8 +2054,8 @@ void PaymentService::syncOrderStatusFromWechat(
                     if (currentStatus == "SUCCESS" || currentStatus == "REFUNDED")
                     {
                         // Payment already in final state, no need to update
-                        LOG_INFO << "[PaymentService] Payment " << paymentNo
-                                 << " already in final state: " << currentStatus;
+                        LOG_DEBUG << "[PaymentService] Payment " << paymentNo
+                                  << " already in final state: " << currentStatus;
                         transPtr->rollback();
                         if (callback)
                         {
@@ -2083,9 +2081,10 @@ void PaymentService::syncOrderStatusFromWechat(
                       ) {
                           if (casResult.size() == 0)
                           {
-                              LOG_INFO << "[PaymentService] Reconcile: payment already advanced by "
-                                          "concurrent txn: "
-                                       << paymentNo << ", skipping";
+                              LOG_DEBUG
+                                << "[PaymentService] Reconcile: payment already advanced by "
+                                   "concurrent txn: "
+                                << paymentNo << ", skipping";
                               transPtr->rollback();
                               if (callback)
                               {
@@ -2499,8 +2498,8 @@ void PaymentService::syncOrderStatusFromAlipay(
                     if (currentStatus == "SUCCESS" || currentStatus == "REFUNDED")
                     {
                         // Payment already in final state, no need to update
-                        LOG_INFO << "[PaymentService] Payment " << paymentNo
-                                 << " already in final state: " << currentStatus;
+                        LOG_DEBUG << "[PaymentService] Payment " << paymentNo
+                                  << " already in final state: " << currentStatus;
                         transPtr->rollback();
                         if (callback)
                         {
@@ -2525,7 +2524,7 @@ void PaymentService::syncOrderStatusFromAlipay(
                       ) {
                           if (casResult.size() == 0)
                           {
-                              LOG_INFO
+                              LOG_DEBUG
                                 << "[PaymentService] Alipay reconcile: payment already advanced "
                                    "by concurrent txn: "
                                 << paymentNo << ", skipping";

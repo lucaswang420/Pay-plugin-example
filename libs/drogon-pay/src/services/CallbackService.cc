@@ -57,15 +57,15 @@ void insertLedgerEntry(
         mapper.insert(
           ledger,
           [entryType, orderNo, paymentNo, amount, onSuccess](const PayLedgerModel &) {
-              LOG_INFO << "[CallbackService] Ledger entry inserted: entry_type=" << entryType
-                       << ", order_no=" << orderNo << ", payment_no=" << paymentNo
-                       << ", amount=" << amount;
+              LOG_DEBUG << "[CallbackService] Ledger entry inserted: entry_type=" << entryType
+                        << ", order_no=" << orderNo << ", payment_no=" << paymentNo
+                        << ", amount=" << amount;
               if (onSuccess)
                   onSuccess();
           },
           [entryType, orderNo, paymentNo, onSuccess](const drogon::orm::DrogonDbException &e) {
-              LOG_ERROR << "[CallbackService] Failed to insert ledger entry: entry_type="
-                        << entryType << ", order_no=" << orderNo << ", error: " << e.base().what();
+              LOG_WARN << "[CallbackService] Failed to insert ledger entry: entry_type="
+                       << entryType << ", order_no=" << orderNo << ", error: " << e.base().what();
               // Continue even if ledger insert fails - don't block the callback
               if (onSuccess)
                   onSuccess();
@@ -74,14 +74,14 @@ void insertLedgerEntry(
     }
     catch (const std::exception &e)
     {
-        LOG_ERROR << "[CallbackService] Ledger mapper error: " << e.what();
+        LOG_WARN << "[CallbackService] Ledger mapper error: " << e.what();
         // Continue even if the ledger write fails - don't block the callback
         if (onSuccess)
             onSuccess();
     }
     catch (...)
     {
-        LOG_ERROR << "[CallbackService] Ledger mapper error: unknown exception";
+        LOG_WARN << "[CallbackService] Ledger mapper error: unknown exception";
         if (onSuccess)
             onSuccess();
     }
@@ -236,7 +236,7 @@ void CallbackService::handlePaymentCallback(
         callback(error, std::error_code(1400, std::system_category()));
         return;
     }
-    LOG_INFO << "[CallbackService] Signature verified successfully";
+    LOG_DEBUG << "[CallbackService] Signature verified successfully";
 
     // Replay protection (P1-1): freshness window. The nonce cache check gates
     // the expensive DB transaction at the bottom of this function (see the
@@ -341,7 +341,7 @@ void CallbackService::handlePaymentCallback(
     }
 
     // Decrypt resource
-    LOG_INFO << "[CallbackService] Decrypting resource...";
+    LOG_DEBUG << "[CallbackService] Decrypting resource...";
     std::string plaintext;
     std::string decryptError;
     if (!wechatClient_
@@ -354,7 +354,7 @@ void CallbackService::handlePaymentCallback(
         respond(error, decryptError);
         return;
     }
-    LOG_INFO << "[CallbackService] Decryption successful";
+    LOG_DEBUG << "[CallbackService] Decryption successful";
 
     // Parse decrypted JSON
     Json::Value plainJson;
@@ -433,7 +433,7 @@ void CallbackService::handlePaymentCallback(
         idempotencyKey = orderNo + ":" + tradeState;
     }
 
-    LOG_INFO << "[CallbackService] Preparing to process callback for order: " << orderNo;
+    LOG_DEBUG << "[CallbackService] Preparing to process callback for order: " << orderNo;
 
     auto cbPtr = std::make_shared<CallbackResult>(std::move(callback));
 
@@ -448,7 +448,7 @@ void CallbackService::handlePaymentCallback(
                           signature,
                           serialNo,
                           plainJson]() {
-        LOG_INFO << "[CallbackService] proceedWithDb lambda called for order: " << orderNo;
+        LOG_DEBUG << "[CallbackService] proceedWithDb lambda called for order: " << orderNo;
         try
         {
             drogon::orm::Mapper<PayIdempotencyModel> idempMapper(dbClient_);
@@ -461,8 +461,8 @@ void CallbackService::handlePaymentCallback(
               idempCriteria,
               [this, cbPtr, orderNo, body, signature, serialNo](const PayIdempotencyModel &) {
                   // Already processed - record callback and return success
-                  LOG_INFO << "[CallbackService] Idempotency key found for order: " << orderNo
-                           << ", recording callback";
+                  LOG_DEBUG << "[CallbackService] Idempotency key found for order: " << orderNo
+                            << ", recording callback";
 
                   auto respondSuccess = [cbPtr]() {
                       Json::Value ok;
@@ -566,7 +566,7 @@ void CallbackService::handlePaymentCallback(
                       (*cbPtr)(error, pay::makePayError(1400, "idempotency lookup failed"));
                       return;
                   }
-                  LOG_INFO
+                  LOG_DEBUG
                     << "[CallbackService] Idempotency key not found, processing new callback";
                   const std::string requestHash = drogon::utils::getMd5(body);
                   // Reserve with response_snapshot = NULL (P2-4.2). The snapshot is
@@ -610,16 +610,16 @@ void CallbackService::handlePaymentCallback(
                             {
                                 // 0 rows inserted: a concurrent callback already
                                 // reserved this key. Acknowledge idempotently.
-                                LOG_INFO << "[CallbackService] Duplicate callback ignored "
-                                            "(idempotent) for key: "
-                                         << idempotencyKey;
+                                LOG_DEBUG << "[CallbackService] Duplicate callback ignored "
+                                             "(idempotent) for key: "
+                                          << idempotencyKey;
                                 Json::Value ok;
                                 ok["code"] = "SUCCESS";
                                 ok["message"] = "OK";
                                 (*cbPtr)(ok, std::error_code());
                                 return;
                             }
-                            LOG_INFO
+                            LOG_DEBUG
                               << "[CallbackService] Creating database transaction for order: "
                               << orderNo;
                             dbClient_
@@ -685,7 +685,7 @@ void CallbackService::handlePaymentCallback(
                                              idempotencyKey](
                                               const std::vector<PayPaymentModel> &rows
                                             ) {
-                                                LOG_INFO
+                                                LOG_DEBUG
                                                   << "[CallbackService] Payment query returned "
                                                   << rows.size() << " rows for order: " << orderNo;
                                                 if (rows.empty())
@@ -707,8 +707,8 @@ void CallbackService::handlePaymentCallback(
                                                 auto payment = rows.front();
                                                 const std::string paymentNo =
                                                   payment.getValueOfPaymentNo();
-                                                LOG_INFO << "[CallbackService] Found payment: "
-                                                         << paymentNo << " for order: " << orderNo;
+                                                LOG_DEBUG << "[CallbackService] Found payment: "
+                                                          << paymentNo << " for order: " << orderNo;
 
                                                 // Skip if payment already in final state
                                                 const std::string currentStatus =
@@ -718,11 +718,11 @@ void CallbackService::handlePaymentCallback(
                                                   currentStatus == "REFUNDED"
                                                 )
                                                 {
-                                                    LOG_INFO << "[CallbackService] Payment "
-                                                             << paymentNo
-                                                             << " already in final state: "
-                                                             << currentStatus
-                                                             << ", skipping duplicate callback";
+                                                    LOG_DEBUG << "[CallbackService] Payment "
+                                                              << paymentNo
+                                                              << " already in final state: "
+                                                              << currentStatus
+                                                              << ", skipping duplicate callback";
                                                     transPtr->rollback();
                                                     Json::Value ok;
                                                     ok["code"] = "SUCCESS";
@@ -753,9 +753,10 @@ void CallbackService::handlePaymentCallback(
                                                      respondDbError,
                                                      payment,
                                                      idempotencyKey](PayOrderModel order) mutable {
-                                                        LOG_INFO << "[CallbackService] Order found "
-                                                                    "for order: "
-                                                                 << orderNo;
+                                                        LOG_DEBUG
+                                                          << "[CallbackService] Order found "
+                                                             "for order: "
+                                                          << orderNo;
                                                         const std::string orderCurrency =
                                                           order.getValueOfCurrency();
                                                         const auto &amountJson =
@@ -822,7 +823,7 @@ void CallbackService::handlePaymentCallback(
                                                         pay::utils::mapTradeState(
                                                           tradeState, orderStatus, paymentStatus
                                                         );
-                                                        LOG_INFO
+                                                        LOG_DEBUG
                                                           << "[CallbackService] Mapped trade state "
                                                              "'"
                                                           << tradeState
@@ -845,10 +846,10 @@ void CallbackService::handlePaymentCallback(
                                                         {
                                                             drogon::orm::Mapper<PayCallbackModel>
                                                               callbackMapper(transPtr);
-                                                            LOG_INFO << "[CallbackService] About "
-                                                                        "to insert callback "
-                                                                        "record for order: "
-                                                                     << orderNo;
+                                                            LOG_DEBUG << "[CallbackService] About "
+                                                                         "to insert callback "
+                                                                         "record for order: "
+                                                                      << orderNo;
                                                             callbackMapper
                                                               .insert(
                                                                 callbackRow,
@@ -870,7 +871,7 @@ void CallbackService::handlePaymentCallback(
                                                                  serialNo](
                                                                   const PayCallbackModel &
                                                                 ) mutable {
-                                                                    LOG_INFO
+                                                                    LOG_DEBUG
                                                                       << "[CallbackService] "
                                                                          "Callback record "
                                                                          "inserted for order: "
@@ -929,7 +930,7 @@ void CallbackService::handlePaymentCallback(
                                                                         ) mutable {
                                                                             if (r.size() == 0)
                                                                             {
-                                                                                LOG_INFO
+                                                                                LOG_DEBUG
                                                                                   << "[CallbackServ"
                                                                                      "ice] Payment "
                                                                                      "already "
@@ -1106,7 +1107,7 @@ void CallbackService::handlePaymentCallback(
                                                                                 }
                                                                                 return;
                                                                             }
-                                                                            LOG_INFO
+                                                                            LOG_DEBUG
                                                                               << "[CallbackService]"
                                                                                  " Payment updated "
                                                                                  "via CAS for "
@@ -1124,7 +1125,7 @@ void CallbackService::handlePaymentCallback(
                                                                                 order.setStatus(
                                                                                   orderStatus
                                                                                 );
-                                                                                LOG_INFO
+                                                                                LOG_DEBUG
                                                                                   << "[CallbackServ"
                                                                                      "ice] About "
                                                                                      "to update "
@@ -1137,7 +1138,7 @@ void CallbackService::handlePaymentCallback(
                                                                                   .update(
                                                                                     order,
                                                                                     [cbPtr, orderStatus, paymentNo, transDb, orderNo, order, transPtr, idempotencyKey, plaintext, this](const size_t) {
-                                                                                        LOG_INFO
+                                                                                        LOG_DEBUG
                                                                                           << "[Call"
                                                                                              "backS"
                                                                                              "ervic"
@@ -1179,7 +1180,7 @@ void CallbackService::handlePaymentCallback(
                                                                                                idempotencyKey,
                                                                                                plaintext,
                                                                                                this]() {
-                                                                                                  LOG_INFO
+                                                                                                  LOG_DEBUG
                                                                                                     << "[CallbackService] Manually "
                                                                                                        "committing transaction for "
                                                                                                        "order: "
@@ -1216,7 +1217,7 @@ void CallbackService::handlePaymentCallback(
                                                                                                                         Result
                                                                                                                           &
                                                                                                                   ) {
-                                                                                                                      LOG_INFO
+                                                                                                                      LOG_DEBUG
                                                                                                                         << "[CallbackServic"
                                                                                                                            "e] Transaction "
                                                                                                                            "committed, "
@@ -1345,7 +1346,7 @@ void CallbackService::handlePaymentCallback(
                                                                                         }
                                                                                         else
                                                                                         {
-                                                                                            LOG_INFO
+                                                                                            LOG_DEBUG
                                                                                               << "["
                                                                                                  "C"
                                                                                                  "a"
@@ -1445,7 +1446,7 @@ void CallbackService::handlePaymentCallback(
                                                                                                  idempotencyKey,
                                                                                                  plaintext,
                                                                                                  this](const drogon::orm::Result &) {
-                                                                                                    LOG_INFO
+                                                                                                    LOG_DEBUG
                                                                                                       << "[CallbackService] "
                                                                                                          "Transaction committed, "
                                                                                                          "calling final success "
@@ -1789,7 +1790,7 @@ void CallbackService::handlePaymentCallback(
     // via shared pointers) is invoked only on first sight of this nonce. On a
     // replay it returns FAIL without touching the DB. Fail-open if Redis is
     // unavailable (see checkNonce).
-    LOG_INFO << "[CallbackService] About to call proceedWithDb() for order: " << orderNo;
+    LOG_DEBUG << "[CallbackService] About to call proceedWithDb() for order: " << orderNo;
     checkNonce(nonce, [proceedWithDb, respond](bool firstSight) mutable {
         if (!firstSight)
         {
@@ -1843,7 +1844,7 @@ void CallbackService::handleRefundCallback(
         callback(error, std::error_code(1400, std::system_category()));
         return;
     }
-    LOG_INFO << "[CallbackService] Signature verified successfully";
+    LOG_DEBUG << "[CallbackService] Signature verified successfully";
 
     // Replay protection (P1-1): freshness window. The nonce cache check gates
     // the expensive DB transaction at the bottom of this function (see the
@@ -1948,7 +1949,7 @@ void CallbackService::handleRefundCallback(
     }
 
     // Decrypt resource
-    LOG_INFO << "[CallbackService] Decrypting resource...";
+    LOG_DEBUG << "[CallbackService] Decrypting resource...";
     std::string plaintext;
     std::string decryptError;
     if (!wechatClient_
@@ -1961,7 +1962,7 @@ void CallbackService::handleRefundCallback(
         respond(error, decryptError);
         return;
     }
-    LOG_INFO << "[CallbackService] Decryption successful";
+    LOG_DEBUG << "[CallbackService] Decryption successful";
 
     // Parse decrypted JSON
     Json::Value plainJson;
@@ -2055,8 +2056,8 @@ void CallbackService::handleRefundCallback(
                 const PayIdempotencyModel &
               ) {
                   // Already processed - record callback and return success
-                  LOG_INFO << "[CallbackService] Refund idempotency key found for refund: "
-                           << refundNo << ", recording callback";
+                  LOG_DEBUG << "[CallbackService] Refund idempotency key found for refund: "
+                            << refundNo << ", recording callback";
 
                   auto respondSuccess = [cbPtr]() {
                       Json::Value ok;
@@ -2203,9 +2204,9 @@ void CallbackService::handleRefundCallback(
                             {
                                 // 0 rows inserted: a concurrent refund callback already
                                 // reserved this key. Acknowledge idempotently.
-                                LOG_INFO << "[CallbackService] Duplicate refund callback "
-                                            "ignored (idempotent) for key: "
-                                         << idempotencyKey;
+                                LOG_DEBUG << "[CallbackService] Duplicate refund callback "
+                                             "ignored (idempotent) for key: "
+                                          << idempotencyKey;
                                 Json::Value ok;
                                 ok["code"] = "SUCCESS";
                                 ok["message"] = "OK";
@@ -2416,11 +2417,12 @@ void CallbackService::handleRefundCallback(
                                                       ) {
                                                           if (casResult.size() == 0)
                                                           {
-                                                              LOG_INFO << "[CallbackService] "
-                                                                          "Refund already "
-                                                                          "advanced by a "
-                                                                          "concurrent transaction: "
-                                                                       << refundNo << ", skipping";
+                                                              LOG_DEBUG
+                                                                << "[CallbackService] "
+                                                                   "Refund already "
+                                                                   "advanced by a "
+                                                                   "concurrent transaction: "
+                                                                << refundNo << ", skipping";
                                                               transPtr->rollback();
                                                               // Record this verified delivery in
                                                               // the audit trail (P4): insert on
@@ -2587,7 +2589,7 @@ void CallbackService::handleRefundCallback(
                                                                      this](
                                                                       const PayCallbackModel &
                                                                     ) {
-                                                                        LOG_INFO
+                                                                        LOG_DEBUG
                                                                           << "[CallbackService] "
                                                                              "Manually committing "
                                                                              "transaction for "
@@ -2628,7 +2630,7 @@ void CallbackService::handleRefundCallback(
                                                                                         orm::Result
                                                                                           &
                                                                                     ) {
-                                                                                        LOG_INFO
+                                                                                        LOG_DEBUG
                                                                                           << "[Call"
                                                                                              "back"
                                                                                              "Servi"

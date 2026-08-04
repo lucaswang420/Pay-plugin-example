@@ -81,17 +81,17 @@ void insertLedgerEntry(
               ledger,
               [](const PayLedgerModel &) {},
               [](const DrogonDbException &e) {
-                  LOG_ERROR << "Ledger insert error: " << e.base().what();
+                  LOG_WARN << "Ledger insert error: " << e.base().what();
               }
             );
         }
         catch (const std::exception &e)
         {
-            LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+            LOG_WARN << "[RefundService] Mapper construction failed: " << e.what();
         }
         catch (...)
         {
-            LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+            LOG_WARN << "[RefundService] Mapper construction failed: unknown exception";
         }
     };
 
@@ -117,17 +117,17 @@ void insertLedgerEntry(
                   }
               },
               [](const DrogonDbException &e) {
-                  LOG_ERROR << "Ledger lookup error: " << e.base().what();
+                  LOG_WARN << "Ledger lookup error: " << e.base().what();
               }
             );
         }
         catch (const std::exception &e)
         {
-            LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+            LOG_WARN << "[RefundService] Mapper construction failed: " << e.what();
         }
         catch (...)
         {
-            LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+            LOG_WARN << "[RefundService] Mapper construction failed: unknown exception";
         }
         return;
     }
@@ -145,18 +145,16 @@ void insertLedgerEntry(
                   insertRow();
               }
           },
-          [](const DrogonDbException &e) {
-              LOG_ERROR << "Ledger lookup error: " << e.base().what();
-          }
+          [](const DrogonDbException &e) { LOG_WARN << "Ledger lookup error: " << e.base().what(); }
         );
     }
     catch (const std::exception &e)
     {
-        LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+        LOG_WARN << "[RefundService] Mapper construction failed: " << e.what();
     }
     catch (...)
     {
-        LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+        LOG_WARN << "[RefundService] Mapper construction failed: unknown exception";
     }
 }
 
@@ -189,17 +187,17 @@ void storeIdempotencySnapshot(
           idemp,
           [](const PayIdempotencyModel &) {},
           [](const DrogonDbException &e) {
-              LOG_ERROR << "Idempotency insert error: " << e.base().what();
+              LOG_WARN << "Idempotency insert error: " << e.base().what();
           }
         );
     }
     catch (const std::exception &e)
     {
-        LOG_ERROR << "[RefundService] Mapper construction failed: " << e.what();
+        LOG_WARN << "[RefundService] Mapper construction failed: " << e.what();
     }
     catch (...)
     {
-        LOG_ERROR << "[RefundService] Mapper construction failed: unknown exception";
+        LOG_WARN << "[RefundService] Mapper construction failed: unknown exception";
     }
 }
 
@@ -267,8 +265,8 @@ void RefundService::createRefund(
                             idempotencyKey,
                             requestHash,
                             sharedCb](const Json::Value &response, const std::error_code &error) {
-        LOG_INFO << "[RefundService] wrappedCallback: key=" << idempotencyKey
-                 << ", error=" << error.value() << ", has_data=" << response.isMember("data");
+        LOG_DEBUG << "[RefundService] wrappedCallback: key=" << idempotencyKey
+                  << ", error=" << error.value() << ", has_data=" << response.isMember("data");
         // Persist the idempotency snapshot BEFORE responding to the caller.
         // Previously the snapshot write was dispatched asynchronously and the
         // HTTP response was sent immediately, so a retry arriving before the
@@ -282,7 +280,7 @@ void RefundService::createRefund(
         // (B1-1 follow-up)
         if (!idempotencyKey.empty() && response.isMember("data"))
         {
-            LOG_INFO << "[RefundService] Saving idempotency snapshot for key=" << idempotencyKey;
+            LOG_DEBUG << "[RefundService] Saving idempotency snapshot for key=" << idempotencyKey;
             idempotencyService_->updateResult(
               idempotencyKey,
               requestHash,
@@ -290,7 +288,7 @@ void RefundService::createRefund(
               [this, idempotencyKey, requestHash, sharedCb, response, error](bool success) mutable {
                   if (success)
                   {
-                      LOG_INFO << "[RefundService] Idempotency snapshot saved successfully";
+                      LOG_DEBUG << "[RefundService] Idempotency snapshot saved successfully";
                       if (*sharedCb)
                       {
                           (*sharedCb)(response, error);
@@ -1131,7 +1129,7 @@ void RefundService::proceedWithInsert(
                                            sharedCb,
                                            transPtr](const PayOrderModel &order) mutable {
                                               std::string channel = order.getValueOfChannel();
-                                              LOG_INFO
+                                              LOG_DEBUG
                                                 << "[RefundService] Processing refund: order_no="
                                                 << orderNo << ", payment_no=" << paymentNo
                                                 << ", refund_no=" << refundNo
@@ -1917,8 +1915,8 @@ void RefundService::syncRefundStatusFromWechat(
     const std::string refundStatus = pay::utils::mapRefundStatus(wechatStatus);
     const std::string refundId = result.get("refund_id", "").asString();
 
-    LOG_INFO << "Sync refund status from WeChat: refund_no=" << refundNo
-             << " wechat_status=" << wechatStatus << " refund_status=" << refundStatus;
+    LOG_DEBUG << "Sync refund status from WeChat: refund_no=" << refundNo
+              << " wechat_status=" << wechatStatus << " refund_status=" << refundStatus;
 
     if (refundStatus.empty())
     {
