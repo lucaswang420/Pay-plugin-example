@@ -91,7 +91,7 @@ jobs:
           PAY_REDIS_HOST: "127.0.0.1"
           PAY_DB_PASSWORD: "123456"
           PAY_API_KEY: "test_key_123456"
-        run: ctest -V -C ${{env.BUILD_TYPE}} --output-on-failure --timeout 180
+        run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --timeout 180
 
       - name: Upload test logs on failure
         if: failure()

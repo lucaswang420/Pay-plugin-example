@@ -100,7 +100,7 @@ void IdempotencyService::checkDatabase(
       [dbClient, idempotencyKey, requestHash, sharedCb](const orm::Result &insertResult) {
           if (insertResult.affectedRows() > 0)
           {
-              LOG_INFO << "[IdempotencyService] Reserved idempotency key=" << idempotencyKey;
+              LOG_DEBUG << "[IdempotencyService] Reserved idempotency key=" << idempotencyKey;
               CheckResult checkResult;
               checkResult.status = CheckStatus::Started;
               sharedCb->call(checkResult);
@@ -138,8 +138,9 @@ void IdempotencyService::checkDatabase(
                         {
                             if (!rows.front().getResponseSnapshot())
                             {
-                                LOG_INFO << "[IdempotencyService] Idempotency key in progress: key="
-                                         << idempotencyKey;
+                                LOG_DEBUG
+                                  << "[IdempotencyService] Idempotency key in progress: key="
+                                  << idempotencyKey;
                                 CheckResult checkResult;
                                 checkResult.status = CheckStatus::InProgress;
                                 checkResult.message = "idempotency request is already in progress";
@@ -154,7 +155,7 @@ void IdempotencyService::checkDatabase(
                             std::string errors;
                             const std::string &snapshotStr =
                               rows.front().getValueOfResponseSnapshot();
-                            LOG_INFO
+                            LOG_DEBUG
                               << "[IdempotencyService] Loading from DB: key=" << idempotencyKey
                               << ", snapshot length=" << snapshotStr.size();
                             bool parseSuccess = reader->parse(
@@ -164,7 +165,7 @@ void IdempotencyService::checkDatabase(
                               &errors
                             );
                             Json::Value response = snapshot["response"];
-                            LOG_INFO
+                            LOG_DEBUG
                               << "[IdempotencyService] Parsed from DB: success=" << parseSuccess
                               << ", has_response=" << snapshot.isMember("response")
                               << ", has_data=" << response.isMember("data")
@@ -181,7 +182,7 @@ void IdempotencyService::checkDatabase(
                                 return;
                             }
 
-                            LOG_INFO
+                            LOG_DEBUG
                               << "[IdempotencyService] Idempotency hit: key=" << idempotencyKey
                               << ", returning cached response, has_data="
                               << response.isMember("data");
@@ -193,7 +194,7 @@ void IdempotencyService::checkDatabase(
                         else
                         {
                             // Different request - conflict
-                            LOG_INFO
+                            LOG_DEBUG
                               << "[IdempotencyService] Idempotency conflict: key=" << idempotencyKey
                               << ", cached_hash=" << cachedHash.substr(0, 8) << "..."
                               << ", request_hash=" << requestHash.substr(0, 8) << "...";
@@ -270,9 +271,9 @@ void IdempotencyService::updateResult(
     cached["response"] = response;
     std::string cacheStr = pay::utils::toJsonString(cached);
 
-    LOG_INFO << "[IdempotencyService] Saving to DB: key=" << idempotencyKey
-             << ", hash=" << requestHash.substr(0, 8)
-             << "..., has_response_data=" << response.isMember("data");
+    LOG_DEBUG << "[IdempotencyService] Saving to DB: key=" << idempotencyKey
+              << ", hash=" << requestHash.substr(0, 8)
+              << "..., has_response_data=" << response.isMember("data");
 
     // Conditional UPDATE: only fills snapshot when key+hash match
     try
@@ -366,8 +367,8 @@ void IdempotencyService::clearReservation(
               PayIdempotencyModel::Cols::_response_snapshot, orm::CompareOperator::IsNull
             ),
           [idempotencyKey, sharedCb](const size_t rows) {
-              LOG_INFO << "[IdempotencyService] Cleared in-flight reservation key="
-                       << idempotencyKey << " rows=" << rows;
+              LOG_DEBUG << "[IdempotencyService] Cleared in-flight reservation key="
+                        << idempotencyKey << " rows=" << rows;
               sharedCb->call(true);
           },
           [sharedCb](const orm::DrogonDbException &e) {

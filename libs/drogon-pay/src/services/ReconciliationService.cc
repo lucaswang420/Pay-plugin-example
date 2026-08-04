@@ -271,7 +271,7 @@ void ReconciliationService::syncPendingAlipayOrders(const std::shared_ptr<int> &
                             orderNo, result, [orderNo](const std::string &status) {
                                 if (!status.empty())
                                 {
-                                    LOG_INFO
+                                    LOG_DEBUG
                                       << "[ReconciliationService] Order status synced: order_no="
                                       << orderNo << ", status=" << status << ", source=alipay";
                                 }

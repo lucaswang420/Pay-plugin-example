@@ -198,7 +198,7 @@ void AlipayCallbackController::notify(
         callback(resp);
         return;
     }
-    LOG_INFO << "[ALIPAY_CALLBACK] Signature verified successfully";
+    LOG_DEBUG << "[ALIPAY_CALLBACK] Signature verified successfully";
 
     // Extract the key callback parameters.
     std::string outTradeNo = params["out_trade_no"];

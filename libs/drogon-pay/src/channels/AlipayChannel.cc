@@ -300,7 +300,7 @@ void AlipaySandboxClient::sendRequest(
 
         LOG_DEBUG << "[AlipayClient] Request: method=" << method << ", app_id=" << appId_
                   << ", timestamp=" << commonParams["timestamp"].asString();
-        LOG_DEBUG << "[AlipayClient] Signing data length: " << signData.length() << " bytes";
+        LOG_TRACE << "[AlipayClient] Signing data length: " << signData.length() << " bytes";
 
         // Build request body (form format) - only include parameters that are in signature
         std::string requestBody;
@@ -314,7 +314,7 @@ void AlipaySandboxClient::sendRequest(
           "&timestamp=" + drogon::utils::urlEncode(commonParams["timestamp"].asString());
         requestBody += "&sign=" + drogon::utils::urlEncode(signature);
 
-        LOG_INFO << "[AlipayClient] API request: method=" << method << ", url=" << gatewayUrl_;
+        LOG_DEBUG << "[AlipayClient] API request: method=" << method << ", url=" << gatewayUrl_;
 
         // Parse gateway URL to get base URL (without path)
         std::string baseUrl = gatewayUrl_;
@@ -369,7 +369,7 @@ void AlipaySandboxClient::sendRequest(
                   }
 
                   auto body = response->body();
-                  LOG_DEBUG << "Alipay response: " << body;
+                  LOG_TRACE << "Alipay response: " << body;
 
                   // Parse JSON response
                   Json::Value root;
@@ -440,7 +440,7 @@ void AlipaySandboxClient::sendRequest(
 
 std::string AlipaySandboxClient::sign(const std::string &data) const
 {
-    LOG_DEBUG << "[AlipayClient] Generating signature for " << data.length() << " bytes of data";
+    LOG_TRACE << "[AlipayClient] Generating signature for " << data.length() << " bytes of data";
 
     const std::string &privateKeyPem = privateKeyPem_;
     if (privateKeyPem.empty())
