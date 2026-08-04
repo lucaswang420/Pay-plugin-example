@@ -125,3 +125,5 @@ cookies.txt
 # Temporary Outputs
 tmp_output/*
 !tmp_output/.gitkeep
+
+libs/drogon-pay/src/models_backup/
