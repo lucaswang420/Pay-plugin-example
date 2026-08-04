@@ -64,6 +64,9 @@ Desktop.ini
 .env.local
 .env.*.local
 
+# MCP server config (contains local connection details)
+.mcp.json
+
 # Coverage reports
 coverage/
 *.coverage
