@@ -60,7 +60,13 @@ DROGON_TEST(OnceCallback_ExceptionDoesNotInvalidate)
         throw std::runtime_error("test exception");
     });
 
-    try { cb.call(); } catch (...) {}
+    try
+    {
+        cb.call();
+    }
+    catch (...)
+    {
+    }
     // After exception, callback should be marked as called (not valid anymore)
     CHECK(calls == 1);
     CHECK(!cb.valid());

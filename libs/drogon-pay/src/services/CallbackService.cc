@@ -116,9 +116,7 @@ CallbackService::CallbackService(
     // (C2-3 fix: previously missing null checks). redisClient_ is
     // optional per CallbackService.h documentation.
     // SPI whitelist: callback decrypt/verify needs the concrete WeChat client.
-    assert(
-      wechatClient_ != nullptr && "CallbackService: wechatChannel must be a WechatPayClient"
-    );
+    assert(wechatClient_ != nullptr && "CallbackService: wechatChannel must be a WechatPayClient");
     assert(dbClient_ != nullptr && "CallbackService: dbClient must not be null");
 }
 

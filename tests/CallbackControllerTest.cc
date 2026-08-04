@@ -40,18 +40,15 @@ DROGON_TEST(CallbackController_Wechat_InvalidJson_Rejected)
     auto controller = std::make_shared<WechatCallbackController>();
 
     std::promise<CtrlResult> promise;
-    controller->notify(
-      req,
-      [&promise](const drogon::HttpResponsePtr &resp) {
-          CtrlResult r;
-          r.called = true;
-          r.status = resp->getStatusCode();
-          auto json = resp->getJsonObject();
-          if (json)
-              r.body = *json;
-          promise.set_value(r);
-      }
-    );
+    controller->notify(req, [&promise](const drogon::HttpResponsePtr &resp) {
+        CtrlResult r;
+        r.called = true;
+        r.status = resp->getStatusCode();
+        auto json = resp->getJsonObject();
+        if (json)
+            r.body = *json;
+        promise.set_value(r);
+    });
 
     auto future = promise.get_future();
     REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
@@ -78,18 +75,15 @@ DROGON_TEST(CallbackController_Wechat_MissingEventType_Rejected)
     auto controller = std::make_shared<WechatCallbackController>();
 
     std::promise<CtrlResult> promise;
-    controller->notify(
-      req,
-      [&promise](const drogon::HttpResponsePtr &resp) {
-          CtrlResult r;
-          r.called = true;
-          r.status = resp->getStatusCode();
-          auto json = resp->getJsonObject();
-          if (json)
-              r.body = *json;
-          promise.set_value(r);
-      }
-    );
+    controller->notify(req, [&promise](const drogon::HttpResponsePtr &resp) {
+        CtrlResult r;
+        r.called = true;
+        r.status = resp->getStatusCode();
+        auto json = resp->getJsonObject();
+        if (json)
+            r.body = *json;
+        promise.set_value(r);
+    });
 
     auto future = promise.get_future();
     REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
@@ -117,18 +111,15 @@ DROGON_TEST(CallbackController_Wechat_UnknownEventType_Rejected)
     auto controller = std::make_shared<WechatCallbackController>();
 
     std::promise<CtrlResult> promise;
-    controller->notify(
-      req,
-      [&promise](const drogon::HttpResponsePtr &resp) {
-          CtrlResult r;
-          r.called = true;
-          r.status = resp->getStatusCode();
-          auto json = resp->getJsonObject();
-          if (json)
-              r.body = *json;
-          promise.set_value(r);
-      }
-    );
+    controller->notify(req, [&promise](const drogon::HttpResponsePtr &resp) {
+        CtrlResult r;
+        r.called = true;
+        r.status = resp->getStatusCode();
+        auto json = resp->getJsonObject();
+        if (json)
+            r.body = *json;
+        promise.set_value(r);
+    });
 
     auto future = promise.get_future();
     REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);

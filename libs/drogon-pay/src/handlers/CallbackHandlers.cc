@@ -36,8 +36,7 @@ void WechatCallbackController::notify(
     std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
     std::string errors;
     const char *str = body.c_str();
-    bool parseOk =
-      reader->parse(str, str + body.length(), &bodyJson, &errors);
+    bool parseOk = reader->parse(str, str + body.length(), &bodyJson, &errors);
 
     // Validate JSON and event_type before routing (C2-1 fix).
     if (!parseOk)
@@ -67,9 +66,7 @@ void WechatCallbackController::notify(
     eventType = bodyJson["event_type"].asString();
 
     // Reject unknown event types that are neither TRANSACTION nor REFUND.
-    if (
-      eventType != "TRANSACTION.SUCCESS" && eventType.find("REFUND") == std::string::npos
-    )
+    if (eventType != "TRANSACTION.SUCCESS" && eventType.find("REFUND") == std::string::npos)
     {
         LOG_WARN << "[WECHAT_CALLBACK] Unknown event_type: " << eventType;
         Json::Value response;

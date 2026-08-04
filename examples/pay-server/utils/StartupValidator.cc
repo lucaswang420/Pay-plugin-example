@@ -13,17 +13,14 @@ bool StartupValidator::isPlaceholder(const std::string &value)
     {
         return true;
     }
-    if (value.size() >= 3 && value.front() == '$' && value[1] == '{' &&
-        value.back() == '}')
+    if (value.size() >= 3 && value.front() == '$' && value[1] == '{' && value.back() == '}')
     {
         return true;
     }
     return false;
 }
 
-ValidationResult StartupValidator::validateRequired(
-  const std::vector<std::string> &requiredVars
-)
+ValidationResult StartupValidator::validateRequired(const std::vector<std::string> &requiredVars)
 {
     ValidationResult result;
     result.ok = true;
@@ -41,9 +38,7 @@ ValidationResult StartupValidator::validateRequired(
     return result;
 }
 
-void StartupValidator::validate(
-  const std::vector<std::string> &requiredVars
-)
+void StartupValidator::validate(const std::vector<std::string> &requiredVars)
 {
     auto result = validateRequired(requiredVars);
 
@@ -51,8 +46,7 @@ void StartupValidator::validate(
     {
         for (const auto &varName : result.missingVars)
         {
-            LOG_ERROR << "Missing or invalid required environment variable: "
-                      << varName;
+            LOG_ERROR << "Missing or invalid required environment variable: " << varName;
         }
         LOG_ERROR << "Startup validation failed. Exiting.";
         exit(1);

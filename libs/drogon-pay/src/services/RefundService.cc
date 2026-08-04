@@ -233,9 +233,7 @@ RefundService::RefundService(
   std::shared_ptr<drogon::orm::DbClient> dbClient,
   std::shared_ptr<IdempotencyService> idempotencyService
 )
-    : channels_(std::move(channels)),
-      dbClient_(dbClient),
-      idempotencyService_(idempotencyService)
+    : channels_(std::move(channels)), dbClient_(dbClient), idempotencyService_(idempotencyService)
 {
 }
 

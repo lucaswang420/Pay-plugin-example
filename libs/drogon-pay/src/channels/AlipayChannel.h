@@ -49,9 +49,11 @@ class AlipaySandboxClient : public drogon_pay::PaymentChannel
     void queryRefund(const std::string &outTradeNo, JsonCallback &&callback) override;
     /// Parses the x-www-form-urlencoded notification body, verifies the RSA2
     /// signature and normalizes the fields into a CallbackEvent.
-    bool verifyCallback(const drogon::HttpRequestPtr &req,
-                        drogon_pay::CallbackEvent &event,
-                        std::string &error) override;
+    bool verifyCallback(
+      const drogon::HttpRequestPtr &req,
+      drogon_pay::CallbackEvent &event,
+      std::string &error
+    ) override;
 
     // ---- Alipay-specific capabilities (reach via dynamic_pointer_cast) ----
 

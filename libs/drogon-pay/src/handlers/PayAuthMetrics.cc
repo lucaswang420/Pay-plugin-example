@@ -47,14 +47,10 @@ std::string PayAuthMetrics::toPrometheus()
         body += name + " " + std::to_string(val) + "\n";
     };
 
-    emit("pay_auth_missing_key_total", "Missing API key count",
-         s["missing_key"].asUInt64());
-    emit("pay_auth_invalid_key_total", "Invalid API key count",
-         s["invalid_key"].asUInt64());
-    emit("pay_auth_scope_denied_total", "Scope denied count",
-         s["scope_denied"].asUInt64());
-    emit("pay_auth_not_configured_total", "Not configured count",
-         s["not_configured"].asUInt64());
+    emit("pay_auth_missing_key_total", "Missing API key count", s["missing_key"].asUInt64());
+    emit("pay_auth_invalid_key_total", "Invalid API key count", s["invalid_key"].asUInt64());
+    emit("pay_auth_scope_denied_total", "Scope denied count", s["scope_denied"].asUInt64());
+    emit("pay_auth_not_configured_total", "Not configured count", s["not_configured"].asUInt64());
 
     return body;
 }

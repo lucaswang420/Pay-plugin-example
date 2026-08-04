@@ -92,8 +92,9 @@ void PayPlugin::initAndStart(const Json::Value &config)
     {
         if (config.isMember(oldKey))
         {
-            LOG_ERROR << "PayPlugin config uses removed key '" << oldKey << "'. Move this block to '"
-                      << newKey << "' (see docs/development/plugin_integration.md for the full "
+            LOG_ERROR << "PayPlugin config uses removed key '" << oldKey
+                      << "'. Move this block to '" << newKey
+                      << "' (see docs/development/plugin_integration.md for the full "
                       << "old->new key mapping). Refusing to start.";
             throw std::runtime_error("PayPlugin: legacy config key '" + oldKey + "' detected");
         }
@@ -192,7 +193,8 @@ void PayPlugin::initAndStart(const Json::Value &config)
 
     if (auto wechatChannel = registry_.find("wechat"))
     {
-        callbackService_ = std::make_shared<CallbackService>(wechatChannel, dbClient_, redisClient_);
+        callbackService_ =
+          std::make_shared<CallbackService>(wechatChannel, dbClient_, redisClient_);
         LOG_INFO << "CallbackService created";
     }
     else
@@ -206,9 +208,8 @@ void PayPlugin::initAndStart(const Json::Value &config)
     workerLoopThread_->run();
     auto *workerLoop = workerLoopThread_->getLoop();
 
-    reconciliationService_ = std::make_unique<ReconciliationService>(
-      paymentService_, refundService_, channels, dbClient_
-    );
+    reconciliationService_ =
+      std::make_unique<ReconciliationService>(paymentService_, refundService_, channels, dbClient_);
     const Json::Value &reconcileCfg = config["reconcile"];
     if (reconcileCfg.isObject())
     {
@@ -428,8 +429,7 @@ void PayPlugin::setTestChannels(
     // after test initialization; a missing wechat channel exercises the
     // service's own "wechat client not ready" branch.
     auto it = channels.find("wechat");
-    auto wechatChannel =
-      (it != channels.end()) ? it->second : drogon_pay::PaymentChannelPtr{};
+    auto wechatChannel = (it != channels.end()) ? it->second : drogon_pay::PaymentChannelPtr{};
     callbackService_ = std::make_shared<CallbackService>(wechatChannel, dbClient_, nullptr);
 
     // Note: ReconciliationService is NOT created for tests
