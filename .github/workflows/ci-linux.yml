@@ -25,8 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+      # .clang-format uses options introduced in clang-format 16+ (e.g.
+      # BraceWrapping.AfterControlStatement: Always, AfterCaseLabel: true).
+      # The ubuntu-22.04 default (clang-format-14) silently mishandles them,
+      # producing different output than local toolchains. Pin to clang-format-17
+      # from the LLVM apt source so CI matches the semantics the config assumes.
+      - name: Install clang-format-17
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/llvm.gpg
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+          sudo apt-get install -y clang-format-17
+          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-17 100
 
       - name: Architecture guard
         run: python3 scripts/check_architecture.py
@@ -46,7 +58,7 @@ jobs:
           done < <(find libs/drogon-pay examples/pay-server tests \
                      \( -name '*.h' -o -name '*.cc' \) -not -path '*/models/*')
           if [ "$fail" -ne 0 ]; then
-            echo "::warning::clang-format drift detected (advisory only for now)"
+            echo "::error::clang-format drift detected; run 'clang-format -i' on the listed files locally"
             exit 1
           fi
           echo "All files format-clean."
