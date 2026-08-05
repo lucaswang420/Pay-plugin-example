@@ -125,7 +125,7 @@ void ReconciliationService::reconcile(std::function<void(int success, int failed
               }
           },
           [](const drogon::orm::DrogonDbException &e) {
-              LOG_ERROR << "[ReconciliationService] Idempotency purge error: " << e.base().what();
+              LOG_WARN << "[ReconciliationService] Idempotency purge error: " << e.base().what();
           }
         );
     }
