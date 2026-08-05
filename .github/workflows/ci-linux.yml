@@ -50,10 +50,12 @@ jobs:
       - name: clang-format check
         run: |
           echo "Checking clang-format compliance (excluding generated models/)..."
+          echo "clang-format: $(clang-format --version)"
           fail=0
           while IFS= read -r f; do
             if ! clang-format --dry-run --Werror "$f" >/dev/null 2>&1; then
               echo "NOT FORMATTED: $f"
+              diff -u "$f" <(clang-format "$f") || true
               fail=1
             fi
           done < <(find libs/drogon-pay examples/pay-server tests \
