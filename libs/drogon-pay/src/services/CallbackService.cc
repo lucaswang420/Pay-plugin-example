@@ -37,7 +37,7 @@ void insertLedgerEntry(
 {
     if (!dbClient)
     {
-        LOG_ERROR << "[CallbackService] DbClient is null in insertLedgerEntry";
+        LOG_WARN << "[CallbackService] DbClient is null in insertLedgerEntry";
         if (onSuccess)
             onSuccess();
         return;

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Log levels standardized to the six-tier Drogon taxonomy**
+  (TRACE/DEBUG/INFO/WARN/ERROR/FATAL); see `TECH_SPECS.md` 「日志分级规范」.
+  - `LOG_INFO` is now reserved for lifecycle/milestone events; per-request
+    flow steps moved to `LOG_DEBUG`.
+  - Fire-and-forget helper failures (ledger insert/lookup, idempotency
+    snapshot write) moved from `LOG_ERROR` to `LOG_WARN` — these degrade
+    audit/replay but do not fail the request.
+  - Startup-exit paths (config load, env-var validation) moved from
+    `LOG_ERROR` to `LOG_FATAL`.
+  - **Ops impact:** if you alert on `LOG_ERROR` count via log aggregation
+    (ELK/Loki), these fire-and-forget failures will no longer trigger that
+    alert. Built-in Prometheus metric alerts (`HighErrorRate` in
+    `docs/deployment/monitoring_setup.md`) are unaffected. For idempotency-
+    snapshot failures (which affect retry correctness), the
+    `clearReservation` path remains `LOG_ERROR` and is the recommended
+    alert anchor. See `docs/development/logging_standards.md`.
+
 ## [1.0.0] - 2026-07-31
 
 First release of `drogon-pay` as a reusable Drogon plugin library. The former
