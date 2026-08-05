@@ -62,7 +62,6 @@ jobs:
           while IFS= read -r f; do
             if ! "$CF" --dry-run --Werror "$f" >/dev/null 2>&1; then
               echo "NOT FORMATTED: $f"
-              diff -u "$f" <("$CF" "$f") || true
               fail=1
             fi
           done < <(find libs/drogon-pay examples/pay-server tests \
