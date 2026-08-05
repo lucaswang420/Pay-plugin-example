@@ -39,7 +39,9 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
           sudo apt-get install -y clang-format-22
-          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-22 100
+          # NOTE: do not rely on update-alternatives here — on ubuntu-22.04 the
+          # system /usr/bin/clang-format (v14) is not an alternatives symlink, so
+          # the check step invokes clang-format-22 by its versioned name instead.
 
       - name: Architecture guard
         run: python3 scripts/check_architecture.py
@@ -48,14 +50,19 @@ jobs:
       # models/ is generated code and excluded (.clang-format-ignore requires
       # clang-format >= 17, so exclude via find instead).
       - name: clang-format check
+        env:
+          # Use the versioned binary directly. ubuntu-22.04's system
+          # /usr/bin/clang-format (v14) is NOT managed by update-alternatives,
+          # so the alias install in the previous step cannot override it.
+          CF: clang-format-22
         run: |
           echo "Checking clang-format compliance (excluding generated models/)..."
-          echo "clang-format: $(clang-format --version)"
+          echo "clang-format: $("$CF" --version)"
           fail=0
           while IFS= read -r f; do
-            if ! clang-format --dry-run --Werror "$f" >/dev/null 2>&1; then
+            if ! "$CF" --dry-run --Werror "$f" >/dev/null 2>&1; then
               echo "NOT FORMATTED: $f"
-              diff -u "$f" <(clang-format "$f") || true
+              diff -u "$f" <("$CF" "$f") || true
               fail=1
             fi
           done < <(find libs/drogon-pay examples/pay-server tests \
